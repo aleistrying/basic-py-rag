@@ -1,0 +1,26 @@
+fastapi
+uvicorn
+pydantic
+psycopg2-binary
+sqlalchemy
+qdrant-client
+sentence-transformers
+python-dotenv
+
+# Document parsing libraries
+PyPDF2
+python-docx
+openpyxl
+python-pptx
+beautifulsoup4
+lxml
+pdfplumber
+
+# Cryptography libraries for encrypted PDFs
+pycryptodome
+cryptography
+
+# LLM integration
+ollama 
+
+rapidfuzz

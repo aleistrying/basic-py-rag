@@ -1,0 +1,43 @@
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant
+    ports:
+      - "6333:6333" # REST
+      - "6334:6334" # gRPC
+    volumes:
+      - ./data/qdrant:/qdrant/storage
+
+  postgres:
+    image: pgvector/pgvector:pg16 # Postgres con extensión pgvector
+    container_name: pgvector_db
+    environment:
+      POSTGRES_USER: pguser
+      POSTGRES_PASSWORD: pgpass
+      POSTGRES_DB: vectordb
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+      - ./postgres/start.sql:/docker-entrypoint-initdb.d/start.sql:ro
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    gpus: all
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    environment:
+      - OLLAMA_LLM_LIBRARY=cuda
+
+volumes:
+  ollama:
