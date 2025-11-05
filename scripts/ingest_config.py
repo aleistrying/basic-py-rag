@@ -10,7 +10,8 @@ CLEAN_DIR = "data/clean"
 Path(CLEAN_DIR).mkdir(parents=True, exist_ok=True)
 
 # Embedding model: multilingual E5 for Spanish support
-EMBED_MODEL = "intfloat/multilingual-e5-base"  # Alternative: "Alibaba-NLP/gte-multilingual-base"
+# Alternative: "Alibaba-NLP/gte-multilingual-base"
+EMBED_MODEL = "intfloat/multilingual-e5-base"
 
 # Chunking parameters (token-aware)
 CHUNK_TOKENS = 350  # ~250-300 words
@@ -39,8 +40,9 @@ PG_DIM = 768
 # Build DSN
 PG_DSN = f"postgresql://{PG_USER}:{PG_PASSWORD}@{PG_HOST}:{PG_PORT}/{PG_DATABASE}"
 
-# Batch processing
-BATCH_SIZE = 64  # Process embeddings in batches
+# Batch processing (smaller to avoid memory issues)
+BATCH_SIZE = 8   # Small batches to prevent RAM overflow
+MAX_CHUNKS_PER_FILE = 50  # Limit chunks per file to avoid memory issues
 
 # E5 prefixes (critical for multilingual-e5)
 E5_QUERY_PREFIX = "query: "

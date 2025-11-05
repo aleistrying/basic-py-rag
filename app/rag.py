@@ -1,6 +1,13 @@
 from typing import List
 import logging
 from scripts.utils import embed_e5, embed_texts, expand_query  # Import query expansion
+
+# Also import clean pipeline embedder
+try:
+    from scripts.query_embed import embed_query as embed_query_clean
+except ImportError:
+    embed_query_clean = None
+
 from app.qdrant_backend import search_qdrant
 from app.pgvector_backend import search_pgvector
 
@@ -54,8 +61,16 @@ def rag_answer(query: str, backend: str = "qdrant", k: int = 5):
     # Apply query expansion for better Spanish query matching
     expanded_query = expand_query(query)
 
-    # Use new E5 embeddings with query prefix
-    emb = embed_e5([expanded_query], is_query=True)[0]
+    # Use clean pipeline embedder if available, fallback to legacy
+    if embed_query_clean is not None:
+        try:
+            emb = embed_query_clean(expanded_query)
+        except Exception as e:
+            print(f"Clean embedder failed, using fallback: {e}")
+            emb = embed_e5([expanded_query], is_query=True)[0]
+    else:
+        emb = embed_e5([expanded_query], is_query=True)[0]
+
     hits = BACKENDS[backend](emb, k=k)
 
     # Create a presentation-friendly response
@@ -92,8 +107,16 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
     # Apply query expansion for better retrieval
     expanded_query = expand_query(query)
 
-    # Get RAG context using E5 embeddings with expanded query
-    emb = embed_e5([expanded_query], is_query=True)[0]
+    # Use clean pipeline embedder if available, fallback to legacy
+    if embed_query_clean is not None:
+        try:
+            emb = embed_query_clean(expanded_query)
+        except Exception as e:
+            print(f"Clean embedder failed, using fallback: {e}")
+            emb = embed_e5([expanded_query], is_query=True)[0]
+    else:
+        emb = embed_e5([expanded_query], is_query=True)[0]
+
     # Get more results for reranking (12-16 results for better coverage)
     hits = BACKENDS[backend](emb, k=max(k*3, 12))
 

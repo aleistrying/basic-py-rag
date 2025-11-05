@@ -2,16 +2,12 @@
 
 Sistema RAG para comparar **Qdrant** vs **PostgreSQL+pgvector** en búsqueda vectorial.
 
-## 🆕 Latest Improvements (November 2025)
+## � **SIMPLE DEMO START HERE** → [SIMPLE_DEMO.md](SIMPLE_DEMO.md)
 
-✅ **Multilingual E5 Embeddings** - Better Spanish query support  
-✅ **Automatic Schema Setup** - PostgreSQL initializes on startup  
-✅ **Cosine Similarity** - Fixed scoring (now 0-1 range, not >1)  
-✅ **Query Expansion** - Synonyms for better Spanish retrieval  
-✅ **Smart Chunking** - 50-word overlap for context preservation  
-✅ **Keyword Boosting** - Lexical signals improve ranking
-
-📚 **See**: [IMPROVEMENTS.md](IMPROVEMENTS.md) | [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md)
+✅ **E5 Multilingual Embeddings** - Spanish queries work great  
+✅ **Cosine Similarity Fixed** - Proper 0-1 scoring  
+✅ **One Command Pipeline** - `python3 scripts/ingest_all.py`  
+✅ **Auto Setup** - PostgreSQL + Qdrant ready in 30 seconds
 
 ## ⚡ Quick Start
 
