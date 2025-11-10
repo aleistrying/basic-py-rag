@@ -289,7 +289,7 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
         # Add enhanced footer to the response
         if source_references:
             sources_text = "\n".join(source_references)
-            enhanced_response = f"{generated_text}\n\n**Fuentes consultadas:**\n{sources_text}"
+            enhanced_response = f"{generated_text}\n\n\n<b>Fuentes consultadas:</b>\n{sources_text}"
         else:
             enhanced_response = generated_text
 

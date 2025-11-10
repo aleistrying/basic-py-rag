@@ -23,12 +23,85 @@ QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
 class RAGPipelineDemo:
     def __init__(self):
         self.model = None
+        self.model_loaded = False
         self.example_text = """
         PostgreSQL con pgvector es una extensión que permite almacenar y buscar vectores de alta dimensionalidad
         directamente en PostgreSQL. Esta tecnología es fundamental para aplicaciones de inteligencia artificial
         que requieren búsquedas semánticas eficientes. Los vectores pueden representar embeddings de texto,
         imágenes o cualquier otro tipo de datos que se puedan convertir en representaciones numéricas.
         """
+
+    def _load_model_safely(self):
+        """Cargar modelo de forma segura con manejo de errores"""
+        if self.model_loaded:
+            return True
+
+        try:
+            import torch
+            # Configuración específica para contenedores Docker
+            torch.set_default_dtype(torch.float32)
+            if hasattr(torch, 'set_default_device'):
+                torch.set_default_device('cpu')
+
+            from sentence_transformers import SentenceTransformer
+
+            # Configuración específica para evitar problemas de meta tensors
+            import os
+            os.environ['TOKENIZERS_PARALLELISM'] = 'false'
+
+            # Cargar modelo con configuración Docker-safe
+            self.model = SentenceTransformer(
+                'intfloat/multilingual-e5-base',
+                device='cpu',
+                trust_remote_code=False,
+                use_auth_token=False
+            )
+
+            # Forzar que todos los parámetros estén en CPU y en formato float32
+            self.model = self.model.cpu()
+            for param in self.model.parameters():
+                if param.device.type != 'cpu':
+                    param.data = param.data.cpu()
+                if param.dtype != torch.float32:
+                    param.data = param.data.float()
+
+            # Prueba segura del modelo
+            with torch.no_grad():
+                test_embedding = self.model.encode(
+                    ["test"], show_progress_bar=False, convert_to_tensor=False)
+
+            self.model_loaded = True
+            logger.info(
+                "✅ Modelo E5 cargado exitosamente en contenedor Docker")
+            return True
+
+        except Exception as e:
+            logger.error(f"❌ Error cargando modelo: {e}")
+            self.model = None
+            self.model_loaded = False
+            return False
+
+    def _create_mock_embeddings(self, texts: List[str], dimensions: int = 768) -> List[List[float]]:
+        """Crear embeddings simulados para demo cuando el modelo no está disponible"""
+        import random
+        import hashlib
+
+        embeddings = []
+        for text in texts:
+            # Crear embedding determinístico basado en el hash del texto
+            hash_obj = hashlib.md5(text.encode())
+            seed = int(hash_obj.hexdigest(), 16) % (2**32 - 1)
+            random.seed(seed)
+
+            # Generar vector normalizado
+            embedding = [random.gauss(0, 1) for _ in range(dimensions)]
+            # Normalizar L2
+            norm = sum(x*x for x in embedding) ** 0.5
+            embedding = [x/norm for x in embedding]
+
+            embeddings.append(embedding)
+
+        return embeddings
 
     def step_1_parse_text(self) -> Dict[str, Any]:
         """Step 1: Parse and prepare text"""
@@ -42,17 +115,20 @@ class RAGPipelineDemo:
         sentences = [s.strip() for s in sentences if s.strip()]
 
         return {
-            "step": "1. Text Parsing",
-            "description": "Parse raw text and split into processable chunks",
+            "step": "1. Análisis de Texto",
+            "description": "Analizar texto crudo y dividir en fragmentos procesables",
             "input": raw_text,
-            "output": sentences,
+            "output": {
+                "sentences": sentences,
+                "total_sentences": len(sentences)
+            },
             "code_example": """
-# Text parsing code
+# Código de análisis de texto
 text = raw_document_text
 cleaned_text = re.sub(r'\\s+', ' ', text.strip())
 sentences = re.split(r'[.!?]+', cleaned_text)
             """,
-            "explanation": "We clean whitespace and split text into semantic units (sentences) for better embedding quality."
+            "explanation": "Limpiamos espacios en blanco y dividimos el texto en unidades semánticas (oraciones) para mejor calidad de embeddings."
         }
 
     def step_2_clean_text(self, sentences: List[str]) -> Dict[str, Any]:
@@ -79,18 +155,21 @@ sentences = re.split(r'[.!?]+', cleaned_text)
             chunks.append(chunk)
 
         return {
-            "step": "2. Text Cleaning & Chunking",
-            "description": "Clean text and create overlapping chunks for better context",
+            "step": "2. Limpieza y Fragmentación de Texto",
+            "description": "Limpiar texto y crear fragmentos superpuestos para mejor contexto",
             "input": sentences,
             "cleaned_sentences": cleaned_sentences,
-            "output": chunks,
+            "output": {
+                "chunks": chunks,
+                "total_chunks": len(chunks)
+            },
             "code_example": """
 def clean_sentence(text):
     text = re.sub(r'\\s+', ' ', text)
     text = re.sub(r'[^\\w\\s\\.,;:\\-]', '', text)
     return text.strip()
 
-# Create overlapping chunks
+# Crear fragmentos superpuestos
 chunks = []
 for i, sentence in enumerate(sentences):
     chunk = sentence
@@ -98,34 +177,47 @@ for i, sentence in enumerate(sentences):
         chunk = sentences[i-1] + " " + chunk
     chunks.append(chunk)
             """,
-            "explanation": "We clean text and create overlapping chunks to preserve context between related sentences."
+            "explanation": "Limpiamos el texto y creamos fragmentos superpuestos para preservar el contexto entre oraciones relacionadas."
         }
 
     def step_3_create_embeddings(self, chunks: List[str]) -> Dict[str, Any]:
         """Step 3: Convert text to vector embeddings"""
 
-        if not self.model:
-            self.model = SentenceTransformer('intfloat/multilingual-e5-base')
+        # Intentar cargar modelo de forma segura
+        model_available = self._load_model_safely()
 
         # Add E5 prefix for better embedding quality
         prefixed_chunks = [f"passage: {chunk}" for chunk in chunks]
 
-        # Generate embeddings
-        embeddings = self.model.encode(prefixed_chunks)
+        if model_available and self.model:
+            try:
+                # Generate embeddings con el modelo real
+                embeddings = self.model.encode(
+                    prefixed_chunks, show_progress_bar=False)
+                embeddings_list = [emb.tolist() for emb in embeddings]
+                model_status = "✅ Modelo E5 real cargado"
 
-        # Convert to list for JSON serialization
-        embeddings_list = [emb.tolist() for emb in embeddings]
+            except Exception as e:
+                logger.error(f"Error en encode: {e}")
+                # Fallback a embeddings simulados
+                embeddings_list = self._create_mock_embeddings(prefixed_chunks)
+                model_status = "⚠️ Usando embeddings simulados (error en modelo real)"
+        else:
+            # Usar embeddings simulados
+            embeddings_list = self._create_mock_embeddings(prefixed_chunks)
+            model_status = "⚠️ Usando embeddings simulados (modelo no disponible)"
 
         return {
-            "step": "3. Embedding Generation",
-            "description": "Convert text chunks to high-dimensional vectors using E5 model",
+            "step": "3. Generación de Embeddings",
+            "description": "Convertir fragmentos de texto a vectores de alta dimensión usando modelo E5",
             "input": chunks,
             "prefixed_chunks": prefixed_chunks,
             "output": {
-                "embeddings_shape": f"{len(embeddings_list)} vectors x {len(embeddings_list[0])} dimensions",
-                # First 10 dimensions
+                "embeddings_shape": f"{len(embeddings_list)} vectores x {len(embeddings_list[0])} dimensiones",
+                # Primeras 10 dimensiones
                 "sample_embedding": embeddings_list[0][:10],
-                "full_embeddings": embeddings_list
+                "full_embeddings": embeddings_list,
+                "model_status": model_status
             },
             "code_example": """
 from sentence_transformers import SentenceTransformer
@@ -134,44 +226,61 @@ model = SentenceTransformer('intfloat/multilingual-e5-base')
 prefixed_chunks = [f"passage: {chunk}" for chunk in chunks]
 embeddings = model.encode(prefixed_chunks)
 
-# Each embedding is 768 dimensions
-print(f"Shape: {embeddings.shape}")  # (n_chunks, 768)
+# Cada embedding tiene 768 dimensiones
+print(f"Forma: {embeddings.shape}")  # (n_chunks, 768)
             """,
-            "explanation": "We use E5 multilingual model to convert text into 768-dimensional vectors. The 'passage:' prefix helps the model understand this is document content."
+            "explanation": "Usamos el modelo E5 multilingüe para convertir texto en vectores de 768 dimensiones. El prefijo 'passage:' ayuda al modelo a entender que es contenido de documento."
         }
 
     def step_4_query_processing(self, query: str) -> Dict[str, Any]:
         """Step 4: Process user query into embedding"""
 
-        if not self.model:
-            self.model = SentenceTransformer('intfloat/multilingual-e5-base')
+        # Intentar cargar modelo
+        model_available = self._load_model_safely()
 
         # Add E5 prefix for queries
         prefixed_query = f"query: {query}"
 
-        # Generate query embedding
-        query_embedding = self.model.encode([prefixed_query])[0]
-        query_embedding_list = query_embedding.tolist()
+        if model_available and self.model:
+            try:
+                # Generate query embedding con modelo real
+                query_embedding = self.model.encode(
+                    [prefixed_query], show_progress_bar=False)[0]
+                query_embedding_list = query_embedding.tolist()
+                model_status = "✅ Modelo E5 real"
+
+            except Exception as e:
+                logger.error(f"Error en query encode: {e}")
+                # Fallback a embedding simulado
+                query_embedding_list = self._create_mock_embeddings([prefixed_query])[
+                    0]
+                model_status = "⚠️ Embedding simulado"
+        else:
+            # Usar embedding simulado
+            query_embedding_list = self._create_mock_embeddings([prefixed_query])[
+                0]
+            model_status = "⚠️ Embedding simulado"
 
         return {
-            "step": "4. Query Processing",
-            "description": "Convert user query into same vector space as documents",
+            "step": "4. Procesamiento de Consulta",
+            "description": "Convertir consulta del usuario al mismo espacio vectorial de los documentos",
             "input": query,
             "prefixed_query": prefixed_query,
             "output": {
-                "query_embedding_shape": f"1 vector x {len(query_embedding_list)} dimensions",
+                "query_embedding_shape": f"1 vector x {len(query_embedding_list)} dimensiones",
                 "sample_dimensions": query_embedding_list[:10],
-                "full_embedding": query_embedding_list
+                "full_embedding": query_embedding_list,
+                "model_status": model_status
             },
             "code_example": """
 query = "¿Qué es pgvector?"
 prefixed_query = f"query: {query}"
 query_embedding = model.encode([prefixed_query])[0]
 
-# Query embedding has same dimensions as document embeddings
-print(f"Query shape: {query_embedding.shape}")  # (768,)
+# El embedding de consulta tiene las mismas dimensiones que los embeddings de documentos
+print(f"Forma de consulta: {query_embedding.shape}")  # (768,)
             """,
-            "explanation": "We process the query using the same model and add 'query:' prefix to help the model understand this is a search query."
+            "explanation": "Procesamos la consulta usando el mismo modelo y agregamos el prefijo 'query:' para ayudar al modelo a entender que es una consulta de búsqueda."
         }
 
     def step_5_vector_search_qdrant(self, query_embedding: List[float], limit: int = 3) -> Dict[str, Any]:
@@ -207,8 +316,8 @@ curl -X POST '{QDRANT_URL}/collections/course_docs_clean/points/search' \\
             search_results = {"error": str(e)}
 
         return {
-            "step": "5. Vector Search (Qdrant)",
-            "description": "Search for similar vectors using cosine similarity",
+            "step": "5. Búsqueda Vectorial (Qdrant)",
+            "description": "Buscar vectores similares usando similitud de coseno",
             "input": {
                 "query_vector_dimensions": len(query_embedding),
                 "search_limit": limit,
@@ -234,7 +343,7 @@ response = requests.post(
 
 results = response.json()
             """,
-            "explanation": "Qdrant performs cosine similarity search to find the most semantically similar document chunks to our query."
+            "explanation": "Qdrant realiza búsqueda de similitud de coseno para encontrar los fragmentos de documentos más similares semánticamente a nuestra consulta."
         }
 
     def step_6_vector_search_pgvector(self, query_embedding: List[float], limit: int = 3) -> Dict[str, Any]:
@@ -290,8 +399,8 @@ LIMIT {limit};"
             formatted_results = {"error": str(e)}
 
         return {
-            "step": "6. Vector Search (PostgreSQL pgvector)",
-            "description": "Search using PostgreSQL pgvector extension with cosine distance",
+            "step": "6. Búsqueda Vectorial (PostgreSQL pgvector)",
+            "description": "Búsqueda usando extensión pgvector de PostgreSQL con distancia de coseno",
             "input": {
                 "query_vector_dimensions": len(query_embedding),
                 "search_limit": limit,
@@ -303,10 +412,10 @@ LIMIT {limit};"
             "code_example": """
 import psycopg2
 
-# Format embedding for PostgreSQL
+# Formatear embedding para PostgreSQL
 embedding_str = "[" + ",".join(map(str, query_embedding)) + "]"
 
-# Execute vector similarity search
+# Ejecutar búsqueda de similitud vectorial
 cursor.execute(\"\"\"
     SELECT id, content, metadata,
            embedding <=> %s::vector as distance
@@ -317,7 +426,7 @@ cursor.execute(\"\"\"
 
 results = cursor.fetchall()
             """,
-            "explanation": "PostgreSQL pgvector uses the <=> operator for cosine distance. Lower distances indicate higher similarity."
+            "explanation": "PostgreSQL pgvector usa el operador <=> para distancia de coseno. Distancias menores indican mayor similitud."
         }
 
     def step_7_similarity_math(self, query_embedding: List[float], doc_embeddings: List[List[float]]) -> Dict[str, Any]:
@@ -351,16 +460,16 @@ results = cursor.fetchall()
             })
 
         return {
-            "step": "7. Similarity Mathematics",
-            "description": "Mathematical calculations behind vector similarity search",
+            "step": "7. Matemáticas de Similitud",
+            "description": "Cálculos matemáticos detrás de la búsqueda de similitud vectorial",
             "input": {
                 "query_vector_norm": float(np.linalg.norm(query_vec)),
-                "calculation_method": "Cosine Similarity"
+                "calculation_method": "Similitud de Coseno"
             },
             "calculations": similarity_calculations,
             "formulas": {
                 "cosine_similarity": "cos(θ) = (A · B) / (||A|| × ||B||)",
-                "cosine_distance": "distance = 1 - cosine_similarity",
+                "cosine_distance": "distancia = 1 - similitud_coseno",
                 "dot_product": "A · B = Σ(ai × bi)",
                 "vector_norm": "||A|| = √(Σ(ai²))"
             },
@@ -376,11 +485,11 @@ def cosine_similarity(vec1, vec2):
 def cosine_distance(vec1, vec2):
     return 1 - cosine_similarity(vec1, vec2)
 
-# Calculate similarity
+# Calcular similitud
 similarity = cosine_similarity(query_embedding, doc_embedding)
 distance = cosine_distance(query_embedding, doc_embedding)
             """,
-            "explanation": "Cosine similarity measures the angle between vectors. Values closer to 1 indicate higher similarity. Both databases convert this to distance (1 - similarity) where lower values indicate better matches."
+            "explanation": "La similitud de coseno mide el ángulo entre vectores. Valores más cercanos a 1 indican mayor similitud. Ambas bases de datos convierten esto a distancia (1 - similitud) donde valores menores indican mejores coincidencias."
         }
 
     def step_8_result_ranking(self, search_results: Dict[str, Any]) -> Dict[str, Any]:
@@ -414,35 +523,35 @@ distance = cosine_distance(query_embedding, doc_embedding)
                 ranked_results = {"error": f"Ranking error: {str(e)}"}
 
         return {
-            "step": "8. Result Ranking & Presentation",
-            "description": "Rank search results by relevance and prepare final response",
+            "step": "8. Clasificación y Presentación de Resultados",
+            "description": "Clasificar resultados de búsqueda por relevancia y preparar respuesta final",
             "input": search_results,
             "output": ranked_results,
             "ranking_criteria": {
-                "primary": "Cosine similarity score (Qdrant) or distance (pgvector)",
-                "secondary": "Content quality and completeness",
-                "presentation": "Top 3 results with metadata and source attribution"
+                "primary": "Puntuación de similitud de coseno (Qdrant) o distancia (pgvector)",
+                "secondary": "Calidad del contenido y completitud",
+                "presentation": "Top 3 resultados con metadatos y atribución de fuente"
             },
             "code_example": """
-# Rank results by similarity score
+# Clasificar resultados por puntuación de similitud
 def rank_results(results, score_key="score", reverse=True):
     return sorted(results, key=lambda x: x.get(score_key, 0), reverse=reverse)
 
-# Add relevance classification
+# Agregar clasificación de relevancia
 for i, result in enumerate(ranked_results):
     if i == 0:
-        result["relevance"] = "High"
+        result["relevance"] = "Alta"
     elif i < 3:
-        result["relevance"] = "Medium"
+        result["relevance"] = "Media"
     else:
-        result["relevance"] = "Low"
+        result["relevance"] = "Baja"
             """,
-            "explanation": "Results are ranked by similarity score and classified by relevance. The top results are used to generate the final AI response with proper source attribution."
+            "explanation": "Los resultados se clasifican por puntuación de similitud y se categorizan por relevancia. Los mejores resultados se usan para generar la respuesta final de IA con atribución de fuentes apropiada."
         }
 
 
 def create_demo_html(demo_steps: List[Dict[str, Any]], query: str) -> str:
-    """Create comprehensive HTML demo showing all pipeline steps"""
+    """Crear demostración HTML completa mostrando todos los pasos del pipeline"""
 
     html = f"""
 <!DOCTYPE html>
@@ -618,21 +727,21 @@ def create_demo_html(demo_steps: List[Dict[str, Any]], query: str) -> str:
 </head>
 <body>
     <div class="header">
-        <h1>🔬 Comprehensive RAG Pipeline Demo</h1>
-        <p><strong>Query:</strong> "{query}"</p>
-        <p>Complete step-by-step analysis from text to vector search</p>
+        <h1>🔬 Demo Completo del Pipeline RAG</h1>
+        <p><strong>Consulta:</strong> "{query}"</p>
+        <p>Análisis completo paso a paso de texto a búsqueda vectorial</p>
     </div>
     
     <div class="navigation">
-        <strong>Quick Navigation:</strong>
-        <a href="#step1" class="nav-link">1. Parse Text</a>
-        <a href="#step2" class="nav-link">2. Clean Text</a>
+        <strong>Navegación Rápida:</strong>
+        <a href="#step1" class="nav-link">1. Analizar Texto</a>
+        <a href="#step2" class="nav-link">2. Limpiar Texto</a>
         <a href="#step3" class="nav-link">3. Embeddings</a>
-        <a href="#step4" class="nav-link">4. Query Process</a>
-        <a href="#step5" class="nav-link">5. Qdrant Search</a>
-        <a href="#step6" class="nav-link">6. pgvector Search</a>
-        <a href="#step7" class="nav-link">7. Math</a>
-        <a href="#step8" class="nav-link">8. Ranking</a>
+        <a href="#step4" class="nav-link">4. Procesar Consulta</a>
+        <a href="#step5" class="nav-link">5. Búsqueda Qdrant</a>
+        <a href="#step6" class="nav-link">6. Búsqueda pgvector</a>
+        <a href="#step7" class="nav-link">7. Matemáticas</a>
+        <a href="#step8" class="nav-link">8. Clasificación</a>
     </div>
 """
 
@@ -650,39 +759,39 @@ def create_demo_html(demo_steps: List[Dict[str, Any]], query: str) -> str:
         
         <div class="input-output">
             <div class="input-section">
-                <div class="section-title">📥 Input</div>
+                <div class="section-title">📥 Entrada</div>
                 <div class="json-block">{json.dumps(step.get('input', {}), indent=2, ensure_ascii=False)}</div>
             </div>
             
             <div class="output-section">
-                <div class="section-title">📤 Output</div>
+                <div class="section-title">📤 Salida</div>
                 <div class="json-block">{json.dumps(step.get('output', {}), indent=2, ensure_ascii=False)}</div>
             </div>
         </div>
         
         <div class="explanation">
-            <strong>💡 Explanation:</strong> {step.get('explanation', 'No explanation provided')}
+            <strong>💡 Explicación:</strong> {step.get('explanation', 'Sin explicación disponible')}
         </div>
         
-        <div class="section-title">💻 Code Example</div>
-        <div class="code-block">{step.get('code_example', '# No code example provided')}</div>
+        <div class="section-title">💻 Ejemplo de Código</div>
+        <div class="code-block">{step.get('code_example', '# Sin ejemplo de código disponible')}</div>
 """
 
         # Add special sections for specific steps
         if 'curl_command' in step:
             html += f"""
-        <div class="section-title">🌐 Direct API Access</div>
+        <div class="section-title">🌐 Acceso Directo a API</div>
         <div class="curl-command">{step['curl_command']}</div>
 """
 
         if 'formulas' in step:
             html += f"""
-        <div class="section-title">📐 Mathematical Formulas</div>
+        <div class="section-title">📐 Fórmulas Matemáticas</div>
         <div class="math-formula">
-            <strong>Cosine Similarity:</strong> {step['formulas']['cosine_similarity']}<br>
-            <strong>Cosine Distance:</strong> {step['formulas']['cosine_distance']}<br>
-            <strong>Dot Product:</strong> {step['formulas']['dot_product']}<br>
-            <strong>Vector Norm:</strong> {step['formulas']['vector_norm']}
+            <strong>Similitud de Coseno:</strong> {step['formulas']['cosine_similarity']}<br>
+            <strong>Distancia de Coseno:</strong> {step['formulas']['cosine_distance']}<br>
+            <strong>Producto Punto:</strong> {step['formulas']['dot_product']}<br>
+            <strong>Norma Vectorial:</strong> {step['formulas']['vector_norm']}
         </div>
 """
 
@@ -690,9 +799,9 @@ def create_demo_html(demo_steps: List[Dict[str, Any]], query: str) -> str:
 
     html += """
     <div class="header" style="margin-top: 40px;">
-        <h2>🎯 Pipeline Complete!</h2>
-        <p>This demo showed the complete RAG pipeline from raw text to ranked search results.</p>
-        <p><a href="/" style="color: #4CAF50;">← Back to Main Menu</a></p>
+        <h2>🎯 ¡Pipeline Completo!</h2>
+        <p>Esta demostración mostró el pipeline completo RAG desde texto crudo hasta resultados clasificados.</p>
+        <p><a href="/" style="color: #4CAF50;">← Volver al Menú Principal</a></p>
     </div>
 </body>
 </html>
