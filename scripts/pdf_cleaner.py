@@ -381,8 +381,17 @@ def clean_all_files():
 
 
 def clean_all_pdfs():
-    """Legacy function - now calls clean_all_files for backward compatibility"""
-    clean_all_files()
+    """Process all PDFs - now using enhanced extraction"""
+    print("🔄 Using enhanced PDF extraction...")
+
+    # Import the enhanced cleaner
+    try:
+        from enhanced_pdf_cleaner import clean_all_pdfs_enhanced
+        clean_all_pdfs_enhanced()
+    except ImportError as e:
+        print(f"❌ Enhanced PDF cleaner not available: {e}")
+        print("📁 Falling back to basic PDF cleaning...")
+        clean_all_files()
 
 
 if __name__ == "__main__":

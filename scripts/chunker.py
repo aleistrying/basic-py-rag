@@ -17,10 +17,44 @@ def simple_token_count(text: str) -> int:
     return len(tokens)
 
 
+def smart_sentence_split(text: str) -> List[str]:
+    """
+    Smart sentence splitting that preserves schedule/time information
+    """
+    # Split on sentence boundaries but keep time/schedule info together
+    sentences = re.split(r'(?<=[.!?])\s+(?=[A-Z])', text)
+
+    # Group related sentences (especially for schedules)
+    grouped = []
+    current_group = []
+
+    for sentence in sentences:
+        current_group.append(sentence)
+
+        # Time/schedule indicators that should stay together
+        has_time_info = any(pattern in sentence.lower() for pattern in [
+            'hora', 'tiempo', 'clase', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes',
+            'sábado', 'domingo', 'am', 'pm', 'mañana', 'tarde', 'cronograma', 'fecha',
+            'entrega', 'proyecto', 'evaluación', 'examen', ':', 'h'
+        ])
+
+        # End group if we have enough content or hit a natural break
+        if (len(' '.join(current_group)) > 100 and not has_time_info) or len(' '.join(current_group)) > 300:
+            grouped.append(' '.join(current_group))
+            current_group = []
+
+    # Add remaining sentences
+    if current_group:
+        grouped.append(' '.join(current_group))
+
+    return grouped
+
+
 def chunk_text_tokens(text: str, max_tokens: int = CHUNK_TOKENS, overlap: int = CHUNK_OVERLAP) -> List[str]:
     """
     Memory-efficient word-based chunking with overlap.
-    No heavy tokenizers - just simple word counting!
+    Optimized for granular search queries like "what time are classes".
+    Uses smart sentence splitting to keep related information together.
 
     Args:
         text: Input text to chunk
@@ -36,10 +70,47 @@ def chunk_text_tokens(text: str, max_tokens: int = CHUNK_TOKENS, overlap: int = 
     # Clean the text a bit
     text = re.sub(r'\s+', ' ', text).strip()
 
-    # Split into words (simple and fast)
-    words = text.split()
+    # Try smart sentence-based chunking first for better semantic coherence
+    sentences = smart_sentence_split(text)
 
-    # Simple approximation: 1 token ≈ 1 word (close enough for chunking)
+    # If we have good sentence splits, use them
+    if len(sentences) > 1:
+        chunks = []
+        current_chunk = []
+        current_length = 0
+
+        for sentence in sentences:
+            sentence_words = len(sentence.split())
+
+            # If adding this sentence would exceed max_tokens, finalize current chunk
+            if current_length + sentence_words > max_tokens and current_chunk:
+                chunk_text = ' '.join(current_chunk).strip()
+                if len(chunk_text) > 10:
+                    chunks.append(chunk_text)
+
+                # Start new chunk with overlap (keep last sentence if room)
+                if overlap > 0 and current_chunk:
+                    current_chunk = current_chunk[-1:] if len(
+                        current_chunk[-1].split()) < overlap else []
+                    current_length = len(' '.join(current_chunk).split())
+                else:
+                    current_chunk = []
+                    current_length = 0
+
+            current_chunk.append(sentence)
+            current_length += sentence_words
+
+        # Add remaining chunk
+        if current_chunk:
+            chunk_text = ' '.join(current_chunk).strip()
+            if len(chunk_text) > 10:
+                chunks.append(chunk_text)
+
+        if chunks:
+            return chunks
+
+    # Fallback to word-based chunking if sentence splitting doesn't work well
+    words = text.split()
     max_words = max_tokens
     overlap_words = overlap
 
@@ -58,14 +129,16 @@ def chunk_text_tokens(text: str, max_tokens: int = CHUNK_TOKENS, overlap: int = 
         chunk_words = words[start:end]
         chunk_text = " ".join(chunk_words).strip()
 
-        # Only add non-empty chunks
-        if chunk_text and len(chunk_text) > 20:  # Skip very short chunks
+        # Only add non-empty chunks (lowered threshold for granular search)
+        # Allow very short chunks for specific details
+        if chunk_text and len(chunk_text) > 10:
             chunks.append(chunk_text)
 
         # Move start with overlap (but ensure progress)
         next_start = end - overlap_words
         if next_start <= start:
-            next_start = start + max(1, max_words // 2)  # Ensure progress
+            # Smaller steps for better coverage
+            next_start = start + max(1, max_words // 3)
         start = next_start
 
     return chunks
@@ -113,9 +186,35 @@ def chunk_jsonl(clean_jsonl_path: Path) -> Path:
                 page_record = json.loads(line.strip())
                 total_pages += 1
 
+                # Check if this is already chunked content from enhanced_pdf_cleaner
+                if 'chunk_id' in page_record and 'content' in page_record:
+                    # Already chunked, just write it out but fix the page field for PostgreSQL
+                    total_chunks += 1
+
+                    # Fix page field to be integer
+                    page_value = page_record.get("page", 1)
+                    if isinstance(page_value, str) and '-' in page_value:
+                        # Extract first page number from range like "1-25"
+                        try:
+                            page_value = int(page_value.split('-')[0])
+                        except (ValueError, IndexError):
+                            page_value = 1
+                    elif not isinstance(page_value, int):
+                        try:
+                            page_value = int(page_value)
+                        except (ValueError, TypeError):
+                            page_value = 1
+
+                    # Update the record with proper page number
+                    page_record["page"] = page_value
+                    output_file.write(json.dumps(
+                        page_record, ensure_ascii=False) + '\n')
+                    continue
+
                 source_path = page_record["source_path"]
                 page_num = page_record["page"]
-                page_text = page_record["text"]
+                page_text = page_record.get(
+                    "text", page_record.get("content", ""))
                 extractor = page_record["extractor"]
 
                 # Chunk the page text

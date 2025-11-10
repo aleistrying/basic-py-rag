@@ -30,6 +30,11 @@ except ImportError:
     pdfplumber = None
 
 try:
+    import fitz  # PyMuPDF - better for watermarked PDFs
+except ImportError:
+    fitz = None
+
+try:
     import numpy as np
 except ImportError:
     np = None
@@ -72,9 +77,13 @@ MIN_CHARS = 100
 # Database settings
 USE_QDRANT = True
 USE_PGVECTOR = True
-QDRANT_URL = "http://localhost:6333"
+# Support both Docker (qdrant service) and local (localhost)
+QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
+QDRANT_URL = f"http://{QDRANT_HOST}:6333"
 QDRANT_COLLECTION = "course_docs_clean"
-PG_DSN = "postgresql://pguser:pgpass@localhost:5432/vectordb"
+# Support both Docker (postgres service) and local (localhost)
+PG_HOST = os.getenv("POSTGRES_HOST", "localhost")
+PG_DSN = f"postgresql://pguser:pgpass@{PG_HOST}:5432/vectordb"
 PG_TABLE = "docs_clean"
 
 # Processing settings
@@ -92,10 +101,16 @@ Path(CLEAN_DIR).mkdir(parents=True, exist_ok=True)
 def remove_watermarks(text: str) -> str:
     """Aggressively remove watermarks and PDF corruption artifacts."""
 
-    # UTP institutional watermarks
+    # CRITICAL: Remove the massive repeating watermark first
+    # This appears as hundreds of "UTP-FISC-2S2025" repeated across the page
+    text = re.sub(
+        r'(?:UTP-FISC-2S2025[\s\n]*){3,}', '', text, flags=re.IGNORECASE)
+
+    # UTP institutional watermarks (single instances)
     watermarks = [
         r"UTP-FISC-2S2025",
         r"UTP[\s\-]*FISC[\s\-]*\d+S\d+",
+        r"UTP-FISC-Sistemas\s+de\s+Base\s+de\s+Datos\s+Avanzadas\s*-\s*Ing\.\s+Boris\s+Landero\s+Pág\.\s+\d+\s+de\s+\d+",
         r"Universidad\s+Tecnológica\s+de\s+Panamá",
         r"Facultad\s+de\s+Ingeniería\s+de\s+Sistemas\s+Computacionales",
         r"Maestría\s+en\s+Analítica\s+de\s+Datos",
@@ -151,12 +166,38 @@ def remove_watermarks(text: str) -> str:
 
 
 def normalize_text(text: str) -> str:
-    """Clean and normalize extracted text."""
+    """Clean and normalize extracted text with aggressive watermark removal and word reconstruction."""
     if not text:
         return ""
 
     # Remove watermarks first
     text = remove_watermarks(text)
+
+    # CRITICAL FIX: Reconstruct words broken by watermarks
+    # Pattern: "ProyeFct I o" → "Proyecto"
+    # Pattern: "EntregUa" → "Entrega"
+    # Pattern: "Prácti C ca" → "Práctica"
+
+    # Fix common broken words
+    broken_words = {
+        r'ProyeFc\s*t\s*[Io]\s*o': 'Proyecto',
+        r'Proyec\s*t\s*o': 'Proyecto',
+        r'EntregUa': 'Entrega',
+        r'Prácti\s*C\s*ca': 'Práctica',
+        r'Desa\s*rr\s*oll\s*o': 'Desarrollo',
+        r'Evalua\s*c\s*ión': 'Evaluación',
+        r'Docu\s*me\s*nto': 'Documento',
+        r'Demostra\s*c\s*ión': 'Demostración',
+    }
+
+    for broken, fixed in broken_words.items():
+        text = re.sub(broken, fixed, text, flags=re.IGNORECASE)
+
+    # Remove scattered single letters/numbers (OCR corruption)
+    # But preserve actual content like "1 SEP 29" (class schedule)
+    text = re.sub(
+        r'(?<![A-Z])\b[A-Z]\s+\d+\s+[A-Z]\s+\d+\b(?![A-Z])', '', text)
+    text = re.sub(r'\b[A-Z]\s+[A-Z]\s+[-–]\s+[A-Z]\b', '', text)
 
     # Remove control characters
     text = text.replace("\x00", " ").replace("\ufffd", "")
@@ -175,6 +216,45 @@ def normalize_text(text: str) -> str:
 # ============================================================================
 # PDF TEXT & TABLE EXTRACTION
 # ============================================================================
+
+
+def extract_with_pymupdf(pdf_path: Path) -> Tuple[str, List[str]]:
+    """
+    Extract text using PyMuPDF (fitz) which handles watermarked PDFs better.
+    PyMuPDF extracts text in reading order, avoiding watermark interference.
+    """
+    text_content = ""
+    tables_content = []
+
+    if not fitz:
+        return text_content, tables_content
+
+    try:
+        doc = fitz.open(pdf_path)
+        pages_text = []
+
+        for page_num in range(len(doc)):
+            page = doc[page_num]
+
+            # Extract text with proper ordering
+            # sort=True for reading order
+            page_text = page.get_text("text", sort=True)
+
+            if page_text and len(page_text.strip()) > MIN_CHARS:
+                cleaned_text = normalize_text(page_text)
+                if cleaned_text and len(cleaned_text) > MIN_CHARS:
+                    pages_text.append(
+                        f"=== Página {page_num + 1} ===\n{cleaned_text}")
+
+        text_content = "\n\n".join(pages_text)
+        doc.close()
+
+        print(f"   ✅ PyMuPDF: Extracted {len(pages_text)} pages")
+        return text_content, tables_content
+
+    except Exception as e:
+        print(f"   ⚠️  PyMuPDF extraction error: {e}")
+        return "", []
 
 
 def extract_tables_from_pdf(pdf_path: Path) -> List[str]:
@@ -229,8 +309,18 @@ def extract_pdf_content(pdf_path: Path) -> Tuple[str, List[str]]:
     text_content = ""
     tables_content = []
 
+    # Try PyMuPDF first (better for watermarked PDFs)
+    if fitz:
+        text_content, _ = extract_with_pymupdf(pdf_path)
+        if text_content and len(text_content) > 100:
+            # Also try to extract tables with pdfplumber
+            if pdfplumber:
+                tables_content = extract_tables_from_pdf(pdf_path)
+            return text_content, tables_content
+
+    # Fallback to pdfplumber if PyMuPDF fails or not available
     if not pdfplumber:
-        print(f"   ❌ pdfplumber not available for {pdf_path.name}")
+        print(f"   ❌ No PDF library available for {pdf_path.name}")
         return text_content, tables_content
 
     try:
@@ -252,7 +342,7 @@ def extract_pdf_content(pdf_path: Path) -> Tuple[str, List[str]]:
             tables_content = extract_tables_from_pdf(pdf_path)
 
         print(
-            f"   ✅ Extracted {len(pages_text)} pages + {len(tables_content)} tables")
+            f"   ✅ pdfplumber: Extracted {len(pages_text)} pages + {len(tables_content)} tables")
         return text_content, tables_content
 
     except Exception as e:
@@ -286,32 +376,71 @@ def simple_token_count(text: str) -> int:
 
 
 def chunk_text(text: str, max_tokens: int = CHUNK_TOKENS, overlap: int = CHUNK_OVERLAP) -> List[str]:
-    """Memory-efficient word-based chunking."""
+    """
+    Memory-efficient word-based chunking with schedule preservation.
+    Keeps date + activity lines together for better RAG retrieval.
+    """
     if not text or not text.strip():
         return []
 
-    text = re.sub(r'\s+', ' ', text).strip()
-    words = text.split()
+    # Preserve line structure for schedule detection
+    lines = [line.strip() for line in text.split('\n') if line.strip()]
 
-    if len(words) <= max_tokens:
-        return [text]
+    # Group lines intelligently - keep schedule entries together
+    groups = []
+    current_group = []
 
-    chunks = []
-    start = 0
+    for line in lines:
+        # Detect schedule patterns
+        is_schedule_date = bool(re.search(
+            r'\d+\s+(SEP|OCT|NOV|DIC|ENE|FEB|MAR|ABR|MAY|JUN|JUL|AGO)\s+\d+', line, re.I))
+        is_schedule_activity = bool(
+            re.search(r'[•●]\s*(Entrega|Desarrollo|Elaborar|Iniciar|Tema)', line, re.I))
+        is_class_info = bool(re.search(r'^\d+\s+\d+\s+', line))
 
-    while start < len(words):
-        end = min(len(words), start + max_tokens)
-        chunk_words = words[start:end]
-        chunk_text = " ".join(chunk_words).strip()
+        # Keep schedule-related lines together
+        if is_schedule_date or is_schedule_activity or is_class_info:
+            current_group.append(line)
+            # If group getting large, save it
+            if len(' '.join(current_group).split()) > max_tokens * 0.7:
+                groups.append('\n'.join(current_group))
+                current_group = []
+        else:
+            # Regular content
+            current_group.append(line)
+            if len(' '.join(current_group).split()) > max_tokens * 0.9:
+                groups.append('\n'.join(current_group))
+                current_group = []
 
-        if chunk_text and len(chunk_text) > 50:  # Skip very short chunks
-            chunks.append(chunk_text)
+    # Add remaining group
+    if current_group:
+        groups.append('\n'.join(current_group))
 
-        # Move with overlap but ensure progress
-        next_start = end - overlap
-        if next_start <= start:
-            next_start = start + max(1, max_tokens // 2)
-        start = next_start
+    # Handle large groups by splitting on words
+    final_chunks = []
+    for group in groups:
+        words = group.split()
+        if len(words) <= max_tokens:
+            if len(group) > 50:
+                final_chunks.append(group)
+        else:
+            # Word-based splitting with overlap
+            start = 0
+            while start < len(words):
+                end = min(len(words), start + max_tokens)
+                chunk_words = words[start:end]
+                chunk_text = " ".join(chunk_words).strip()
+
+                if len(chunk_text) > 50:
+                    final_chunks.append(chunk_text)
+
+                # Move with overlap but ensure progress
+                next_start = end - overlap
+                if next_start <= start:
+                    next_start = start + max(1, max_tokens // 2)
+                start = next_start
+
+    return final_chunks
 
     return chunks
 

@@ -1,11 +1,21 @@
 from typing import List
 import logging
-from scripts.utils import embed_e5, embed_texts, expand_query  # Import query expansion
+import os
 
-# Also import clean pipeline embedder
+# Import clean pipeline embedder and query utilities (consolidated)
 try:
-    from scripts.query_embed import embed_query as embed_query_clean
+    from scripts.query_embed import embed_query as embed_query_clean, expand_query, embed_e5
 except ImportError:
+    # Fallback if query_embed module not available
+    try:
+        from scripts.utils import embed_e5, expand_query
+    except ImportError:
+        # Final fallback: use lightweight embeddings
+        try:
+            from scripts.embed_light import embed_e5_light as embed_e5, expand_query
+        except ImportError:
+            embed_e5 = None
+            def expand_query(q): return q
     embed_query_clean = None
 
 from app.qdrant_backend import search_qdrant
@@ -24,20 +34,22 @@ except ImportError:
 
 BACKENDS = {"qdrant": search_qdrant, "pgvector": search_pgvector}
 
-# Improved prompt: extractive but tolerant (allows paraphrasing)
-PROMPT_TEMPLATE = """Eres un asistente académico. Responde SOLO con información contenida de forma explícita en los fragmentos.
-Si la respuesta no aparece literal o inequívocamente, responde EXACTAMENTE: "No está disponible.".
-Incluye citas (path:chunk) al final de CADA oración afirmativa.
+# Improved prompt: concise, focused answers without excessive citations
+PROMPT_TEMPLATE = """Eres un asistente académico. Responde de forma directa y concisa usando SOLO la información de los fragmentos.
 
 Pregunta: {q}
 
-Fragmentos (cada línea es un fragmento):
+Fragmentos relevantes:
 {sources}
 
-Reglas:
-- Parafrasea ligeramente si hace falta, pero no inventes nombres/fechas/datos.
-- Si hay varios fragmentos, combina de forma concisa con varias citas.
-- Si la pregunta es ambigua, responde "No está disponible.".
+Instrucciones:
+- Da una respuesta clara y directa
+- Usa fechas, números y nombres exactos de los fragmentos
+- Si la información no está en los fragmentos, responde: "No está disponible."
+- Solo menciona el documento si es relevante para entender la respuesta
+- NO incluyas referencias bibliográficas completas ni autores irrelevantes
+- Responde en español, de forma natural y concisa
+
 Respuesta:
 """
 
@@ -45,13 +57,23 @@ Respuesta:
 def build_context(hits: List[dict]) -> str:
     lines = []
     for h in hits:
-        lines.append(f"- ({h['path']}:{h['chunk_id']}) {h['content']}")
+        # Extract page information
+        page_info = ""
+        if h.get('page'):
+            page_info = f":página{h['page']}"
+        elif h.get('chunk_id'):
+            page_info = f":{h['chunk_id']}"
+
+        # Extract document name (cleaner format)
+        doc_name = h['path'].replace('./data/raw/', '').replace('.pdf', '')
+
+        lines.append(f"- ({doc_name}{page_info}) {h['content']}")
     return "\n".join(lines)
 
 # Nota: Para la demo se puede imprimir el contexto; la generación con LLM es opcional
 
 
-def rag_answer(query: str, backend: str = "qdrant", k: int = 5):
+def rag_answer(query: str, backend: str = "qdrant", k: int = 5, filters: dict = None):
     # Validate backend name
     if backend not in BACKENDS:
         available_backends = list(BACKENDS.keys())
@@ -61,7 +83,7 @@ def rag_answer(query: str, backend: str = "qdrant", k: int = 5):
     # Apply query expansion for better Spanish query matching
     expanded_query = expand_query(query)
 
-    # Use clean pipeline embedder if available, fallback to legacy
+    # Use clean pipeline embedder if available, fallback to e5 directly
     if embed_query_clean is not None:
         try:
             emb = embed_query_clean(expanded_query)
@@ -71,14 +93,42 @@ def rag_answer(query: str, backend: str = "qdrant", k: int = 5):
     else:
         emb = embed_e5([expanded_query], is_query=True)[0]
 
-    hits = BACKENDS[backend](emb, k=k)
+    # Pass filters to the backend search function
+    if backend == "qdrant":
+        hits = BACKENDS[backend](emb, k=k, where=filters)
+    else:  # pgvector
+        hits = BACKENDS[backend](emb, k=k, where=filters)
 
     # Create a presentation-friendly response
     results = []
     for hit in hits:
         content = hit.get('content', '') or ''  # Handle None content
+
+        # Enhanced document information
+        doc_name = hit['path'].replace('./data/raw/', '').replace('.pdf', '')
+
+        # Build enhanced reference with page/section info
+        reference_parts = [doc_name]
+        if hit.get('page'):
+            reference_parts.append(f"página {hit['page']}")
+        elif hit.get('chunk_id'):
+            reference_parts.append(f"sección {hit['chunk_id']}")
+
+        # Look for chapter information in content
+        chapter_info = ""
+        if 'CAPÍTULO' in content[:200]:
+            import re
+            chapter_match = re.search(r'CAPÍTULO\s+(\d+)', content[:200])
+            if chapter_match:
+                chapter_info = f", Capítulo {chapter_match.group(1)}"
+
+        reference = " - ".join(reference_parts) + chapter_info
+
         results.append({
             "document": hit['path'].replace('./data/raw/', ''),
+            "reference": reference,
+            "page": hit.get('page'),
+            "chapter": chapter_info.replace(", ", "") if chapter_info else None,
             "similarity": f"{hit['score']:.3f}",
             "preview": content[:120] + "..." if len(content) > 120 else content
         })
@@ -87,12 +137,13 @@ def rag_answer(query: str, backend: str = "qdrant", k: int = 5):
         "query": query,
         "expanded_query": expanded_query if expanded_query != query else None,
         "backend": backend.upper(),
+        "filters_applied": filters or {},
         "total_results": len(results),
         "results": results
     }
 
 
-def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: str = "gemma2:2b"):
+def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: str = "gemma2:2b", filters: dict = None):
     """Generate AI response using RAG + LLM with improved reranking and query expansion"""
     if ollama is None:
         raise ImportError(
@@ -107,7 +158,7 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
     # Apply query expansion for better retrieval
     expanded_query = expand_query(query)
 
-    # Use clean pipeline embedder if available, fallback to legacy
+    # Use clean pipeline embedder if available, fallback to e5 directly
     if embed_query_clean is not None:
         try:
             emb = embed_query_clean(expanded_query)
@@ -118,7 +169,10 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
         emb = embed_e5([expanded_query], is_query=True)[0]
 
     # Get more results for reranking (12-16 results for better coverage)
-    hits = BACKENDS[backend](emb, k=max(k*3, 12))
+    if backend == "qdrant":
+        hits = BACKENDS[backend](emb, k=max(k*3, 12), where=filters)
+    else:  # pgvector
+        hits = BACKENDS[backend](emb, k=max(k*3, 12), where=filters)
 
     # Prepare candidates for reranking
     candidates = []
@@ -127,7 +181,9 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
             'content': hit['content'],
             'sim': min(max(hit['score'], 0.0), 1.0),  # Normalize score to 0-1
             'path': hit['path'],
-            'chunk_id': hit.get('chunk_id', hit.get('page', 'unknown'))
+            'chunk_id': hit.get('chunk_id', hit.get('page', 'unknown')),
+            'page': hit.get('page'),
+            'metadata': hit.get('metadata', {})
         })
 
     # Apply MMR reranking if available
@@ -136,12 +192,36 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
     else:
         reranked = candidates[:k]
 
-    # Create results list
+    # Create enhanced results list with page/section references
     results = []
     for item in reranked:
         content = item.get('content', '') or ''  # Handle None content
+
+        # Enhanced document information
+        doc_name = item['path'].replace('./data/raw/', '').replace('.pdf', '')
+
+        # Build enhanced reference with page/section info
+        reference_parts = [doc_name]
+        if item.get('page'):
+            reference_parts.append(f"página {item['page']}")
+        elif item.get('chunk_id'):
+            reference_parts.append(f"sección {item['chunk_id']}")
+
+        # Look for chapter information in content
+        chapter_info = ""
+        if 'CAPÍTULO' in content[:200]:
+            import re
+            chapter_match = re.search(r'CAPÍTULO\s+(\d+)', content[:200])
+            if chapter_match:
+                chapter_info = f", Capítulo {chapter_match.group(1)}"
+
+        reference = " - ".join(reference_parts) + chapter_info
+
         results.append({
             "document": item['path'].replace('./data/raw/', ''),
+            "reference": reference,
+            "page": item.get('page'),
+            "chapter": chapter_info.replace(", ", "") if chapter_info else None,
             "similarity": f"{item['sim']:.3f}",
             "preview": content[:120] + "..." if len(content) > 120 else content
         })
@@ -154,16 +234,17 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
     prompt = PROMPT_TEMPLATE.format(q=query, sources=sources)
 
     try:
-        # Configure Ollama client
-        client = ollama.Client(host='http://localhost:11434')
+        # Configure Ollama client with Docker service name support
+        ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+        client = ollama.Client(host=ollama_host)
 
         # Call Ollama API with stricter settings
         response = client.generate(
             model=model,
             prompt=prompt,
             options={
-                "temperature": 0.0,  # Zero temperature for deterministic answers
                 "repeat_penalty": 1.0,
+                "temperature": 0.5,
                 "num_predict": 256,
                 "top_p": 0.9
             }
@@ -177,6 +258,7 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
             "expanded_query": expanded_query if expanded_query != query else None,
             "backend": backend.upper(),
             "model": model,
+            "filters_applied": filters or {},
             "ai_response": generated_text,
             "total_results": len(results),
             "sources": results,
@@ -191,6 +273,7 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
             "expanded_query": expanded_query if expanded_query != query else None,
             "backend": backend.upper(),
             "model": model,
+            "filters_applied": filters or {},
             "ai_response": f"❌ LLM Error: {str(e)}. Here are the related documents:",
             "total_results": len(results),
             "sources": results,

@@ -15,6 +15,7 @@ python-pptx
 beautifulsoup4
 lxml
 pdfplumber
+pymupdf==1.23.26  # Specific version that works properly (imported as 'fitz')
 
 # Cryptography libraries for encrypted PDFs
 pycryptodome

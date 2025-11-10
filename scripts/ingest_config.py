@@ -13,10 +13,10 @@ Path(CLEAN_DIR).mkdir(parents=True, exist_ok=True)
 # Alternative: "Alibaba-NLP/gte-multilingual-base"
 EMBED_MODEL = "intfloat/multilingual-e5-base"
 
-# Chunking parameters (token-aware)
-CHUNK_TOKENS = 350  # ~250-300 words
-CHUNK_OVERLAP = 60  # ~40-50 words overlap
-MIN_CHARS = 100     # Skip very short pages
+# Chunking parameters (optimized for short queries like "what time are classes")
+CHUNK_TOKENS = 200  # Smaller chunks ~150-200 words for better granular search
+CHUNK_OVERLAP = 50  # ~30-40 words overlap to preserve context
+MIN_CHARS = 50      # Allow shorter chunks to capture specific details
 
 # Backend configuration
 USE_QDRANT = True

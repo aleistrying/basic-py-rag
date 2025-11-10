@@ -44,6 +44,81 @@ curl "http://localhost:8080/ai?q=¿Si hoy es 17 de noviembre, cual es la siguien
 └── requirements.txt
 ```
 
+## 🔄 Complete Embedding Process (New Unified Pipeline)
+
+### 1. **Document Processing**
+
+```bash
+# Enhanced PDF extraction with multiple libraries
+python scripts/main_pipeline.py --config  # Show configuration
+python scripts/main_pipeline.py           # Process documents
+```
+
+**What happens:**
+
+- 📄 **PDF Extraction:** Multi-library fallback (pdfplumber → unstructured → PyMuPDF → PyPDF2)
+- 📊 **Table Detection:** Advanced table extraction and formatting
+- 🧹 **Text Cleaning:** Watermark removal and normalization
+- 📝 **Text Files:** Markdown and plain text processing
+- 💾 **Output:** Clean JSONL files per document
+
+### 2. **Text Chunking**
+
+```bash
+# Smart chunking with overlap
+python scripts/main_pipeline.py --memory-safe
+```
+
+**What happens:**
+
+- ✂️ **Smart Splitting:** Paragraph → sentence → character fallbacks
+- 📏 **Size Control:** 200-800 character chunks with overlap
+- 📊 **Metadata:** Source, page, chunk_id, extractor info
+- 💾 **Output:** `.chunks.jsonl` files ready for embedding
+
+### 3. **Embedding Generation**
+
+```bash
+# E5 multilingual embeddings with proper prefixes
+python scripts/main_pipeline.py --clear
+```
+
+**What happens:**
+
+- 🤖 **Model:** `intfloat/multilingual-e5-base` (768 dimensions)
+- 🏷️ **Prefixes:** `passage: ` for documents, `query: ` for searches
+- 📐 **Normalization:** L2 normalization for cosine similarity
+- 🔢 **Batch Processing:** Memory-efficient batch embedding
+- 💾 **Output:** Normalized vector embeddings
+
+### 4. **Database Storage**
+
+```bash
+# Dual database upsert with metadata
+python scripts/main_pipeline.py --clear --memory-safe
+```
+
+**What happens:**
+
+- 🗄️ **Qdrant:** Vector storage with payload metadata
+- 🐘 **PostgreSQL:** pgvector with JSON metadata
+- 🔍 **Indexing:** HNSW indices for fast similarity search
+- 📊 **Verification:** Final count verification for both databases
+
+### 5. **Query Processing**
+
+```bash
+# Search with proper query embedding
+curl "http://localhost:8080/ask?q=vectores&backend=qdrant&k=3"
+```
+
+**What happens:**
+
+- 🏷️ **Query Prefix:** Adds `query: ` prefix for E5 model
+- 🔍 **Vector Search:** Cosine similarity search in database
+- 📊 **Reranking:** MMR algorithm for result diversity
+- 🎯 **Response:** Relevant chunks with metadata and scores
+
 ## 🔥 API Endpoints
 
 ### Single Backend Search

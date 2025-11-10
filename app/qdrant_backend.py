@@ -1,10 +1,13 @@
 from qdrant_client import QdrantClient
+import os
 
-client = QdrantClient(host="localhost", port=6333)
+# Use Docker service name when running in container, localhost otherwise
+QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
+client = QdrantClient(host=QDRANT_HOST, port=6333)
 
 # Default collection names (try clean pipeline first, fallback to legacy)
 CLEAN_COLLECTION = "course_docs_clean"
-LEGACY_COLLECTION = "docs_qdrant"
+# LEGACY_COLLECTION = "docs_qdrant"
 
 
 def get_available_collection():
@@ -14,19 +17,23 @@ def get_available_collection():
         client.get_collection(CLEAN_COLLECTION)
         return CLEAN_COLLECTION
     except:
-        try:
-            # Fallback to legacy collection
-            client.get_collection(LEGACY_COLLECTION)
-            return LEGACY_COLLECTION
-        except:
-            # Neither exists, return clean as default (will be created)
-            return CLEAN_COLLECTION
+        return CLEAN_COLLECTION
 
 
 def search_qdrant(query_emb, k=5, where=None):
     """
     Search Qdrant using the best available collection.
     Supports both clean pipeline and legacy formats.
+
+    Args:
+        query_emb: Query embedding vector
+        k: Number of results to return
+        where: Filter dict, supports:
+            - document_type: str (e.g., "pdf", "txt", "md")
+            - section: str (e.g., "objetivos", "cronograma", "evaluacion")
+            - topic: str (e.g., "nosql", "vectorial", "sql")
+            - page: int (for PDFs)
+            - contains: str (text must contain this string)
     """
     collection = get_available_collection()
 

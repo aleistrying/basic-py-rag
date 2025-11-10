@@ -93,104 +93,94 @@ def print_pipeline_config():
 
 def run_full_pipeline(skip_existing=True):
     """
-    Run the complete ingest pipeline with memory optimization.
+    Run the complete ingest pipeline with enhanced PDF extraction.
 
     Args:
         skip_existing: Skip steps if output files already exist
     """
-    print("🚀 Starting Complete Ingest Pipeline (Memory Optimized)")
+    print("🚀 Starting Complete Ingest Pipeline (Enhanced & Memory Optimized)")
     print("=" * 60)
 
     start_time = time.time()
 
     try:
-        # Step 1: Clean PDFs (force re-clean if chunks are empty)
-        print("\n📋 STEP 1: PDF Cleaning")
-        print("-" * 30)
-
-        clean_path = Path(CLEAN_DIR)
-        existing_clean = list(clean_path.glob("*.jsonl")
-                              ) if clean_path.exists() else []
-        existing_clean = [
-            f for f in existing_clean if not f.name.endswith(".chunks.jsonl")]
-
-        # Check if existing chunks are empty (corrupted)
-        force_reclean = False
-        if existing_clean:
-            for clean_file in existing_clean:
-                chunk_file = clean_file.with_suffix(".chunks.jsonl")
-                if chunk_file.exists():
-                    # Check if chunks are empty
-                    try:
-                        with open(chunk_file, 'r') as f:
-                            if sum(1 for _ in f) == 0:
-                                print(
-                                    f"⚠️  Empty chunks detected in {chunk_file.name} - forcing re-clean")
-                                force_reclean = True
-                                break
-                    except:
-                        force_reclean = True
-                        break
-
-        if not skip_existing or not existing_clean or force_reclean:
-            if force_reclean:
-                # Remove corrupted files
-                for clean_file in existing_clean:
-                    chunk_file = clean_file.with_suffix(".chunks.jsonl")
-                    if chunk_file.exists():
-                        chunk_file.unlink()
-                    clean_file.unlink()
-                print("🧹 Removed corrupted files")
-            clean_all_pdfs()
+        # Step 1: Enhanced PDF cleaning (includes advanced extraction and chunking)
+        print("\n� Step 1: Enhanced PDF Extraction & Cleaning")
+        print("-" * 40)
+        
+        if skip_existing and Path(CLEAN_DIR).exists() and list(Path(CLEAN_DIR).glob("*.jsonl")):
+            print("✅ Clean files exist, skipping PDF extraction")
         else:
-            print(
-                f"⏩ Skipping PDF cleaning - {len(existing_clean)} clean files exist")
-
-        # Step 2: Chunking
-        print("\n✂️  STEP 2: Text Chunking")
-        print("-" * 30)
-
-        existing_chunks = list(clean_path.glob(
-            "*.chunks.jsonl")) if clean_path.exists() else []
-
-        if skip_existing and existing_chunks and not force_reclean:
-            print(
-                f"⏩ Skipping chunking - {len(existing_chunks)} chunk files exist")
+            print("🔍 Using enhanced PDF extraction with multiple libraries...")
+            try:
+                # Try enhanced PDF cleaner first
+                from enhanced_pdf_cleaner import clean_all_pdfs_enhanced
+                clean_all_pdfs_enhanced()
+                print("✅ Enhanced PDF extraction complete")
+            except ImportError:
+                print("⚠️  Enhanced PDF cleaner not available, using basic cleaner")
+                clean_all_pdfs()
+        
+        # Force garbage collection
+        gc.collect()
+        
+        # Step 2: Chunking (may already be done by enhanced extractor)
+        print("\n✂️  Step 2: Text Chunking")
+        print("-" * 40)
+        
+        chunk_files = list(Path(CLEAN_DIR).glob("*.chunks.jsonl"))
+        clean_files = [f for f in Path(CLEAN_DIR).glob("*.jsonl") if not f.name.endswith(".chunks.jsonl")]
+        
+        if skip_existing and chunk_files:
+            print(f"✅ Found {len(chunk_files)} chunk files, skipping chunking")
         else:
-            chunk_all_clean_files()
-
-        # Step 3: Embedding & Upsert (memory safe version)
-        print("\n🤖 STEP 3: Embedding & Backend Upsert (Memory Safe)")
-        print("-" * 30)
-
-        # Use memory-safe embedding instead
-        from embed_safe import safe_embed_and_upsert
-        if not safe_embed_and_upsert():
-            print("❌ Memory-safe embedding failed")
-            return False
-
-        # Force garbage collection after embedding
+            if clean_files:
+                print(f"📝 Chunking {len(clean_files)} clean files...")
+                chunk_all_clean_files()
+                print("✅ Chunking complete")
+            else:
+                print("⚠️  No clean files found for chunking")
+        
+        # Force garbage collection
         gc.collect()
 
-        # Pipeline complete
-        end_time = time.time()
-        duration = end_time - start_time
+        # Step 3: Embedding and database upsert (memory-safe)
+        print("\n🧠 Step 3: Embedding & Database Upsert")
+        print("-" * 40)
+        
+        # Check if we should use memory-safe embedding
+        chunk_files = list(Path(CLEAN_DIR).glob("*.chunks.jsonl"))
+        total_size = sum(f.stat().st_size for f in chunk_files) / (1024*1024)  # MB
+        
+        if total_size > 50:  # > 50MB of chunks
+            print(f"📦 Large dataset detected ({total_size:.1f}MB), using memory-safe embedding...")
+            try:
+                from embed_safe import safe_embed_and_upsert
+                success = safe_embed_and_upsert()
+                if success:
+                    print("✅ Memory-safe embedding complete")
+                else:
+                    print("❌ Memory-safe embedding failed")
+            except ImportError:
+                print("⚠️  Memory-safe embedder not available, using standard embedder")
+                from embed_and_upsert import embed_and_upsert_all
+                embed_and_upsert_all(clear_first=True)
+        else:
+            print(f"📦 Standard dataset ({total_size:.1f}MB), using standard embedding...")
+            from embed_and_upsert import embed_and_upsert_all
+            embed_and_upsert_all(clear_first=True)
 
-        print("\n" + "=" * 60)
-        print("🎉 PIPELINE COMPLETE!")
-        print("=" * 60)
-        print(f"⏱️  Total time: {duration:.1f} seconds")
-
-        # Show final statistics
+        elapsed = time.time() - start_time
+        print(f"\n🎉 Pipeline completed in {elapsed:.1f} seconds!")
+        
+        # Show statistics
         show_pipeline_stats()
-
-        return True
 
     except Exception as e:
         print(f"\n❌ Pipeline failed: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        raise
 
 
 def show_pipeline_stats():

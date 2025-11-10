@@ -8,6 +8,23 @@ services:
     volumes:
       - ./data/qdrant:/qdrant/storage
 
+  app:
+    build: .
+    container_name: app
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+      - qdrant
+      - ollama
+    environment:
+      - QDRANT_HOST=qdrant
+      - POSTGRES_HOST=postgres
+      - OLLAMA_HOST=http://ollama:11434
+    volumes:
+      - ./data:/app/data:ro # Mount data directory for pipeline access
+    command: python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8080
+
   postgres:
     image: pgvector/pgvector:pg16 # Postgres con extensión pgvector
     container_name: pgvector_db
@@ -20,23 +37,18 @@ services:
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
       - ./postgres/start.sql:/docker-entrypoint-initdb.d/start.sql:ro
+
   ollama:
     image: ollama/ollama:latest
     container_name: ollama
-    gpus: all
     restart: unless-stopped
+    runtime: nvidia
     ports:
       - "11434:11434"
     volumes:
       - ollama:/root/.ollama
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
     environment:
+      - NVIDIA_VISIBLE_DEVICES=all
       - OLLAMA_LLM_LIBRARY=cuda
 
 volumes:
