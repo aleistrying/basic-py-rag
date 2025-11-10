@@ -105,21 +105,15 @@ def run_full_pipeline(skip_existing=True):
 
     try:
         # Step 1: Enhanced PDF cleaning (includes advanced extraction and chunking)
-        print("\n� Step 1: Enhanced PDF Extraction & Cleaning")
+        print("\n📄 Step 1: Enhanced PDF Extraction & Cleaning")
         print("-" * 40)
         
-        if skip_existing and Path(CLEAN_DIR).exists() and list(Path(CLEAN_DIR).glob("*.jsonl")):
-            print("✅ Clean files exist, skipping PDF extraction")
+        if Path(CLEAN_DIR).exists() and list(Path(CLEAN_DIR).glob("*.jsonl")):
+            print("✅ Clean files exist, skipping PDF cleaning")
         else:
-            print("🔍 Using enhanced PDF extraction with multiple libraries...")
-            try:
-                # Try enhanced PDF cleaner first
-                from enhanced_pdf_cleaner import clean_all_pdfs_enhanced
-                clean_all_pdfs_enhanced()
-                print("✅ Enhanced PDF extraction complete")
-            except ImportError:
-                print("⚠️  Enhanced PDF cleaner not available, using basic cleaner")
-                clean_all_pdfs()
+            print("🧹 Cleaning PDFs with unified processor...")
+            from pdf_processing import process_all_pdfs
+            process_all_pdfs()
         
         # Force garbage collection
         gc.collect()
@@ -154,20 +148,13 @@ def run_full_pipeline(skip_existing=True):
         
         if total_size > 50:  # > 50MB of chunks
             print(f"📦 Large dataset detected ({total_size:.1f}MB), using memory-safe embedding...")
-            try:
-                from embed_safe import safe_embed_and_upsert
-                success = safe_embed_and_upsert()
-                if success:
-                    print("✅ Memory-safe embedding complete")
-                else:
-                    print("❌ Memory-safe embedding failed")
-            except ImportError:
-                print("⚠️  Memory-safe embedder not available, using standard embedder")
-                from embed_and_upsert import embed_and_upsert_all
-                embed_and_upsert_all(clear_first=True)
+            from embedding_database import UnifiedEmbeddingProcessor
+            processor = UnifiedEmbeddingProcessor(memory_safe_mode=True)
+            processor.process_all_chunks()
+            print("✅ Memory-safe embedding complete")
         else:
             print(f"📦 Standard dataset ({total_size:.1f}MB), using standard embedding...")
-            from embed_and_upsert import embed_and_upsert_all
+            from embedding_database import embed_and_upsert_all
             embed_and_upsert_all(clear_first=True)
 
         elapsed = time.time() - start_time

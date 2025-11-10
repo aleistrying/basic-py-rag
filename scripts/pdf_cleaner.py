@@ -381,15 +381,15 @@ def clean_all_files():
 
 
 def clean_all_pdfs():
-    """Process all PDFs - now using enhanced extraction"""
-    print("🔄 Using enhanced PDF extraction...")
+    """Process all PDFs - now using unified processor"""
+    print("🔄 Using unified PDF processor...")
 
-    # Import the enhanced cleaner
+    # Use the unified processor
     try:
-        from enhanced_pdf_cleaner import clean_all_pdfs_enhanced
-        clean_all_pdfs_enhanced()
+        from pdf_processing import process_all_pdfs
+        process_all_pdfs()
     except ImportError as e:
-        print(f"❌ Enhanced PDF cleaner not available: {e}")
+        print(f"❌ Unified PDF processor not available: {e}")
         print("📁 Falling back to basic PDF cleaning...")
         clean_all_files()
 

@@ -4,13 +4,25 @@ Use this for embedding queries before searching Qdrant/pgvector.
 """
 from typing import List, Union
 import numpy as np
+import sys
+from pathlib import Path
+
+# Add project root to path for container compatibility
+sys.path.append(str(Path(__file__).parent))
+sys.path.append(str(Path(__file__).parent.parent))
 
 try:
     from sentence_transformers import SentenceTransformer
 except ImportError:
     SentenceTransformer = None
 
-from ingest_config import EMBED_MODEL, E5_QUERY_PREFIX, E5_PASSAGE_PREFIX
+try:
+    from ingest_config import EMBED_MODEL, E5_QUERY_PREFIX, E5_PASSAGE_PREFIX
+except ImportError:
+    # Fallback values if ingest_config not available
+    EMBED_MODEL = "intfloat/multilingual-e5-base"
+    E5_QUERY_PREFIX = "query: "
+    E5_PASSAGE_PREFIX = "passage: "
 
 # Model cache
 _model = None

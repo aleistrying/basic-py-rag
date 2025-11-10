@@ -40,9 +40,10 @@ PG_DIM = 768
 # Build DSN
 PG_DSN = f"postgresql://{PG_USER}:{PG_PASSWORD}@{PG_HOST}:{PG_PORT}/{PG_DATABASE}"
 
-# Batch processing (smaller to avoid memory issues)
-BATCH_SIZE = 8   # Small batches to prevent RAM overflow
-MAX_CHUNKS_PER_FILE = 50  # Limit chunks per file to avoid memory issues
+# Batch processing (optimized for better performance)
+BATCH_SIZE = 32   # Increased from 8 to 32 for better throughput
+LARGE_BATCH_SIZE = 64  # For large documents
+MAX_CHUNKS_PER_FILE = 200  # Increased limit for larger files
 
 # E5 prefixes (critical for multilingual-e5)
 E5_QUERY_PREFIX = "query: "

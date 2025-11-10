@@ -6,16 +6,10 @@ import os
 try:
     from scripts.query_embed import embed_query as embed_query_clean, expand_query, embed_e5
 except ImportError:
-    # Fallback if query_embed module not available
-    try:
-        from scripts.utils import embed_e5, expand_query
-    except ImportError:
-        # Final fallback: use lightweight embeddings
-        try:
-            from scripts.embed_light import embed_e5_light as embed_e5, expand_query
-        except ImportError:
-            embed_e5 = None
-            def expand_query(q): return q
+    print("Warning: query_embed module not available")
+    print("Install: pip install sentence-transformers")
+    embed_e5 = None
+    def expand_query(x): return x
     embed_query_clean = None
 
 from app.qdrant_backend import search_qdrant
@@ -57,7 +51,7 @@ Respuesta:
 def build_context(hits: List[dict]) -> str:
     lines = []
     for h in hits:
-        # Extract page information
+        # Extract page and metadata information
         page_info = ""
         if h.get('page'):
             page_info = f":página{h['page']}"
@@ -67,7 +61,15 @@ def build_context(hits: List[dict]) -> str:
         # Extract document name (cleaner format)
         doc_name = h['path'].replace('./data/raw/', '').replace('.pdf', '')
 
-        lines.append(f"- ({doc_name}{page_info}) {h['content']}")
+        # Add quality and extraction info for better context
+        metadata = h.get('metadata', {})
+        quality_info = ""
+        if metadata.get('quality_score', 0) > 0.7:
+            quality_info = " [Alta calidad]"
+        elif metadata.get('extractor') == 'ocr':
+            quality_info = " [Extraído con OCR]"
+
+        lines.append(f"- ({doc_name}{page_info}{quality_info}) {h['content']}")
     return "\n".join(lines)
 
 # Nota: Para la demo se puede imprimir el contexto; la generación con LLM es opcional
@@ -116,20 +118,37 @@ def rag_answer(query: str, backend: str = "qdrant", k: int = 5, filters: dict = 
 
         # Look for chapter information in content
         chapter_info = ""
+        section_info = ""
         if 'CAPÍTULO' in content[:200]:
             import re
             chapter_match = re.search(r'CAPÍTULO\s+(\d+)', content[:200])
             if chapter_match:
                 chapter_info = f", Capítulo {chapter_match.group(1)}"
 
-        reference = " - ".join(reference_parts) + chapter_info
+        # Look for section headers
+        if any(keyword in content[:150] for keyword in ['OBJETIVO', 'CRONOGRAMA', 'EVALUACIÓN', 'METODOLOGÍA']):
+            import re
+            section_match = re.search(
+                r'(OBJETIVO[S]?|CRONOGRAMA|EVALUACIÓN|METODOLOGÍA)[:\s]', content[:150])
+            if section_match:
+                section_info = f", {section_match.group(1).capitalize()}"
+
+        reference = " - ".join(reference_parts) + chapter_info + section_info
+
+        # Extract metadata for better context
+        metadata = hit.get('metadata', {})
+        quality_score = metadata.get('quality_score', 0)
+        extractor_used = metadata.get('extractor', 'unknown')
 
         results.append({
             "document": hit['path'].replace('./data/raw/', ''),
             "reference": reference,
             "page": hit.get('page'),
             "chapter": chapter_info.replace(", ", "") if chapter_info else None,
+            "section": section_info.replace(", ", "") if section_info else None,
             "similarity": f"{hit['score']:.3f}",
+            "quality": f"{quality_score:.2f}" if quality_score > 0 else "N/A",
+            "extractor": extractor_used,
             "preview": content[:120] + "..." if len(content) > 120 else content
         })
 
@@ -253,13 +272,34 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
         # Extract the generated text
         generated_text = response.get('response', '').strip()
 
+        # Build enhanced source attribution footer
+        source_references = []
+        for i, result in enumerate(results[:3], 1):  # Show top 3 sources
+            ref_parts = []
+            if result.get('page'):
+                ref_parts.append(f"p.{result['page']}")
+            if result.get('section'):
+                ref_parts.append(result['section'])
+            if result.get('chapter'):
+                ref_parts.append(result['chapter'])
+
+            ref_suffix = f" ({', '.join(ref_parts)})" if ref_parts else ""
+            source_references.append(f"{i}. {result['document']}{ref_suffix}")
+
+        # Add enhanced footer to the response
+        if source_references:
+            sources_text = "\n".join(source_references)
+            enhanced_response = f"{generated_text}\n\n**Fuentes consultadas:**\n{sources_text}"
+        else:
+            enhanced_response = generated_text
+
         return {
             "query": query,
             "expanded_query": expanded_query if expanded_query != query else None,
             "backend": backend.upper(),
             "model": model,
             "filters_applied": filters or {},
-            "ai_response": generated_text,
+            "ai_response": enhanced_response,
             "total_results": len(results),
             "sources": results,
             "prompt_used": prompt

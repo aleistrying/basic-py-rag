@@ -7,7 +7,7 @@ Supports both Qdrant and PostgreSQL with memory-efficient processing
 
 from ingest_config import (
     CLEAN_DIR, EMBED_MODEL,
-    USE_QDRANT, USE_PGVECTOR, BATCH_SIZE,
+    USE_QDRANT, USE_PGVECTOR, BATCH_SIZE, LARGE_BATCH_SIZE,
     QDRANT_URL, QDRANT_COLLECTION, QDRANT_VECTOR_SIZE, QDRANT_DISTANCE,
     PG_DSN, PG_TABLE, PG_DIM,
     E5_QUERY_PREFIX, E5_PASSAGE_PREFIX
@@ -53,15 +53,25 @@ class UnifiedEmbeddingProcessor:
     Combines memory-safe processing with robust database management
     """
 
-    def __init__(self, memory_safe_mode: bool = True, batch_size: int = None):
+    def __init__(self, memory_safe_mode: bool = True, batch_size: int = None, large_docs: bool = False):
         self.memory_safe_mode = memory_safe_mode
-        self.batch_size = batch_size or (4 if memory_safe_mode else BATCH_SIZE)
+        # Use larger batches for better performance
+        if large_docs:
+            self.batch_size = batch_size or LARGE_BATCH_SIZE
+        else:
+            self.batch_size = batch_size or (
+                BATCH_SIZE // 2 if memory_safe_mode else BATCH_SIZE)
+
+        # Reduce memory cleanup frequency for larger batches
+        # Cleanup every few batches
+        self.cleanup_interval = max(3, self.batch_size // 8)
+
         self.model = None
         self.qdrant_client = None
         self.pg_connection = None
 
         logger.info(
-            f"Initialized processor - Memory safe: {memory_safe_mode}, Batch size: {self.batch_size}")
+            f"Initialized processor - Memory safe: {memory_safe_mode}, Batch size: {self.batch_size}, Cleanup every: {self.cleanup_interval} batches")
 
     def get_embedding_model(self):
         """Load and cache the embedding model"""
@@ -409,7 +419,8 @@ class UnifiedEmbeddingProcessor:
                     self.process_batch(batch)
                     total_processed += len(batch)
 
-                    if self.memory_safe_mode and batch_num % 5 == 0:
+                    # Less frequent memory cleanup for better performance
+                    if self.memory_safe_mode and batch_num % self.cleanup_interval == 0:
                         logger.info(
                             f"🧹 Memory cleanup after {total_processed} chunks")
                         gc.collect()
@@ -475,18 +486,20 @@ class UnifiedEmbeddingProcessor:
         gc.collect()
 
 
-def embed_and_upsert_all(memory_safe: bool = True, clear_first: bool = True, batch_size: int = None):
+def embed_and_upsert_all(memory_safe: bool = True, clear_first: bool = True, batch_size: int = None, large_docs: bool = False):
     """
-    Convenience function for backward compatibility
+    Main function to embed and upsert all chunks - OPTIMIZED VERSION
 
     Args:
         memory_safe: Use memory-safe processing (smaller batches, more GC)
         clear_first: Clear databases before processing
         batch_size: Override default batch size
+        large_docs: Use larger batch sizes for big documents (recommended for medical textbooks)
     """
     processor = UnifiedEmbeddingProcessor(
         memory_safe_mode=memory_safe,
-        batch_size=batch_size
+        batch_size=batch_size,
+        large_docs=large_docs
     )
 
     try:

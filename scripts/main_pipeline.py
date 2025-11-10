@@ -46,12 +46,14 @@ class UnifiedMainPipeline:
     def __init__(self,
                  use_enhanced_extraction: bool = True,
                  memory_safe_mode: bool = True,
-                 batch_size: Optional[int] = None):
+                 batch_size: Optional[int] = None,
+                 large_docs: bool = False):
         self.use_enhanced_extraction = use_enhanced_extraction
         self.memory_safe_mode = memory_safe_mode
         self.batch_size = batch_size
+        self.large_docs = large_docs
 
-        # Initialize processors
+        # Initialize PDF processor
         if use_enhanced_extraction:
             self.pdf_processor = UnifiedPDFProcessor()
         else:
@@ -59,7 +61,8 @@ class UnifiedMainPipeline:
 
         self.embedding_processor = UnifiedEmbeddingProcessor(
             memory_safe_mode=memory_safe_mode,
-            batch_size=batch_size
+            batch_size=batch_size,
+            large_docs=large_docs
         )
 
     def check_dependencies(self) -> bool:
@@ -367,6 +370,8 @@ Examples:
                         help="Use memory-safe processing (default)")
     parser.add_argument("--batch-size", type=int,
                         help="Override batch size for processing")
+    parser.add_argument("--large-docs", action="store_true",
+                        help="Optimize for large documents (medical textbooks, etc.)")
     parser.add_argument("--no-skip", action="store_true",
                         help="Don't skip existing files (re-process everything)")
 
@@ -376,7 +381,8 @@ Examples:
     pipeline = UnifiedMainPipeline(
         use_enhanced_extraction=not args.basic,
         memory_safe_mode=args.memory_safe,
-        batch_size=args.batch_size
+        batch_size=args.batch_size,
+        large_docs=args.large_docs
     )
 
     # Handle special commands
