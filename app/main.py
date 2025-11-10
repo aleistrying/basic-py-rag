@@ -12,7 +12,7 @@ except ImportError:
     print("Warning: query_embed module not available")
     print("Install: pip install sentence-transformers")
     embed_e5 = None
-    expand_query = lambda x: x
+    def expand_query(x): return x
 
 from app.qdrant_backend import search_qdrant
 from app.pgvector_backend import search_pgvector
@@ -25,26 +25,27 @@ app = FastAPI(title="RAG Demo - Qdrant vs PGvector Postgres")
 
 def enhanced_ai_response_html(data: dict, query: str) -> str:
     """Enhanced HTML for AI responses with better UX"""
-    
+
     # Extract key information
     ai_response = data.get("ai_response", "")
     sources = data.get("sources", [])
     total_results = data.get("total_results", 0)
     backend = data.get("backend", "")
     model = data.get("model", "")
-    
+
     # Build sources section with page references
     sources_html = ""
     if sources:
         sources_html = "<div class='sources-section'><h3>📚 Fuentes:</h3>"
         for i, source in enumerate(sources, 1):
-            doc_name = source.get("document", "").replace("data/raw/", "").replace(".pdf", "")
+            doc_name = source.get("document", "").replace(
+                "data/raw/", "").replace(".pdf", "")
             similarity = source.get("similarity", "0.000")
             preview = source.get("preview", "")
             reference = source.get("reference", "")
             page = source.get("page")
             chapter = source.get("chapter")
-            
+
             # Build detailed reference info
             ref_info = []
             if reference:
@@ -53,12 +54,12 @@ def enhanced_ai_response_html(data: dict, query: str) -> str:
                 ref_info.append(f"{doc_name} - página {page}")
             else:
                 ref_info.append(doc_name)
-            
+
             if chapter:
                 ref_info.append(chapter)
-            
+
             full_reference = ", ".join(ref_info)
-            
+
             sources_html += f"""
             <div class='source-item'>
                 <div class='source-header'>
@@ -73,7 +74,7 @@ def enhanced_ai_response_html(data: dict, query: str) -> str:
 
     # JSON details (expandable)
     json_str = json.dumps(data, indent=2, ensure_ascii=False)
-    
+
     return f"""
     <!DOCTYPE html>
     <html>
@@ -515,10 +516,10 @@ def enhanced_ai_response_html(data: dict, query: str) -> str:
 
 def enhanced_general_response_html(data: dict, title: str, theme_color: str = "#2563eb") -> str:
     """Enhanced HTML response for any type of data with customizable theme"""
-    
+
     # Build content based on data type
     content_html = ""
-    
+
     # If it's a demonstration or has structured data
     if "pasos" in data or "proceso" in data or "titulo" in data:
         content_html = build_demo_content(data)
@@ -531,7 +532,7 @@ def enhanced_general_response_html(data: dict, title: str, theme_color: str = "#
 
     # JSON details (expandable)
     json_str = json.dumps(data, indent=2, ensure_ascii=False)
-    
+
     return f"""
     <!DOCTYPE html>
     <html>
@@ -1070,6 +1071,7 @@ def enhanced_general_response_html(data: dict, title: str, theme_color: str = "#
     </html>
     """
 
+
 def adjust_color(color: str) -> str:
     """Adjust hex color to be slightly darker"""
     try:
@@ -1079,6 +1081,7 @@ def adjust_color(color: str) -> str:
         return f"#{darkened[0]:02x}{darkened[1]:02x}{darkened[2]:02x}"
     except:
         return "#1e3a5f"
+
 
 def get_svg_icon(name: str, size: str = "20", color: str = "currentColor") -> str:
     """Generate SVG icons"""
@@ -1109,6 +1112,7 @@ def get_svg_icon(name: str, size: str = "20", color: str = "currentColor") -> st
     }
     return icons.get(name, f'<span style="font-size: {size}px;">•</span>')
 
+
 def adjust_color(color: str) -> str:
     """Adjust color for gradient effect"""
     color_map = {
@@ -1120,23 +1124,24 @@ def adjust_color(color: str) -> str:
     }
     return color_map.get(color, "#1e40af")
 
+
 def build_demo_content(data: dict) -> str:
     """Build comprehensive content for demonstration pages with detailed step information"""
     content = ""
-    
+
     if "titulo" in data:
         content += f'<div class="section"><div class="section-title">{data["titulo"]}</div>'
         if "resumen" in data:
             content += f'<p class="summary">{data["resumen"]}</p>'
         content += '</div>'
-    
+
     if "pasos" in data:
         content += f'<div class="section"><div class="section-title">{get_svg_icon("clipboard", "20", "#3b82f6")} Proceso Paso a Paso</div>'
         for i, paso in enumerate(data["pasos"], 1):
             paso_num = paso.get("paso", i)
             descripcion = paso.get("descripcion", "")
             explicacion = paso.get("explicacion", "")
-            
+
             content += f'''
             <div class="step-card">
                 <div class="step-header">
@@ -1145,11 +1150,11 @@ def build_demo_content(data: dict) -> str:
                 </div>
                 <div class="step-content">
                     '''
-            
+
             # Add explanation if available
             if explicacion:
                 content += f'<div class="explanation">{explicacion}</div>'
-            
+
             # Query information
             if "query_original" in paso:
                 content += f'''
@@ -1158,7 +1163,7 @@ def build_demo_content(data: dict) -> str:
                     <div class="info-value">"{paso["query_original"]}"</div>
                 </div>
                 '''
-            
+
             if "query_expandida" in paso:
                 content += f'''
                 <div class="info-box">
@@ -1168,7 +1173,7 @@ def build_demo_content(data: dict) -> str:
                 if paso.get("cambios"):
                     content += f'<div class="info-note">{get_svg_icon("gear", "14", "#6b7280")} {paso["cambios"]}</div>'
                 content += '</div>'
-            
+
             # Vector information
             if "vector_dimensiones" in paso:
                 content += f'''
@@ -1186,10 +1191,12 @@ def build_demo_content(data: dict) -> str:
                     </div>
                 </div>
                 '''
-                
+
                 if "primeros_10_valores" in paso and "ultimos_10_valores" in paso:
-                    primeros = ", ".join([f"{v:.4f}" for v in paso["primeros_10_valores"]])
-                    ultimos = ", ".join([f"{v:.4f}" for v in paso["ultimos_10_valores"]])
+                    primeros = ", ".join(
+                        [f"{v:.4f}" for v in paso["primeros_10_valores"]])
+                    ultimos = ", ".join(
+                        [f"{v:.4f}" for v in paso["ultimos_10_valores"]])
                     content += f'''
                     <div class="vector-preview">
                         <div class="vector-section">
@@ -1203,10 +1210,10 @@ def build_demo_content(data: dict) -> str:
                         </div>
                     </div>
                     '''
-                
+
                 if paso.get("como_funciona"):
                     content += f'<div class="info-explanation">{get_svg_icon("graduation", "14", "#059669")} {paso["como_funciona"]}</div>'
-            
+
             # Search engine information
             if "motor_usado" in paso:
                 motor = paso["motor_usado"]
@@ -1233,10 +1240,10 @@ def build_demo_content(data: dict) -> str:
                     </div>
                 </div>
                 '''
-            
+
             if "proceso" in paso:
                 content += f'<div class="info-explanation">{get_svg_icon("search", "14", "#3b82f6")} {paso["proceso"]}</div>'
-            
+
             # Results information
             if "resultados_encontrados" in paso:
                 content += f'''
@@ -1244,7 +1251,7 @@ def build_demo_content(data: dict) -> str:
                     <span class="results-count">{get_svg_icon("chart", "16", "#059669")} {paso["resultados_encontrados"]} resultados encontrados</span>
                 </div>
                 '''
-            
+
             # Similarity ranking details
             if "metrica_usada" in paso:
                 content += f'''
@@ -1255,7 +1262,7 @@ def build_demo_content(data: dict) -> str:
                 if paso.get("interpretacion"):
                     content += f'<div class="similarity-guide">{paso["interpretacion"]}</div>'
                 content += '</div>'
-            
+
             # Detailed results
             if "resultados_ordenados" in paso:
                 content += f'''
@@ -1294,24 +1301,25 @@ def build_demo_content(data: dict) -> str:
                     </div>
                     '''
                 content += '</div></div>'
-            
+
             content += '</div></div>'
         content += '</div>'
-    
+
     # Add additional sections
     if "vector_completo_disponible" in data:
         content += f'<div class="section"><div class="info-highlight">{data["vector_completo_disponible"]}</div></div>'
-    
+
     if "siguiente_paso" in data:
         content += f'<div class="section"><div class="next-step">{get_svg_icon("lightbulb", "16", "#fbbf24")} {data["siguiente_paso"]}</div></div>'
-    
+
     return content
+
 
 def build_sources_content(data: dict) -> str:
     """Build content for search results"""
     content = ""
     sources = data.get("sources", [])
-    
+
     if sources:
         content += f'<div class="section"><div class="section-title">{get_svg_icon("clipboard", "16", "#3b82f6")} Resultados Encontrados</div>'
         for i, source in enumerate(sources, 1):
@@ -1322,8 +1330,9 @@ def build_sources_content(data: dict) -> str:
             </div>
             '''
         content += '</div>'
-    
+
     return content
+
 
 def build_error_content(data: dict) -> str:
     """Build content for error pages"""
@@ -1334,10 +1343,11 @@ def build_error_content(data: dict) -> str:
     </div>
     '''
 
+
 def build_generic_content(data: dict) -> str:
     """Build content for generic data"""
     content = ""
-    
+
     # Try to display key information nicely
     for key, value in data.items():
         if key not in ['error', 'status']:
@@ -1347,30 +1357,30 @@ def build_generic_content(data: dict) -> str:
                 <p>{str(value)[:200]}{'...' if len(str(value)) > 200 else ''}</p>
             </div>
             '''
-    
+
     return content
 
 
 def enhanced_search_response_html(data: dict, query: str) -> str:
     """Enhanced HTML for search responses (similar to AI but without LLM response)"""
-    
+
     # Extract key information
     sources = data.get("sources", [])
     total_results = data.get("total_results", 0)
     backend = data.get("backend", "")
-    
+
     # Build sources section with page references
     sources_html = ""
     if sources:
         sources_html = '<div class="sources-section">'
         sources_html += f'<div class="sources-title">{get_svg_icon("clipboard", "16", "#3b82f6")} Documentos Encontrados:</div>'
         sources_html += '<div class="sources-grid">'
-        
+
         for i, source in enumerate(sources, 1):
             reference = source.get("reference", "")
             preview = source.get("preview", "")
             similarity = source.get("similarity", "")
-            
+
             sources_html += f'''
             <div class="source-card">
                 <div class="source-header">
@@ -1381,12 +1391,12 @@ def enhanced_search_response_html(data: dict, query: str) -> str:
                 <div class="source-preview">{preview}</div>
             </div>
             '''
-        
+
         sources_html += '</div></div>'
 
     # JSON details (expandable)
     json_str = json.dumps(data, indent=2, ensure_ascii=False)
-    
+
     return f"""
     <!DOCTYPE html>
     <html>
@@ -2080,83 +2090,6 @@ def manual_search_demo(
         return enhanced_general_response_html(error_data, "❌ Error Búsqueda", "#dc2626")
 
 
-@app.get("/manual/demo", response_class=HTMLResponse)
-def manual_complete_demo(
-    q: str = Query("bases de datos vectoriales",
-                   description="Consulta de ejemplo"),
-    backend: str = Query("qdrant", description="Motor de búsqueda"),
-    format: str = Query("html", description="Formato: 'json' o 'html'")
-):
-    """Demostración completa del proceso RAG para la clase"""
-    try:
-        # Create a comprehensive demo without calling other endpoints directly
-        result = {
-            "titulo": f"{get_svg_icon('graduation', '20', '#7c3aed')} DEMOSTRACIÓN COMPLETA: BÚSQUEDA VECTORIAL SEMÁNTICA",
-            "subtitulo": "Proceso completo de cómo funcionan las bases de datos vectoriales",
-            "introduccion": {
-                "que_es": "Un sistema que convierte texto en números (vectores) para buscar por significado",
-                "por_que_funciona": "Textos similares en significado tienen vectores similares",
-                "ventaja": "Puede encontrar documentos relevantes aunque no compartan palabras exactas"
-            },
-            "pasos": [
-                {
-                    "numero": 1,
-                    "nombre": "Preparación de la Consulta",
-                    "descripcion": f"La consulta '{q}' se expande con sinónimos y se prepara para vectorización",
-                    "detalle": "Se añaden prefijos especiales y se normaliza el texto"
-                },
-                {
-                    "numero": 2, 
-                    "nombre": "Vectorización",
-                    "descripcion": "Se convierte el texto en un vector de 768 dimensiones usando E5-multilingual",
-                    "detalle": "Cada palabra y su contexto se mapea a números que representan el significado"
-                },
-                {
-                    "numero": 3,
-                    "nombre": "Búsqueda Semántica", 
-                    "descripcion": f"Se buscan vectores similares en la base de datos {backend.upper()}",
-                    "detalle": "Se calculan distancias coseno para encontrar contenido relacionado"
-                },
-                {
-                    "numero": 4,
-                    "nombre": "Clasificación de Resultados",
-                    "descripcion": "Los resultados se ordenan por relevancia semántica",
-                    "detalle": "Scores más altos = mayor similitud de significado"
-                }
-            ],
-            "resumen_tecnico": {
-                "modelo_embedding": "intfloat/multilingual-e5-base (768 dimensiones)",
-                "base_datos": f"{backend.upper()} - Motor de búsqueda vectorial",
-                "metrica": "Similaridad coseno (0.0 a 1.0)",
-                "ventajas": [
-                    "Búsqueda semántica (por significado)",
-                    "Funciona en múltiples idiomas",
-                    "No requiere palabras exactas",
-                    "Escalable a millones de documentos"
-                ]
-            },
-            "ejemplo_practico": {
-                "consulta": q,
-                "backend_usado": backend,
-                "tiempo_estimado": "< 50ms",
-                "precision_esperada": "85-95%"
-            }
-        }
-
-        if format == "json":
-            return result
-        else:
-            return enhanced_general_response_html(result, f"{get_svg_icon('graduation', '20', '#7c3aed')} Demo Completa: {q}", "#7c3aed")
-
-    except Exception as e:
-        error_data = {
-            "error": f"Error en demo completa: {str(e)}", "status": 500}
-        if format == "json":
-            raise HTTPException(
-                status_code=500, detail=f"Error en demo completa: {str(e)}")
-        return enhanced_general_response_html(error_data, "❌ Error Demo", "#dc2626")
-
-
 @app.get("/filters/examples", response_class=HTMLResponse)
 def filter_examples(format: str = Query("html", description="Formato: 'json' o 'html'")):
     """Ejemplos de filtros de metadata disponibles"""
@@ -2231,7 +2164,7 @@ def root(format: str = Query("html", description="Formato: 'json' o 'html'")):
             "version": "3.0",
             "features": [
                 "Enhanced UI with search bar and navigation",
-                "Semantic search with E5 multilingual embeddings", 
+                "Semantic search with E5 multilingual embeddings",
                 "AI-powered responses with Ollama LLMs",
                 "Page and chapter references in results",
                 "Metadata filtering (document_type, section, topic, page, contains)",
@@ -2248,7 +2181,7 @@ def root(format: str = Query("html", description="Formato: 'json' o 'html'")):
             }
         }
         return result
-    
+
     return f"""
     <!DOCTYPE html>
     <html>
@@ -2734,7 +2667,7 @@ def root(format: str = Query("html", description="Formato: 'json' o 'html'")):
                         <a href="/demo/pipeline?q=pgvector" class="api-btn demo-btn">{get_svg_icon("experiment", "16", "#ffffff")} /demo/pipeline - Pipeline Completo</a>
                         <a href="/demo/embedding?text=PostgreSQL" class="api-btn embed-btn">{get_svg_icon("brain", "16", "#ffffff")} /demo/embedding - Crear Embeddings</a>
                         <a href="/demo/similarity?text1=pgvector&text2=vectorial" class="api-btn manual-btn">{get_svg_icon("ruler", "16", "#ffffff")} /demo/similarity - Calcular Similitud</a>
-                        <a href="/manual/demo?q=test" class="api-btn demo-btn">{get_svg_icon("graduation", "16", "#ffffff")} /manual/demo - Demo Básica</a>
+                        <a href="/demo/pipeline?query=bases+de+datos+vectoriales" class="api-btn demo-btn">{get_svg_icon("graduation", "16", "#ffffff")} /demo/pipeline - Demo Educativa Completa</a>
                         <a href="/manual/embed?q=ejemplo" class="api-btn embed-btn">{get_svg_icon("settings", "16", "#ffffff")} /manual/embed - Vectorización</a>
                         <a href="/manual/search?q=ejemplo" class="api-btn manual-btn">{get_svg_icon("search", "16", "#ffffff")} /manual/search - Búsqueda Manual</a>
                     </div>
@@ -2752,7 +2685,7 @@ def root(format: str = Query("html", description="Formato: 'json' o 'html'")):
                 <div class="nav-buttons">
                     <a href="/ai?q=evaluación+del+curso" class="nav-link primary">{get_svg_icon("graduation", "16")} Búsquedas Académicas</a>
                     <a href="/filters/examples" class="nav-link">{get_svg_icon("filter", "16")} Ejemplos de Filtros</a>
-                    <a href="/manual/demo" class="nav-link">{get_svg_icon("book", "16")} Demo Educativa</a>
+                    <a href="/demo/pipeline?query=bases+de+datos+vectoriales" class="nav-link">{get_svg_icon("book", "16")} Demo Pipeline RAG</a>
                 </div>
             </div>
         </div>
@@ -2870,56 +2803,60 @@ def root(format: str = Query("html", description="Formato: 'json' o 'html'")):
 # COMPREHENSIVE RAG PIPELINE DEMO ROUTES
 # ================================
 
+
 @app.get("/demo/pipeline")
 def comprehensive_pipeline_demo(
-    q: str = Query("¿Qué es pgvector?", description="Consulta para demostrar pipeline"),
+    q: str = Query("¿Qué es pgvector?",
+                   description="Consulta para demostrar pipeline"),
     format: str = Query("html", description="Formato: 'json' o 'html'")
 ):
     """Demo paso a paso completo del pipeline RAG"""
     try:
         from app.demo_pipeline import RAGPipelineDemo, create_demo_html
-        
+
         demo = RAGPipelineDemo()
-        
+
         # Execute all pipeline steps
         steps = []
-        
+
         # Step 1: Parse text
         step1 = demo.step_1_parse_text()
         steps.append(step1)
-        
+
         # Step 2: Clean text
         step2 = demo.step_2_clean_text(step1["output"]["sentences"])
         steps.append(step2)
-        
+
         # Step 3: Create embeddings
         step3 = demo.step_3_create_embeddings(step2["output"]["chunks"])
         steps.append(step3)
-        
+
         # Step 4: Process query
         step4 = demo.step_4_query_processing(q)
         steps.append(step4)
-        
+
         # Step 5: Qdrant search
-        step5 = demo.step_5_vector_search_qdrant(step4["output"]["full_embedding"])
+        step5 = demo.step_5_vector_search_qdrant(
+            step4["output"]["full_embedding"])
         steps.append(step5)
-        
+
         # Step 6: pgvector search
-        step6 = demo.step_6_vector_search_pgvector(step4["output"]["full_embedding"])
+        step6 = demo.step_6_vector_search_pgvector(
+            step4["output"]["full_embedding"])
         steps.append(step6)
-        
+
         # Step 7: Math explanation
         if step3["output"]["full_embeddings"]:
             step7 = demo.step_7_similarity_math(
-                step4["output"]["full_embedding"], 
+                step4["output"]["full_embedding"],
                 step3["output"]["full_embeddings"]
             )
             steps.append(step7)
-        
+
         # Step 8: Result ranking
         step8 = demo.step_8_result_ranking(step5["output"])
         steps.append(step8)
-        
+
         if format == "json":
             from fastapi import Response
             import json
@@ -2932,16 +2869,17 @@ def comprehensive_pipeline_demo(
                 }),
                 media_type="application/json"
             )
-        
+
         # Create comprehensive HTML
         html = create_demo_html(steps, q)
         return HTMLResponse(content=html)
-        
+
     except Exception as e:
         logger.error(f"Error in pipeline demo: {str(e)}")
         if format == "json":
-            raise HTTPException(status_code=500, detail=f"Demo error: {str(e)}")
-        
+            raise HTTPException(
+                status_code=500, detail=f"Demo error: {str(e)}")
+
         error_html = f"""
         <div style="color: #ff6b6b; padding: 20px; text-align: center;">
             <h2>❌ Error en Demo</h2>
@@ -2951,26 +2889,29 @@ def comprehensive_pipeline_demo(
         """
         return HTMLResponse(content=error_html)
 
+
 @app.get("/demo/test")
 def test_demo():
     """Simple test endpoint to debug container issues"""
     return {"message": "test works", "status": "ok"}
 
+
 @app.get("/demo/embedding")
 def embedding_demo(
-    text: str = Query("PostgreSQL es una base de datos", description="Texto para convertir a embedding"),
+    text: str = Query("PostgreSQL es una base de datos",
+                      description="Texto para convertir a embedding"),
     format: str = Query("html", description="Formato de respuesta")
 ):
     """Demo específico de creación de embeddings"""
     try:
         from app.demo_pipeline import RAGPipelineDemo
-        
+
         demo = RAGPipelineDemo()
-        
+
         # Create embedding for the text
         chunks = [text]
         embedding_result = demo.step_3_create_embeddings(chunks)
-        
+
         if format == "json":
             from fastapi import Response
             import json
@@ -2978,7 +2919,7 @@ def embedding_demo(
                 content=json.dumps(embedding_result),
                 media_type="application/json"
             )
-        
+
         html = f"""
         <!DOCTYPE html>
         <html>
@@ -3019,11 +2960,11 @@ def embedding_demo(
                     
                     <div class="dimensions">
         """
-        
+
         # Show first 50 dimensions as visual representation
         for i, val in enumerate(embedding_result['output']['sample_embedding'][:50]):
             html += f'<div class="dim" title="Dim {i}: {val:.4f}">{val:.3f}</div>'
-        
+
         html += f"""
                     </div>
                     
@@ -3047,14 +2988,16 @@ def embedding_demo(
         </body>
         </html>
         """
-        
+
         return HTMLResponse(content=html)
-        
+
     except Exception as e:
         logger.error(f"Error in embedding demo: {str(e)}")
         if format == "json":
-            raise HTTPException(status_code=500, detail=f"Embedding demo error: {str(e)}")
+            raise HTTPException(
+                status_code=500, detail=f"Embedding demo error: {str(e)}")
         return HTMLResponse(content=f"<div style='color: red; text-align: center; padding: 20px;'>Error: {str(e)}</div>")
+
 
 @app.get("/demo/similarity")
 def similarity_demo(
@@ -3066,23 +3009,23 @@ def similarity_demo(
     try:
         from app.demo_pipeline import RAGPipelineDemo
         import numpy as np
-        
+
         demo = RAGPipelineDemo()
-        
+
         # Create embeddings for both texts
         embedding1_result = demo.step_3_create_embeddings([text1])
         embedding2_result = demo.step_3_create_embeddings([text2])
-        
+
         emb1 = np.array(embedding1_result['output']['full_embeddings'][0])
         emb2 = np.array(embedding2_result['output']['full_embeddings'][0])
-        
+
         # Calculate similarity
         dot_product = np.dot(emb1, emb2)
         norm1 = np.linalg.norm(emb1)
         norm2 = np.linalg.norm(emb2)
         cosine_similarity = dot_product / (norm1 * norm2)
         cosine_distance = 1 - cosine_similarity
-        
+
         result = {
             "text1": text1,
             "text2": text2,
@@ -3095,7 +3038,7 @@ def similarity_demo(
                 "similarity_percentage": float(cosine_similarity * 100)
             }
         }
-        
+
         if format == "json":
             from fastapi import Response
             import json
@@ -3103,9 +3046,9 @@ def similarity_demo(
                 content=json.dumps(result),
                 media_type="application/json"
             )
-        
+
         similarity_color = "#4CAF50" if cosine_similarity > 0.7 else "#FF9800" if cosine_similarity > 0.3 else "#F44336"
-        
+
         html = f"""
         <!DOCTYPE html>
         <html>
@@ -3189,11 +3132,12 @@ def similarity_demo(
         </body>
         </html>
         """
-        
+
         return HTMLResponse(content=html)
-        
+
     except Exception as e:
         logger.error(f"Error in similarity demo: {str(e)}")
         if format == "json":
-            raise HTTPException(status_code=500, detail=f"Similarity demo error: {str(e)}")
+            raise HTTPException(
+                status_code=500, detail=f"Similarity demo error: {str(e)}")
         return HTMLResponse(content=f"<div style='color: red; text-align: center; padding: 20px;'>Error: {str(e)}</div>")

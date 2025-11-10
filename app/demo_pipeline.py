@@ -16,8 +16,65 @@ logger = logging.getLogger(__name__)
 
 # Simple settings without pydantic dependency
 PGVECTOR_DATABASE_URL = os.getenv(
-    "PGVECTOR_DATABASE_URL", "postgresql://pguser:pgpass@localhost:5432/vectordb")
-QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
+    "PGVECTOR_DATABASE_URL", "postgresql://pguser:pgpass@pgvector_db:5432/vectordb")
+QDRANT_URL = os.getenv("QDRANT_URL", "http://qdrant:6333")
+
+
+def format_json_with_syntax_highlighting(data) -> str:
+    """Format JSON with proper syntax highlighting"""
+    import json
+    import html
+
+    if data is None:
+        return "null"
+
+    # Convert to properly formatted JSON string
+    json_str = json.dumps(data, indent=2, ensure_ascii=False)
+
+    # Escape HTML characters
+    json_str = html.escape(json_str)
+
+    # Apply syntax highlighting
+    lines = json_str.split('\n')
+    highlighted_lines = []
+
+    for line in lines:
+        # Color different JSON elements
+        # Strings (keys and values)
+        line = re.sub(
+            r'"([^"]*)":', r'<span style="color: #9cdcfe;">"\1"</span><span style="color: #d4d4d4;">:</span>', line)
+        line = re.sub(
+            r': "([^"]*)"', r': <span style="color: #ce9178;">"\1"</span>', line)
+
+        # Numbers
+        line = re.sub(r': (-?\d+\.?\d*)',
+                      r': <span style="color: #b5cea8;">\1</span>', line)
+
+        # Booleans and null
+        line = re.sub(r': (true|false|null)',
+                      r': <span style="color: #569cd6;">\1</span>', line)
+
+        # Brackets and braces
+        line = re.sub(
+            r'([{}\[\]])', r'<span style="color: #ffd700;">\1</span>', line)
+
+        highlighted_lines.append(line)
+
+    return '\n'.join(highlighted_lines)
+
+
+def get_svg_icon(name: str, size: str = "16", color: str = "#4CAF50") -> str:
+    """Generate SVG icons for demo pipeline"""
+    icons = {
+        "input": f'<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2"><path d="M7 17L17 7"/><path d="M7 7H17V17"/></svg>',
+        "output": f'<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2"><path d="M7 7L17 17"/><path d="M17 7V17H7"/></svg>',
+        "code": f'<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2"><polyline points="16,18 22,12 16,6"/><polyline points="8,6 2,12 8,18"/></svg>',
+        "idea": f'<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>',
+        "web": f'<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2C14.5 7 14.5 17 12 22C9.5 17 9.5 7 12 2z"/></svg>',
+        "formula": f'<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2"><path d="M5 12h14"/><path d="M12 5v14"/><circle cx="12" cy="12" r="10"/></svg>',
+        "experiment": f'<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2"><path d="M9 2v6l-3 3.5a2 2 0 0 0 0 3L9 18v2"/><path d="M15 2v6l3 3.5a2 2 0 0 1 0 3L15 18v2"/><line x1="9" y1="7" x2="15" y2="7"/></svg>'
+    }
+    return icons.get(name, f'<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>')
 
 
 class RAGPipelineDemo:
@@ -294,12 +351,9 @@ print(f"Forma de consulta: {query_embedding.shape}")  # (768,)
             "with_vector": True
         }
 
-        # Generate curl command for direct API access
-        curl_command = f"""
-curl -X POST '{QDRANT_URL}/collections/course_docs_clean/points/search' \\
--H 'Content-Type: application/json' \\
--d '{json.dumps(search_payload, indent=2)}'
-        """.strip()
+        # Generate curl command for direct API access (properly escaped)
+        vector_str = json.dumps(query_embedding)
+        curl_command = f"curl -X POST '{QDRANT_URL}/collections/course_docs_clean/points/search' \\\n  -H 'Content-Type: application/json' \\\n  -d '{{\"vector\": {vector_str}, \"limit\": {limit}, \"with_payload\": true, \"with_vector\": true}}'"
 
         try:
             # Perform actual search
@@ -364,16 +418,8 @@ ORDER BY embedding <=> '{embedding_str}'::vector
 LIMIT {limit};
         """
 
-        # Equivalent curl command for PostgreSQL REST API (if available)
-        curl_command = f"""
-# PostgreSQL vector search (via psql or REST API)
-psql "{PGVECTOR_DATABASE_URL}" -c "
-SELECT id, content, metadata, 
-       embedding <=> '{embedding_str[:50]}...'::vector as distance
-FROM docs_clean 
-ORDER BY embedding <=> '{embedding_str[:50]}...'::vector 
-LIMIT {limit};"
-        """.strip()
+        # Equivalent curl command for PostgreSQL (simplified for display)
+        curl_command = f"# PostgreSQL vector search (via psql or REST API)\npsql \"{PGVECTOR_DATABASE_URL}\" -c \"\\\n  SELECT id, content, metadata, \\\n    embedding <=> '[{embedding_str[:50]}...]'::vector as distance \\\n  FROM docs_clean \\\n  ORDER BY embedding <=> '[{embedding_str[:50]}...]'::vector \\\n  LIMIT {limit};\""
 
         try:
             # Execute search
@@ -557,7 +603,7 @@ def create_demo_html(demo_steps: List[Dict[str, Any]], query: str) -> str:
 <!DOCTYPE html>
 <html>
 <head>
-    <title>🔬 RAG Pipeline Demo: {query}</title>
+    <title>RAG Pipeline Demo: {query}</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
@@ -620,11 +666,14 @@ def create_demo_html(demo_steps: List[Dict[str, Any]], query: str) -> str:
             background: #1e1e1e;
             border: 1px solid #333;
             border-radius: 8px;
-            padding: 15px;
+            padding: 20px;
             margin: 15px 0;
             overflow-x: auto;
-            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-family: 'Fira Code', 'Consolas', 'Monaco', 'Courier New', monospace;
             font-size: 0.9em;
+            line-height: 1.5;
+            color: #e1e1e1;
+            white-space: pre-wrap;
         }}
         
         .json-block {{
@@ -638,6 +687,7 @@ def create_demo_html(demo_steps: List[Dict[str, Any]], query: str) -> str:
             font-size: 0.85em;
             max-height: 400px;
             overflow-y: auto;
+            white-space: pre-wrap;
         }}
         
         .curl-command {{
@@ -649,6 +699,7 @@ def create_demo_html(demo_steps: List[Dict[str, Any]], query: str) -> str:
             font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
             font-size: 0.9em;
             color: #e1e1e1;
+            white-space: pre-wrap;
         }}
         
         .explanation {{
@@ -725,9 +776,12 @@ def create_demo_html(demo_steps: List[Dict[str, Any]], query: str) -> str:
         }}
     </style>
 </head>
-<body>
+<body>"""
+
+    # Add header
+    html += f"""
     <div class="header">
-        <h1>🔬 Demo Completo del Pipeline RAG</h1>
+        <h1>{get_svg_icon("experiment", "24", "#4CAF50")} Demo Completo del Pipeline RAG</h1>
         <p><strong>Consulta:</strong> "{query}"</p>
         <p>Análisis completo paso a paso de texto a búsqueda vectorial</p>
     </div>
@@ -742,8 +796,7 @@ def create_demo_html(demo_steps: List[Dict[str, Any]], query: str) -> str:
         <a href="#step6" class="nav-link">6. Búsqueda pgvector</a>
         <a href="#step7" class="nav-link">7. Matemáticas</a>
         <a href="#step8" class="nav-link">8. Clasificación</a>
-    </div>
-"""
+    </div>"""
 
     for i, step in enumerate(demo_steps, 1):
         step_id = f"step{i}"
@@ -759,52 +812,49 @@ def create_demo_html(demo_steps: List[Dict[str, Any]], query: str) -> str:
         
         <div class="input-output">
             <div class="input-section">
-                <div class="section-title">📥 Entrada</div>
-                <div class="json-block">{json.dumps(step.get('input', {}), indent=2, ensure_ascii=False)}</div>
+                <div class="section-title">{get_svg_icon("input", "16", "#4CAF50")} Entrada</div>
+                <div class="json-block">{format_json_with_syntax_highlighting(step.get('input', {}))}</div>
             </div>
             
             <div class="output-section">
-                <div class="section-title">📤 Salida</div>
-                <div class="json-block">{json.dumps(step.get('output', {}), indent=2, ensure_ascii=False)}</div>
+                <div class="section-title">{get_svg_icon("output", "16", "#FF9800")} Salida</div>
+                <div class="json-block">{format_json_with_syntax_highlighting(step.get('output', {}))}</div>
             </div>
         </div>
         
         <div class="explanation">
-            <strong>💡 Explicación:</strong> {step.get('explanation', 'Sin explicación disponible')}
+            <strong>{get_svg_icon("idea", "16", "#2196F3")} Explicación:</strong> {step.get('explanation', 'Sin explicación disponible')}
         </div>
         
-        <div class="section-title">💻 Ejemplo de Código</div>
-        <div class="code-block">{step.get('code_example', '# Sin ejemplo de código disponible')}</div>
-"""
+        <div class="section-title">{get_svg_icon("code", "16", "#9C27B0")} Ejemplo de Código</div>
+        <div class="code-block">{step.get('code_example', '# Sin ejemplo de código disponible')}</div>"""
 
         # Add special sections for specific steps
         if 'curl_command' in step:
             html += f"""
-        <div class="section-title">🌐 Acceso Directo a API</div>
-        <div class="curl-command">{step['curl_command']}</div>
-"""
+        <div class="section-title">{get_svg_icon("web", "16", "#00BCD4")} Acceso Directo a API</div>
+        <div class="curl-command">{step['curl_command']}</div>"""
 
         if 'formulas' in step:
             html += f"""
-        <div class="section-title">📐 Fórmulas Matemáticas</div>
+        <div class="section-title">{get_svg_icon("formula", "16", "#795548")} Fórmulas Matemáticas</div>
         <div class="math-formula">
             <strong>Similitud de Coseno:</strong> {step['formulas']['cosine_similarity']}<br>
             <strong>Distancia de Coseno:</strong> {step['formulas']['cosine_distance']}<br>
             <strong>Producto Punto:</strong> {step['formulas']['dot_product']}<br>
             <strong>Norma Vectorial:</strong> {step['formulas']['vector_norm']}
-        </div>
-"""
+        </div>"""
 
-        html += "</div>"
+        html += """
+    </div>"""
 
-    html += """
+    html += f"""
     <div class="header" style="margin-top: 40px;">
-        <h2>🎯 ¡Pipeline Completo!</h2>
+        <h2>{get_svg_icon("experiment", "20", "#4CAF50")} ¡Pipeline Completo!</h2>
         <p>Esta demostración mostró el pipeline completo RAG desde texto crudo hasta resultados clasificados.</p>
         <p><a href="/" style="color: #4CAF50;">← Volver al Menú Principal</a></p>
     </div>
 </body>
-</html>
-"""
+</html>"""
 
     return html

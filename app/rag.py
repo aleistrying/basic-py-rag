@@ -226,21 +226,53 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
         elif item.get('chunk_id'):
             reference_parts.append(f"sección {item['chunk_id']}")
 
-        # Look for chapter information in content
+        # Look for chapter and topic information in content
         chapter_info = ""
+        topic_info = ""
+        section_info = ""
+
+        # Extract chapter information
         if 'CAPÍTULO' in content[:200]:
             import re
             chapter_match = re.search(r'CAPÍTULO\s+(\d+)', content[:200])
             if chapter_match:
-                chapter_info = f", Capítulo {chapter_match.group(1)}"
+                chapter_info = f"Cap. {chapter_match.group(1)}"
 
-        reference = " - ".join(reference_parts) + chapter_info
+        # Extract topic/section information from common patterns
+        content_lower = content[:300].lower()
+        if 'vacuna' in content_lower or 'inmunización' in content_lower:
+            topic_info = "Vacunación"
+        elif 'diabetes' in content_lower:
+            topic_info = "Diabetes"
+        elif 'hipertensión' in content_lower or 'presión arterial' in content_lower:
+            topic_info = "Hipertensión"
+        elif 'parto' in content_lower or 'trabajo de parto' in content_lower:
+            topic_info = "Parto"
+        elif 'embarazo' in content_lower or 'gestación' in content_lower:
+            topic_info = "Embarazo"
+        elif 'feto' in content_lower or 'fetal' in content_lower:
+            topic_info = "Desarrollo Fetal"
+        elif 'complicación' in content_lower:
+            topic_info = "Complicaciones"
+
+        # Build enhanced reference
+        ref_parts = []
+        if item.get('page'):
+            ref_parts.append(f"p.{item['page']}")
+        if chapter_info:
+            ref_parts.append(chapter_info)
+        if topic_info:
+            ref_parts.append(topic_info)
+
+        enhanced_reference = " | ".join(
+            ref_parts) if ref_parts else "Sin contexto específico"
 
         results.append({
-            "document": item['path'].replace('./data/raw/', ''),
-            "reference": reference,
+            "document": item['path'].replace('./data/raw/', '').replace('.pdf', ''),
+            "reference": enhanced_reference,
             "page": item.get('page'),
-            "chapter": chapter_info.replace(", ", "") if chapter_info else None,
+            "chapter": chapter_info if chapter_info else None,
+            "topic": topic_info if topic_info else None,
             "similarity": f"{item['sim']:.3f}",
             "preview": content[:120] + "..." if len(content) > 120 else content
         })
