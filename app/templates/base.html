@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>{% block title %}RAG Demo{% endblock %}</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        /* Modern Flat Design System - Consistent across all pages */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', Arial, sans-serif;
+            background: linear-gradient(135deg, #0f1629 0%, #1a1a2e 100%);
+            color: #e1e5e9;
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        /* Container - Consistent Layout */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(26, 26, 46, 0.7);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            min-height: 100vh;
+        }
+
+        /* Header - Purple Theme */
+        .header {
+            background: linear-gradient(135deg, #4c1d95 0%, #3730a3 100%);
+            padding: 20px 30px;
+            color: white;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Search Bar - Consistent Input Design */
+        .search-bar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .search-input {
+            flex: 1;
+            min-width: 250px;
+            padding: 14px 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .search-input::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: rgba(255, 255, 255, 0.4);
+            background: rgba(255, 255, 255, 0.15);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+        }
+
+        /* Button System - Purple Theme */
+        .search-btn,
+        .nav-btn {
+            padding: 14px 24px;
+            border: none;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+            color: white;
+            cursor: pointer;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+
+        .search-btn:hover,
+        .nav-btn:hover {
+            background: linear-gradient(135deg, #a78bfa, #8b5cf6);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+        }
+
+        .search-btn:active,
+        .nav-btn:active {
+            transform: translateY(0);
+        }
+
+        /* Content Area - Clean and Spacious */
+        .content {
+            padding: 40px 30px;
+            background: rgba(31, 41, 55, 0.3);
+        }
+
+        /* Typography - Consistent Header System */
+        .title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 28px;
+            font-weight: 700;
+            margin: 0 0 8px 0;
+            color: #f8fafc;
+        }
+
+        .subtitle {
+            color: rgba(248, 250, 252, 0.7);
+            font-size: 16px;
+            margin: 0 0 20px 0;
+            font-weight: 500;
+        }
+
+        /* Navigation System - Flat Design */
+        .navigation {
+            display: flex;
+            gap: 20px;
+            justify-content: space-between;
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            flex-wrap: wrap;
+        }
+
+        .nav-group {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .nav-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            background: rgba(55, 65, 81, 0.8);
+            color: #e5e7eb;
+            text-decoration: none;
+            border-radius: 10px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(107, 114, 128, 0.3);
+            font-size: 14px;
+        }
+
+        .nav-link:hover {
+            background: rgba(75, 85, 99, 0.9);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            border-color: rgba(156, 163, 175, 0.5);
+        }
+
+        .nav-link.primary {
+            background: linear-gradient(135deg, #6366f1, #4f46e5);
+            border-color: #6366f1;
+            color: white;
+        }
+
+        .nav-link.primary:hover {
+            background: linear-gradient(135deg, #818cf8, #6366f1);
+        }
+
+        /* Card System - Modern and Clean */
+        .card {
+            background: rgba(55, 65, 81, 0.4);
+            border: 1px solid rgba(107, 114, 128, 0.3);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            background: rgba(55, 65, 81, 0.6);
+            border-color: rgba(156, 163, 175, 0.4);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Section Headers */
+        .section-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #3b82f6;
+            margin: 0 0 16px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Toggle System - JSON Details */
+        .toggle-btn {
+            background: rgba(55, 65, 81, 0.8);
+            color: #e5e7eb;
+            border: 1px solid rgba(107, 114, 128, 0.4);
+            padding: 14px 28px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .toggle-btn:hover {
+            background: rgba(75, 85, 99, 0.9);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .json-details {
+            display: none;
+            margin-top: 24px;
+            background: rgba(17, 24, 39, 0.8);
+            border: 1px solid rgba(55, 65, 81, 0.6);
+            border-radius: 12px;
+            padding: 24px;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+
+        .json-details.show {
+            display: block;
+            animation: slideDown 0.3s ease-out;
+        }
+
+        .json-content {
+            background: #0f172a;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            color: #e1e5e9;
+            border: 1px solid rgba(31, 41, 55, 0.6);
+        }
+
+        /* Loading States */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+            backdrop-filter: blur(5px);
+        }
+
+        .loading-overlay.active {
+            display: flex;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        /* Animations */
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .container {
+                border-radius: 0;
+                min-height: 100vh;
+            }
+
+            .header {
+                padding: 16px 20px;
+            }
+
+            .content {
+                padding: 20px 16px;
+            }
+
+            .search-bar {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .search-input {
+                min-width: unset;
+            }
+
+            .navigation {
+                flex-direction: column;
+                gap: 16px;
+            }
+
+            .nav-group {
+                justify-content: center;
+            }
+
+            .title {
+                font-size: 24px;
+            }
+        }
+
+        /* Custom Scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(55, 65, 81, 0.3);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(156, 163, 175, 0.5);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(156, 163, 175, 0.7);
+        }
+
+            {
+            % block extra_css %
+        }
+
+            {
+            % endblock %
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div style="text-align: center; color: white;">
+            <div class="spinner"></div>
+            <div style="margin-top: 16px; font-size: 16px; font-weight: 500;">Cargando...</div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="header">
+            {% block header_content %}
+            <div class="search-bar">
+                <input type="text" class="search-input" placeholder="Nueva búsqueda..." value="" id="searchInput">
+                <button class="search-btn" onclick="newSearch()">
+                    {{ get_svg_icon("search", "16", "#ffffff") }} Buscar
+                </button>
+                <button class="nav-btn" onclick="window.location.href='/'">
+                    {{ get_svg_icon("home", "16", "#ffffff") }} Menu Principal
+                </button>
+            </div>
+            <div class="title">{{ get_svg_icon("robot", "28", "#ffffff") }} RAG Demo</div>
+            <div class="subtitle">Sistema de Búsqueda Inteligente con Vectores</div>
+            {% endblock %}
+        </div>
+
+        <div class="content">
+            {% block content %}{% endblock %}
+
+            <div class="navigation">
+                <div class="nav-group">
+                    <a href="/" class="nav-link primary">
+                        {{ get_svg_icon("home", "16", "#ffffff") }} Inicio
+                    </a>
+                    <a href="/ask?q=bases+de+datos+vectoriales" class="nav-link">
+                        {{ get_svg_icon("search", "16", "#3b82f6") }} Búsqueda
+                    </a>
+                    <a href="/ai?q=bases+de+datos+vectoriales" class="nav-link">
+                        {{ get_svg_icon("robot", "16", "#3b82f6") }} AI Search
+                    </a>
+                    <a href="/compare?q={{ query|default('pgvector') }}" class="nav-link">
+                        {{ get_svg_icon("balance", "16", "#3b82f6") }} Comparar
+                    </a>
+                </div>
+                <div class="nav-group">
+                    <a href="/demo/pipeline?q=demo+completo" class="nav-link">
+                        {{ get_svg_icon("zap", "16", "#3b82f6") }} Pipeline RAG
+                    </a>
+                    <a href="/manual/embed?text=PostgreSQL+vectorial" class="nav-link">
+                        {{ get_svg_icon("layers", "16", "#3b82f6") }} Demo Embedding
+                    </a>
+                    <a href="/demo/similarity" class="nav-link">
+                        {{ get_svg_icon("target", "16", "#3b82f6") }} Demo Similitud
+                    </a>
+                </div>
+                <div class="nav-group">
+                    <a href="/gpu-status" class="nav-link">
+                        {{ get_svg_icon("cpu", "16", "#3b82f6") }} System Status
+                    </a>
+                    <a href="/filters/examples" class="nav-link">
+                        {{ get_svg_icon("filter", "16", "#3b82f6") }} Filtros
+                    </a>
+                    <a href="/docs" class="nav-link">
+                        {{ get_svg_icon("book", "16", "#3b82f6") }} API Docs
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% block scripts %}
+    <script>
+        // Global search function
+        function newSearch() {
+            const query = document.getElementById('searchInput').value;
+            if (query.trim()) {
+                window.location.href = `/ask?q=${encodeURIComponent(query.trim())}`;
+            }
+        }
+
+        // Enter key support for search
+        document.addEventListener('DOMContentLoaded', function () {
+            const searchInput = document.getElementById('searchInput');
+            if (searchInput) {
+                searchInput.addEventListener('keypress', function (e) {
+                    if (e.key === 'Enter') {
+                        newSearch();
+                    }
+                });
+            }
+        });
+
+        // Global loading functions
+        function showLoading() {
+            document.getElementById('loadingOverlay').classList.add('active');
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.remove('active');
+        }
+
+        // Toggle JSON details
+        function toggleJsonDetails(button) {
+            const details = button.nextElementSibling;
+            if (details && details.classList.contains('json-details')) {
+                details.classList.toggle('show');
+                button.textContent = details.classList.contains('show')
+                    ? 'Ocultar Detalles JSON'
+                    : 'Ver Detalles JSON';
+            }
+        }
+
+        // Navigation with loading
+        function navigateWithLoading(url, message = 'Cargando...') {
+            showLoading();
+            const loadingText = document.querySelector('.loading-overlay .spinner').nextElementSibling;
+            if (loadingText) {
+                loadingText.textContent = message;
+            }
+            window.location.href = url;
+        }
+    </script>
+    {% endblock %}
+</body>
+
+</html>

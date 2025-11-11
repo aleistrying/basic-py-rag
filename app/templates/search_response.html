@@ -1,0 +1,472 @@
+{% extends "base.html" %}
+
+{% block title %}Búsqueda: {{ query }}{% endblock %}
+
+{% block extra_css %}
+/* Search Response - Modern Flat Design aligned with base template */
+.results-section {
+background: rgba(55, 65, 81, 0.4);
+border: 1px solid rgba(107, 114, 128, 0.3);
+margin: 20px 0;
+padding: 24px;
+border-radius: 12px;
+}
+
+.results-section h3 {
+margin: 0 0 24px 0;
+color: #a78bfa;
+font-size: 20px;
+font-weight: 700;
+display: flex;
+align-items: center;
+gap: 10px;
+}
+
+.result-item {
+background: rgba(31, 41, 55, 0.4);
+border: 1px solid rgba(75, 85, 99, 0.4);
+padding: 20px;
+border-radius: 10px;
+margin-bottom: 20px;
+transition: all 0.3s ease;
+position: relative;
+overflow: hidden;
+}
+
+.result-item::before {
+content: '';
+position: absolute;
+top: 0;
+left: 0;
+width: 3px;
+height: 100%;
+background: linear-gradient(to bottom, #059669, #047857);
+}
+
+.result-item:hover {
+background: rgba(31, 41, 55, 0.6);
+border-color: rgba(156, 163, 175, 0.5);
+transform: translateY(-2px);
+box-shadow: 0 6px 20px rgba(5, 150, 105, 0.15);
+}
+
+.result-header {
+display: flex;
+align-items: center;
+gap: 15px;
+margin-bottom: 16px;
+flex-wrap: wrap;
+}
+
+.result-number {
+background: linear-gradient(135deg, #059669, #047857);
+color: white;
+padding: 6px 10px;
+border-radius: 50%;
+font-weight: bold;
+font-size: 14px;
+min-width: 28px;
+text-align: center;
+box-shadow: 0 2px 8px rgba(5, 150, 105, 0.3);
+flex-shrink: 0;
+}
+
+.result-doc {
+font-weight: 600;
+color: #60a5fa;
+flex: 1;
+min-width: 200px;
+font-size: 15px;
+}
+
+.result-similarity {
+background: rgba(16, 185, 129, 0.2);
+border: 1px solid #10b981;
+color: #6ee7b7;
+padding: 6px 10px;
+border-radius: 6px;
+font-size: 12px;
+font-weight: 600;
+}
+
+.result-content {
+color: #d1d5db;
+font-style: italic;
+border-left: 3px solid #059669;
+padding: 12px 15px;
+margin-left: 15px;
+line-height: 1.7;
+background: rgba(5, 150, 105, 0.05);
+border-radius: 6px;
+font-size: 14px;
+}
+
+.metadata-bar {
+background: rgba(31, 41, 55, 0.4);
+border: 1px solid rgba(75, 85, 99, 0.4);
+padding: 20px 24px;
+border-radius: 10px;
+display: flex;
+gap: 24px;
+flex-wrap: wrap;
+margin-bottom: 24px;
+}
+
+.metadata-item {
+display: flex;
+align-items: center;
+gap: 8px;
+transition: transform 0.2s ease;
+}
+
+.metadata-item:hover {
+transform: scale(1.05);
+}
+
+.metadata-label {
+color: #9ca3af;
+font-size: 13px;
+font-weight: 500;
+}
+
+.metadata-value {
+color: #f8fafc;
+font-weight: 600;
+font-size: 14px;
+}
+
+/* JSON Details Section - Consistent with base template */
+.json-details {
+display: none;
+margin-top: 24px;
+background: rgba(17, 24, 39, 0.8);
+border: 1px solid rgba(55, 65, 81, 0.6);
+border-radius: 12px;
+padding: 24px;
+backdrop-filter: blur(10px);
+transition: all 0.3s ease;
+}
+
+.json-details.show {
+display: block;
+animation: slideDown 0.3s ease-out;
+}
+
+.json-content {
+background: #0f172a;
+padding: 20px;
+border-radius: 8px;
+overflow-x: auto;
+font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+font-size: 13px;
+line-height: 1.6;
+text-align: left;
+white-space: pre-wrap;
+word-wrap: break-word;
+border: 1px solid rgba(31, 41, 55, 0.6);
+}
+
+/* JSON Syntax Highlighting - Enhanced */
+.json-string { color: #fbbf24; font-weight: 500; }
+.json-number { color: #34d399; font-weight: 600; }
+.json-boolean { color: #60a5fa; font-weight: 600; }
+.json-null { color: #f87171; font-weight: 600; }
+.json-key { color: #a78bfa; font-weight: 600; }
+.json-bracket { color: #ffd700; font-weight: bold; }
+.json-brace { color: #da70d6; font-weight: bold; }
+.json-comma { color: #ffffff; }
+.json-colon { color: #ffffff; }
+
+/* No Results State */
+.no-results {
+text-align: center;
+color: #9ca3af;
+padding: 40px 24px;
+background: rgba(55, 65, 81, 0.4);
+border: 2px dashed rgba(107, 114, 128, 0.4);
+border-radius: 12px;
+margin: 20px 0;
+}
+
+.no-results h3 {
+color: #6b7280;
+margin-bottom: 16px;
+font-size: 18px;
+}
+
+/* Enhanced responsiveness */
+@media (max-width: 768px) {
+.metadata-bar {
+flex-direction: column;
+gap: 12px;
+padding: 16px;
+}
+
+.result-header {
+flex-direction: column;
+align-items: flex-start;
+gap: 10px;
+}
+
+.result-number {
+align-self: flex-start;
+}
+
+.result-item {
+padding: 16px;
+}
+
+.results-section {
+padding: 16px;
+}
+}
+
+/* Animations - Consistent with base template */
+@keyframes slideDown {
+from {
+opacity: 0;
+transform: translateY(-10px);
+}
+to {
+opacity: 1;
+transform: translateY(0);
+}
+}
+
+.fade-in {
+animation: fadeInUp 0.6s ease-out forwards;
+opacity: 0;
+}
+
+@keyframes fadeInUp {
+from {
+opacity: 0;
+transform: translateY(20px);
+}
+to {
+opacity: 1;
+transform: translateY(0);
+}
+}
+{% endblock %}
+
+{% block header_content %}
+<div class="search-bar">
+    <input type="text" class="search-input" placeholder="Nueva búsqueda..." value="{{ query }}" id="searchInput">
+    <button class="search-btn" onclick="newSearch()">{{ get_svg_icon("search", "16", "#ffffff") }} Buscar</button>
+    <button class="nav-btn" onclick="window.location.href='/ai?q={{ query|urlencode }}'">{{ get_svg_icon("robot", "16",
+        "#ffffff") }} Con IA</button>
+    <button class="nav-btn" onclick="window.location.href='/'">{{ get_svg_icon("home", "16", "#ffffff") }} Menu
+        Principal</button>
+</div>
+<div class="title">
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2">
+        <circle cx="11" cy="11" r="8"></circle>
+        <path d="m21 21-4.35-4.35"></path>
+    </svg>
+    Búsqueda Semántica
+</div>
+<div class="subtitle">{{ results_count }} resultados en {{ search_time_ms }}ms | Motor: {{ backend }}</div>
+{% endblock %}
+
+{% block content %}
+<div class="metadata-bar">
+    <div class="metadata-item">
+        <span class="metadata-label">Backend:</span>
+        <span class="metadata-value">{{ backend|upper }}</span>
+    </div>
+    <div class="metadata-item">
+        <span class="metadata-label">Tiempo:</span>
+        <span class="metadata-value">{{ search_time_ms }}ms</span>
+    </div>
+    <div class="metadata-item">
+        <span class="metadata-label">Resultados:</span>
+        <span class="metadata-value">{{ total_results }}</span>
+    </div>
+    {% if filters %}
+    <div class="metadata-item">
+        <span class="metadata-label">Filtros:</span>
+        <span class="metadata-value">{{ filters|length }} activos</span>
+    </div>
+    {% endif %}
+</div>
+
+{% if results %}
+<div class="results-section">
+    <h3>📋 Resultados Encontrados</h3>
+    {% for result in results %}
+    <div class="result-item">
+        <div class="result-header">
+            <span class="result-number">{{ loop.index }}.</span>
+            <span class="result-doc">{{ result.reference or result.document }}</span>
+            <span class="result-similarity">Similitud: {{ result.similarity }}</span>
+        </div>
+        <div class="result-content">{{ result.content or result.preview }}</div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="results-section">
+    <h3>🔍 Sin Resultados</h3>
+    <p>No se encontraron documentos para la consulta: <strong>{{ query }}</strong></p>
+    <p>Intenta con términos diferentes o verifica los filtros aplicados.</p>
+</div>
+{% endif %}
+
+<div class="details-toggle" style="margin-top: 30px; text-align: center;">
+    <button class="toggle-btn" onclick="toggleDetails()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="m12 1v6m0 6v6"></path>
+        </svg>
+        Ver detalles técnicos JSON
+    </button>
+    <div class="json-details" id="jsonDetails">
+        <div class="json-content" id="jsonContent">{{ json_data }}</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function toggleDetails() {
+        const details = document.getElementById('jsonDetails');
+        const btn = document.querySelector('.toggle-btn');
+
+        if (details.classList.contains('show')) {
+            details.classList.remove('show');
+            btn.innerHTML = `{{ get_svg_icon("eye") }} Ver detalles técnicos JSON`;
+        } else {
+            details.classList.add('show');
+            btn.innerHTML = `{{ get_svg_icon("eye-off") }} Ocultar detalles JSON`;
+            highlightJSON();
+        }
+    }
+
+    function highlightJSON() {
+        const jsonContent = document.getElementById('jsonContent');
+        if (!jsonContent) return;
+
+        let text = jsonContent.textContent;
+
+        // Enhanced JSON syntax highlighting
+        text = text.replace(/"([^"\\]*(\\.[^"\\]*)*)"/g, function (match, string) {
+            if (match.slice(-2) === '":') {
+                // This is a key
+                return '<span class="json-key">' + match.slice(0, -1) + '</span><span class="json-colon">:</span>';
+            } else {
+                // This is a string value
+                return '<span class="json-string">' + match + '</span>';
+            }
+        });
+
+        // Highlight numbers
+        text = text.replace(/\b(\d+\.?\d*)\b/g, '<span class="json-number">$1</span>');
+
+        // Highlight booleans
+        text = text.replace(/\b(true|false)\b/g, '<span class="json-boolean">$1</span>');
+
+        // Highlight null
+        text = text.replace(/\bnull\b/g, '<span class="json-null">null</span>');
+
+        // Highlight brackets and braces
+        text = text.replace(/[\[\]]/g, '<span class="json-bracket">$&</span>');
+        text = text.replace(/[{}]/g, '<span class="json-brace">$&</span>');
+
+        // Highlight commas
+        text = text.replace(/,/g, '<span class="json-comma">,</span>');
+
+        jsonContent.innerHTML = text;
+    }
+
+    function newSearch() {
+        const query = document.getElementById('searchInput').value;
+        if (query.trim()) {
+            window.location.href = `/ask?q=${encodeURIComponent(query)}`;
+        }
+    }
+
+    // Enhanced initialization with animations
+    document.addEventListener('DOMContentLoaded', function () {
+        // Add search input event listener
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput) {
+            searchInput.addEventListener('keypress', function (e) {
+                if (e.key === 'Enter') newSearch();
+            });
+        }
+
+        // Add subtle animations to result items
+        const resultItems = document.querySelectorAll('.result-item');
+        resultItems.forEach((item, index) => {
+            item.style.animationDelay = (index * 0.1) + 's';
+            item.classList.add('fade-in');
+        });
+
+        // Add hover effects to metadata items
+        const metadataItems = document.querySelectorAll('.metadata-item');
+        metadataItems.forEach(item => {
+            item.addEventListener('mouseenter', function () {
+                this.style.transform = 'scale(1.05)';
+                this.style.transition = 'transform 0.2s ease';
+            });
+            item.addEventListener('mouseleave', function () {
+                this.style.transform = 'scale(1)';
+            });
+        });
+    });
+</script>
+
+<style>
+    /* Add fade-in animation */
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .fade-in {
+        animation: fadeInUp 0.5s ease-out forwards;
+        opacity: 0;
+        /* Start invisible */
+    }
+
+    /* Enhanced hover effects */
+    .metadata-item {
+        transition: transform 0.2s ease;
+        cursor: pointer;
+    }
+
+    /* Smooth transitions for JSON details */
+    .json-details {
+        transition: all 0.3s ease;
+        transform-origin: top;
+    }
+
+    .json-details:not(.show) {
+        transform: scaleY(0);
+        opacity: 0;
+    }
+
+    .json-details.show {
+        transform: scaleY(1);
+        opacity: 1;
+    }
+
+    /* Enhanced button hover effects */
+    .toggle-btn:active {
+        transform: translateY(1px);
+    }
+
+    /* Loading state for search input */
+    .search-input:focus {
+        box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.5);
+    }
+</style>
+{% endblock %}

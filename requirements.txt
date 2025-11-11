@@ -7,6 +7,13 @@ qdrant-client
 sentence-transformers
 python-dotenv
 
+# PyTorch with CUDA support (install from PyTorch index)
+--index-url https://download.pytorch.org/whl/cu121
+torch>=2.0.0
+torchvision
+torchaudio
+--index-url https://pypi.org/simple/
+
 # Document parsing libraries
 PyPDF2
 python-docx

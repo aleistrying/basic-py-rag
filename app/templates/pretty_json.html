@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+.json-container {
+background: #252526;
+border-radius: 12px;
+box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+overflow: hidden;
+margin: 20px 0;
+}
+.json-title {
+background: linear-gradient(135deg, #569cd6 0%, #2563eb 100%);
+color: white;
+padding: 20px 30px;
+font-size: 24px;
+font-weight: 600;
+display: flex;
+align-items: center;
+gap: 10px;
+}
+.json-content {
+background: #1e1e1e;
+padding: 20px;
+overflow-x: auto;
+font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+font-size: 14px;
+line-height: 1.6;
+color: #d4d4d4;
+border-top: 1px solid #3e3e42;
+}
+.json-pre {
+margin: 0;
+white-space: pre-wrap;
+word-wrap: break-word;
+}
+/* Enhanced JSON Syntax Highlighting */
+.json-string { color: #ce9178; }
+.json-number { color: #b5cea8; }
+.json-boolean { color: #569cd6; }
+.json-null { color: #569cd6; }
+.json-key { color: #9cdcfe; }
+.json-bracket { color: #ffd700; }
+.json-brace { color: #da70d6; }
+.json-comma { color: #ffffff; }
+.json-colon { color: #ffffff; }
+.action-buttons {
+background: #2d2d30;
+padding: 15px 20px;
+border-top: 1px solid #3e3e42;
+display: flex;
+gap: 10px;
+flex-wrap: wrap;
+}
+.json-btn {
+display: inline-flex;
+align-items: center;
+gap: 8px;
+padding: 10px 16px;
+background: #0e639c;
+color: white;
+text-decoration: none;
+border-radius: 6px;
+font-weight: 500;
+transition: all 0.3s;
+border: none;
+cursor: pointer;
+font-size: 14px;
+}
+.json-btn:hover {
+background: #1177bb;
+transform: translateY(-1px);
+}
+.json-btn.secondary {
+background: #5a5a5a;
+}
+.json-btn.secondary:hover {
+background: #6a6a6a;
+}
+.copy-status {
+display: none;
+background: #107c10;
+color: white;
+padding: 8px 12px;
+border-radius: 4px;
+font-size: 12px;
+margin-left: 10px;
+}
+.copy-status.show {
+display: inline-block;
+}
+{% endblock %}
+
+{% block header_content %}
+<div class="title">
+    {{ get_svg_icon("book", "32", "#ffffff") }} {{ title }}
+</div>
+<div class="subtitle">Respuesta JSON formateada</div>
+{% endblock %}
+
+{% block content %}
+<div class="json-container">
+    <div class="json-title">
+        {{ get_svg_icon("book", "24", "#ffffff") }} {{ title }}
+    </div>
+    <div class="json-content">
+        <pre class="json-pre" id="jsonContent">{{ json_data }}</pre>
+    </div>
+    <div class="action-buttons">
+        <button class="json-btn" onclick="copyToClipboard()">
+            {{ get_svg_icon("clipboard", "16", "#ffffff") }} Copiar JSON
+        </button>
+        <span class="copy-status" id="copyStatus">✅ Copiado!</span>
+        <button class="json-btn secondary" onclick="downloadJson()">
+            {{ get_svg_icon("download", "16", "#ffffff") }} Descargar
+        </button>
+        <a href="/" class="json-btn secondary">
+            {{ get_svg_icon("home", "16", "#ffffff") }} Volver al inicio
+        </a>
+        <a href="/docs" class="json-btn secondary">
+            {{ get_svg_icon("book", "16", "#ffffff") }} API Docs
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Enhanced JSON syntax highlighting
+    function highlightJSON() {
+        const jsonContent = document.getElementById('jsonContent');
+        let html = jsonContent.innerHTML;
+
+        // Highlight different JSON elements
+        html = html.replace(/("([^"\\]|\\.)*")\s*:/g, '<span class="json-key">$1</span><span class="json-colon">:</span>');
+        html = html.replace(/:\s*("([^"\\]|\\.)*")/g, ':<span class="json-string">$1</span>');
+        html = html.replace(/:\s*(-?\d+\.?\d*)/g, ':<span class="json-number">$1</span>');
+        html = html.replace(/:\s*(true|false)/g, ':<span class="json-boolean">$1</span>');
+        html = html.replace(/:\s*(null)/g, ':<span class="json-null">$1</span>');
+        html = html.replace(/(\[|\])/g, '<span class="json-bracket">$1</span>');
+        html = html.replace(/(\{|\})/g, '<span class="json-brace">$1</span>');
+        html = html.replace(/,(?=\s*[}\]])/g, '<span class="json-comma">,</span>');
+        html = html.replace(/,(?!\s*[}\]])/g, '<span class="json-comma">,</span>');
+
+        jsonContent.innerHTML = html;
+    }
+
+    function copyToClipboard() {
+        const jsonText = {{ json_data| tojson
+    }};
+    navigator.clipboard.writeText(JSON.stringify(jsonText, null, 2)).then(function () {
+        const status = document.getElementById('copyStatus');
+        status.classList.add('show');
+        setTimeout(() => {
+            status.classList.remove('show');
+        }, 2000);
+    }).catch(function (err) {
+        console.error('Error al copiar: ', err);
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = JSON.stringify(jsonText, null, 2);
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+
+        const status = document.getElementById('copyStatus');
+        status.classList.add('show');
+        setTimeout(() => {
+            status.classList.remove('show');
+        }, 2000);
+    });
+}
+
+    function downloadJson() {
+        const jsonText = {{ json_data| tojson
+    }};
+    const blob = new Blob([JSON.stringify(jsonText, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'response.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+    // Apply syntax highlighting when page loads
+    document.addEventListener('DOMContentLoaded', function () {
+        highlightJSON();
+    });
+</script>
+{% endblock %}

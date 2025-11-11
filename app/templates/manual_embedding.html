@@ -1,0 +1,369 @@
+{% extends "base.html" %}
+
+{% block title %}Demostración de Embedding - {{ query }}{% endblock %}
+
+{% block extra_css %}
+.demo-section {
+background: #262626;
+border-radius: 15px;
+padding: 25px;
+margin: 20px 0;
+border-left: 4px solid #059669;
+}
+.demo-title {
+font-size: 1.4rem;
+font-weight: 600;
+color: #059669;
+margin-bottom: 20px;
+display: flex;
+align-items: center;
+gap: 10px;
+}
+.step-container {
+background: #333;
+border-radius: 10px;
+padding: 20px;
+margin: 15px 0;
+border: 1px solid #444;
+}
+.step-header {
+font-weight: 600;
+color: #60a5fa;
+margin-bottom: 10px;
+display: flex;
+align-items: center;
+gap: 8px;
+}
+.step-content {
+color: #d1d5db;
+line-height: 1.6;
+font-family: 'Monaco', 'Menlo', monospace;
+background: #1f1f1f;
+padding: 15px;
+border-radius: 8px;
+overflow-x: auto;
+}
+.embedding-preview {
+background: #1a1a1a;
+border-radius: 8px;
+padding: 15px;
+margin: 15px 0;
+font-family: 'Monaco', 'Menlo', monospace;
+font-size: 13px;
+overflow-x: auto;
+border: 1px solid #404040;
+}
+.stats-grid {
+display: grid;
+grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+gap: 15px;
+margin: 20px 0;
+}
+.stat-card {
+background: #1f2937;
+padding: 15px;
+border-radius: 8px;
+text-align: center;
+border: 1px solid #374151;
+}
+.stat-value {
+font-size: 1.5rem;
+font-weight: 700;
+color: #10b981;
+display: block;
+}
+.stat-label {
+font-size: 0.85rem;
+color: #9ca3af;
+margin-top: 5px;
+}
+.model-info {
+background: #1e40af;
+color: white;
+padding: 20px;
+border-radius: 10px;
+margin: 20px 0;
+}
+.model-name {
+font-size: 1.2rem;
+font-weight: 600;
+margin-bottom: 10px;
+}
+.process-flow {
+display: flex;
+justify-content: space-between;
+align-items: center;
+margin: 20px 0;
+flex-wrap: wrap;
+gap: 10px;
+}
+.flow-step {
+flex: 1;
+text-align: center;
+min-width: 120px;
+}
+.flow-icon {
+width: 50px;
+height: 50px;
+background: #059669;
+border-radius: 50%;
+display: flex;
+align-items: center;
+justify-content: center;
+margin: 0 auto 10px;
+font-size: 1.5rem;
+}
+.flow-arrow {
+font-size: 1.5rem;
+color: #6b7280;
+margin: 0 10px;
+}
+.vector-visualization {
+background: #1f1f1f;
+border-radius: 10px;
+padding: 20px;
+margin: 20px 0;
+border: 1px solid #404040;
+}
+.vector-bar {
+display: flex;
+align-items: center;
+margin: 5px 0;
+font-size: 12px;
+}
+.vector-index {
+width: 30px;
+color: #6b7280;
+}
+.vector-value {
+width: 80px;
+color: #d1d5db;
+font-family: monospace;
+}
+.vector-visual {
+flex: 1;
+height: 15px;
+background: #333;
+border-radius: 7px;
+margin-left: 10px;
+position: relative;
+overflow: hidden;
+}
+.vector-fill {
+height: 100%;
+border-radius: 7px;
+transition: width 0.3s ease;
+}
+.positive { background: linear-gradient(90deg, #10b981, #059669); }
+.negative { background: linear-gradient(90deg, #ef4444, #dc2626); }
+{% endblock %}
+
+{% block header_content %}
+<div class="title">
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2">
+        <path d="M9 12l2 2 4-4"></path>
+        <circle cx="12" cy="12" r="10"></circle>
+    </svg>
+    Demostración de Embedding
+</div>
+<div class="subtitle">Conversión de texto a vector usando {{ model_info.name if model_info else 'E5 Multilingual' }}
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="demo-section">
+    <div class="demo-title">
+        <span>📝</span> Texto Original
+    </div>
+    <div class="step-content">{{ raw_text }}</div>
+</div>
+
+<div class="process-flow">
+    <div class="flow-step">
+        <div class="flow-icon">📝</div>
+        <div>Texto Crudo</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+        <div class="flow-icon">🧹</div>
+        <div>Limpieza</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+        <div class="flow-icon">✂️</div>
+        <div>Tokenización</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+        <div class="flow-icon">🧠</div>
+        <div>Embedding</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+        <div class="flow-icon">📊</div>
+        <div>Vector</div>
+    </div>
+</div>
+
+{% if processing_steps %}
+<div class="demo-section">
+    <div class="demo-title">
+        <span>⚙️</span> Pasos de Procesamiento
+    </div>
+    {% for step in processing_steps %}
+    <div class="step-container">
+        <div class="step-header">
+            <span>{{ loop.index }}.</span>
+            {{ step.step }}
+        </div>
+        <div class="step-content">{{ step.result }}</div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if model_info %}
+<div class="model-info">
+    <div class="model-name">🤖 {{ model_info.name }}</div>
+    <div>Modelo {{ model_info.type }} con {{ model_info.dimensions }} dimensiones</div>
+</div>
+{% endif %}
+
+{% if embedding_stats %}
+<div class="demo-section">
+    <div class="demo-title">
+        <span>📊</span> Estadísticas del Vector
+    </div>
+    <div class="stats-grid">
+        <div class="stat-card">
+            <span class="stat-value">{{ embedding_dimensions }}</span>
+            <div class="stat-label">Dimensiones</div>
+        </div>
+        <div class="stat-card">
+            <span class="stat-value">{{ "%.3f"|format(embedding_stats.mean) }}</span>
+            <div class="stat-label">Media</div>
+        </div>
+        <div class="stat-card">
+            <span class="stat-value">{{ "%.3f"|format(embedding_stats.std) }}</span>
+            <div class="stat-label">Desviación</div>
+        </div>
+        <div class="stat-card">
+            <span class="stat-value">{{ "%.3f"|format(embedding_stats.norm) }}</span>
+            <div class="stat-label">Norma L2</div>
+        </div>
+        <div class="stat-card">
+            <span class="stat-value">{{ "%.3f"|format(embedding_stats.max) }}</span>
+            <div class="stat-label">Máximo</div>
+        </div>
+        <div class="stat-card">
+            <span class="stat-value">{{ "%.3f"|format(embedding_stats.min) }}</span>
+            <div class="stat-label">Mínimo</div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if embedding_preview %}
+<div class="demo-section">
+    <div class="demo-title">
+        <span>🔢</span> Preview del Vector (primeras 10 dimensiones)
+    </div>
+    <div class="vector-visualization">
+        {% for value in embedding_preview[:10] %}
+        <div class="vector-bar">
+            <div class="vector-index">{{ loop.index0 }}:</div>
+            <div class="vector-value">{{ "%.3f"|format(value) }}</div>
+            <div class="vector-visual">
+                <div class="vector-fill {{ 'positive' if value > 0 else 'negative' }}"
+                    style="width: {{ (value|abs * 100)|round }}%;"></div>
+            </div>
+        </div>
+        {% endfor %}
+        {% if embedding_preview|length > 10 %}
+        <div style="text-align: center; color: #6b7280; margin-top: 10px;">
+            ... y {{ embedding_preview|length - 10 }} dimensiones más
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<div class="demo-section">
+    <div class="demo-title">
+        <span>💡</span> ¿Cómo funciona?
+    </div>
+    <div style="color: #d1d5db; line-height: 1.7;">
+        <p><strong>1. Tokenización:</strong> El texto se divide en tokens (palabras o subpalabras).</p>
+        <p><strong>2. Codificación:</strong> Cada token se convierte en números que el modelo entiende.</p>
+        <p><strong>3. Embedding:</strong> El modelo neural transforma la secuencia en un vector denso.</p>
+        <p><strong>4. Normalización:</strong> El vector se normaliza para facilitar comparaciones.</p>
+        <p><strong>Resultado:</strong> Un vector de {{ embedding_dimensions }} dimensiones que captura el significado
+            semántico del texto.</p>
+    </div>
+</div>
+
+<div class="details-toggle" style="margin-top: 30px; text-align: center;">
+    <button class="toggle-btn" onclick="toggleDetails()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="m12 1v6m0 6v6"></path>
+        </svg>
+        Ver detalles técnicos JSON
+    </button>
+    <div class="json-details" id="jsonDetails">
+        <div class="json-content" id="jsonContent">{{ json_data }}</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function toggleDetails() {
+        const details = document.getElementById('jsonDetails');
+        const btn = document.querySelector('.toggle-btn');
+
+        if (details.classList.contains('show')) {
+            details.classList.remove('show');
+            btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="m12 1v6m0 6v6"/></svg> Ver detalles técnicos JSON`;
+        } else {
+            details.classList.add('show');
+            btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="m12 1v6m0 6v6"/></svg> Ocultar detalles JSON`;
+            highlightJSON();
+        }
+    }
+
+    function highlightJSON() {
+        const jsonContent = document.getElementById('jsonContent');
+        let html = jsonContent.innerHTML;
+
+        html = html.replace(/"([^"]+)":/g, '<span style="color: #a78bfa;">"$1"</span>:');
+        html = html.replace(/: "([^"]*)"/g, ': <span style="color: #fbbf24;">"$1"</span>');
+        html = html.replace(/: ([0-9]+\.?[0-9]*)/g, ': <span style="color: #34d399;">$1</span>');
+        html = html.replace(/: (true|false)/g, ': <span style="color: #60a5fa;">$1</span>');
+        html = html.replace(/: (null)/g, ': <span style="color: #f87171;">$1</span>');
+
+        jsonContent.innerHTML = html;
+    }
+
+    function newSearch() {
+        const query = document.getElementById('searchInput').value;
+        if (query.trim()) {
+            window.location.href = `/manual/embed?text=${encodeURIComponent(query)}`;
+        }
+    }
+
+    document.getElementById('searchInput').addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') newSearch();
+    });
+
+    // Animate vector bars
+    document.addEventListener('DOMContentLoaded', function () {
+        const bars = document.querySelectorAll('.vector-fill');
+        bars.forEach((bar, index) => {
+            setTimeout(() => {
+                bar.style.width = bar.style.width;
+            }, index * 100);
+        });
+    });
+</script>
+{% endblock %}

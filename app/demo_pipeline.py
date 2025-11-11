@@ -63,7 +63,7 @@ def format_json_with_syntax_highlighting(data) -> str:
     return '\n'.join(highlighted_lines)
 
 
-def get_svg_icon(name: str, size: str = "16", color: str = "#4CAF50") -> str:
+def get_svg_icon(name: str, size: str = "16", color: str = "#8b5cf6") -> str:
     """Generate SVG icons for demo pipeline"""
     icons = {
         "input": f'<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2"><path d="M7 17L17 7"/><path d="M7 7H17V17"/></svg>',
@@ -95,10 +95,12 @@ class RAGPipelineDemo:
 
         try:
             import torch
+            # Detect GPU availability and set device accordingly
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            logger.info(f"🔧 Using device: {device}")
+
             # Configuración específica para contenedores Docker
             torch.set_default_dtype(torch.float32)
-            if hasattr(torch, 'set_default_device'):
-                torch.set_default_device('cpu')
 
             from sentence_transformers import SentenceTransformer
 
@@ -106,21 +108,29 @@ class RAGPipelineDemo:
             import os
             os.environ['TOKENIZERS_PARALLELISM'] = 'false'
 
-            # Cargar modelo con configuración Docker-safe
+            # Cargar modelo con configuración optimizada para GPU/CPU
             self.model = SentenceTransformer(
                 'intfloat/multilingual-e5-base',
-                device='cpu',
+                device=device,
                 trust_remote_code=False,
                 use_auth_token=False
             )
 
-            # Forzar que todos los parámetros estén en CPU y en formato float32
-            self.model = self.model.cpu()
-            for param in self.model.parameters():
-                if param.device.type != 'cpu':
-                    param.data = param.data.cpu()
-                if param.dtype != torch.float32:
-                    param.data = param.data.float()
+            # Optimizaciones específicas para el device
+            if device == "cuda":
+                # GPU optimizations
+                self.model = self.model.cuda()
+                logger.info("🚀 Model loaded on GPU")
+            else:
+                # CPU optimizations
+                self.model = self.model.cpu()
+                # Forzar que todos los parámetros estén en CPU y en formato float32
+                for param in self.model.parameters():
+                    if param.device.type != 'cpu':
+                        param.data = param.data.cpu()
+                    if param.dtype != torch.float32:
+                        param.data = param.data.float()
+                logger.info("💻 Model loaded on CPU")
 
             # Prueba segura del modelo
             with torch.no_grad():
@@ -128,8 +138,8 @@ class RAGPipelineDemo:
                     ["test"], show_progress_bar=False, convert_to_tensor=False)
 
             self.model_loaded = True
-            logger.info(
-                "✅ Modelo E5 cargado exitosamente en contenedor Docker")
+            device_info = "GPU (CUDA)" if device == "cuda" else "CPU"
+            logger.info(f"✅ Modelo E5 cargado exitosamente en {device_info}")
             return True
 
         except Exception as e:
@@ -289,8 +299,8 @@ print(f"Forma: {embeddings.shape}")  # (n_chunks, 768)
             "explanation": "Usamos el modelo E5 multilingüe para convertir texto en vectores de 768 dimensiones. El prefijo 'passage:' ayuda al modelo a entender que es contenido de documento."
         }
 
-    def step_4_query_processing(self, query: str) -> Dict[str, Any]:
-        """Step 4: Process user query into embedding"""
+    def step_7_query_processing(self, query: str) -> Dict[str, Any]:
+        """Step 7: Process user query into embedding"""
 
         # Intentar cargar modelo
         model_available = self._load_model_safely()
@@ -319,7 +329,7 @@ print(f"Forma: {embeddings.shape}")  # (n_chunks, 768)
             model_status = "⚠️ Embedding simulado"
 
         return {
-            "step": "4. Procesamiento de Consulta",
+            "step": "7. Procesamiento de Consulta",
             "description": "Convertir consulta del usuario al mismo espacio vectorial de los documentos",
             "input": query,
             "prefixed_query": prefixed_query,
@@ -340,8 +350,8 @@ print(f"Forma de consulta: {query_embedding.shape}")  # (768,)
             "explanation": "Procesamos la consulta usando el mismo modelo y agregamos el prefijo 'query:' para ayudar al modelo a entender que es una consulta de búsqueda."
         }
 
-    def step_5_vector_search_qdrant(self, query_embedding: List[float], limit: int = 3) -> Dict[str, Any]:
-        """Step 5: Perform vector search in Qdrant with curl examples"""
+    def step_8_vector_search_qdrant(self, query_embedding: List[float], limit: int = 3) -> Dict[str, Any]:
+        """Step 8: Perform vector search in Qdrant with curl examples"""
 
         # Prepare Qdrant search payload
         search_payload = {
@@ -370,7 +380,7 @@ print(f"Forma de consulta: {query_embedding.shape}")  # (768,)
             search_results = {"error": str(e)}
 
         return {
-            "step": "5. Búsqueda Vectorial (Qdrant)",
+            "step": "8. Búsqueda Vectorial (Qdrant)",
             "description": "Buscar vectores similares usando similitud de coseno",
             "input": {
                 "query_vector_dimensions": len(query_embedding),
@@ -400,8 +410,8 @@ results = response.json()
             "explanation": "Qdrant realiza búsqueda de similitud de coseno para encontrar los fragmentos de documentos más similares semánticamente a nuestra consulta."
         }
 
-    def step_6_vector_search_pgvector(self, query_embedding: List[float], limit: int = 3) -> Dict[str, Any]:
-        """Step 6: Perform vector search in PostgreSQL with pgvector"""
+    def step_9_vector_search_pgvector(self, query_embedding: List[float], limit: int = 3) -> Dict[str, Any]:
+        """Step 9: Perform vector search in PostgreSQL with pgvector"""
 
         # Format embedding for PostgreSQL
         embedding_str = "[" + ",".join(map(str, query_embedding)) + "]"
@@ -445,7 +455,7 @@ LIMIT {limit};
             formatted_results = {"error": str(e)}
 
         return {
-            "step": "6. Búsqueda Vectorial (PostgreSQL pgvector)",
+            "step": "9. Búsqueda Vectorial (PostgreSQL pgvector)",
             "description": "Búsqueda usando extensión pgvector de PostgreSQL con distancia de coseno",
             "input": {
                 "query_vector_dimensions": len(query_embedding),
@@ -475,8 +485,8 @@ results = cursor.fetchall()
             "explanation": "PostgreSQL pgvector usa el operador <=> para distancia de coseno. Distancias menores indican mayor similitud."
         }
 
-    def step_7_similarity_math(self, query_embedding: List[float], doc_embeddings: List[List[float]]) -> Dict[str, Any]:
-        """Step 7: Explain the mathematical calculations behind similarity"""
+    def step_10_similarity_math(self, query_embedding: List[float], doc_embeddings: List[List[float]]) -> Dict[str, Any]:
+        """Step 10: Explain the mathematical calculations behind similarity"""
 
         # Convert to numpy for calculations
         query_vec = np.array(query_embedding)
@@ -506,7 +516,7 @@ results = cursor.fetchall()
             })
 
         return {
-            "step": "7. Matemáticas de Similitud",
+            "step": "10. Matemáticas de Similitud",
             "description": "Cálculos matemáticos detrás de la búsqueda de similitud vectorial",
             "input": {
                 "query_vector_norm": float(np.linalg.norm(query_vec)),
@@ -569,7 +579,7 @@ distance = cosine_distance(query_embedding, doc_embedding)
                 ranked_results = {"error": f"Ranking error: {str(e)}"}
 
         return {
-            "step": "8. Clasificación y Presentación de Resultados",
+            "step": "12. Clasificación y Presentación de Resultados",
             "description": "Clasificar resultados de búsqueda por relevancia y preparar respuesta final",
             "input": search_results,
             "output": ranked_results,
@@ -595,8 +605,1211 @@ for i, result in enumerate(ranked_results):
             "explanation": "Los resultados se clasifican por puntuación de similitud y se categorizan por relevancia. Los mejores resultados se usan para generar la respuesta final de IA con atribución de fuentes apropiada."
         }
 
+    def step_9_ai_generation(self, ranked_results: List[Dict], query: str, model: str = "phi3:mini") -> Dict[str, Any]:
+        """Step 9: Generate AI response from ranked results"""
 
-def create_demo_html(demo_steps: List[Dict[str, Any]], query: str) -> str:
+        try:
+            # Build context from top results
+            context_parts = []
+            sources_used = []
+
+            # Use top 3 results
+            for i, ranked_item in enumerate(ranked_results[:3]):
+                result = ranked_item.get("result", {})
+                content = result.get("content", "")
+                if content:
+                    # Extract metadata for source attribution
+                    doc_name = result.get("path", "").replace(
+                        "./data/raw/", "").replace(".pdf", "")
+                    page_info = f", p.{result.get('page')}" if result.get(
+                        'page') else ""
+                    context_parts.append(
+                        f"- ({doc_name}{page_info}) {content[:300]}...")
+                    sources_used.append({
+                        "rank": i + 1,
+                        "document": doc_name,
+                        "page": result.get('page'),
+                        "similarity": result.get('score', 0),
+                        "preview": content[:150] + "..." if len(content) > 150 else content
+                    })
+
+            context = "\n".join(context_parts)
+
+            # Create prompt template for LLM
+            prompt_template = """Eres un asistente académico. Responde de forma directa y concisa usando SOLO la información de los fragmentos.
+
+Pregunta: {query}
+
+Fragmentos relevantes:
+{context}
+
+Instrucciones:
+- Da una respuesta clara y directa
+- Usa fechas, números y nombres exactos de los fragmentos
+- Si la información no está en los fragmentos, responde: "No está disponible."
+- Solo menciona el documento si es relevante para entender la respuesta
+- NO incluyas referencias bibliográficas completas ni autores irrelevantes
+- Responde en español, de forma natural y concisa
+
+Respuesta:
+"""
+
+            prompt = prompt_template.format(query=query, context=context)
+
+            # Simulate AI generation (in demo mode)
+            try:
+                import ollama
+                import os
+                ollama_host = os.getenv(
+                    "OLLAMA_HOST", "http://localhost:11434")
+                client = ollama.Client(host=ollama_host)
+
+                response = client.generate(
+                    model=model,
+                    prompt=prompt,
+                    options={
+                        "repeat_penalty": 1.0,
+                        "temperature": 0.5,
+                        "num_predict": 256,
+                        "top_p": 0.9
+                    }
+                )
+
+                generated_text = response.get('response', '').strip()
+                ai_status = "Generated successfully"
+
+            except Exception as e:
+                # Fallback response for demo
+                generated_text = f"Respuesta simulada para '{query}': Según los documentos encontrados, esta información está relacionada con sistemas de bases de datos avanzadas y tecnologías vectoriales. Se encontraron {len(sources_used)} fuentes relevantes con alta similitud semántica."
+                ai_status = f"Demo mode (Ollama not available: {str(e)})"
+
+            # Add source attribution
+            source_references = []
+            for i, source in enumerate(sources_used, 1):
+                source_references.append(
+                    f"{i}. {source['document']} (p. {source['page'] if source['page'] else 'N/A'})")
+
+            if source_references:
+                sources_text = "\n".join(source_references)
+                final_response = f"{generated_text}\n\n**Fuentes consultadas:**\n{sources_text}"
+            else:
+                final_response = generated_text
+
+        except Exception as e:
+            final_response = f"Error generating AI response: {str(e)}"
+            ai_status = "Error"
+            sources_used = []
+            prompt = "Error creating prompt"
+
+        return {
+            "step": "15. Generación de Respuesta con IA",
+            "description": "Generar respuesta natural usando modelo de lenguaje (LLM) basada en los documentos encontrados",
+            "input": {
+                "query": query,
+                "model": model,
+                "ranked_results_count": len(ranked_results),
+                "context_length": len(context_parts)
+            },
+            "output": {
+                "ai_response": final_response,
+                "model_used": model,
+                "status": ai_status,
+                "sources_count": len(sources_used),
+                "sources_used": sources_used
+            },
+            "prompt_example": prompt[:500] + "..." if len(prompt) > 500 else prompt,
+            "code_example": """
+import ollama
+
+# Construir contexto de los mejores resultados
+context = []
+for result in top_ranked_results:
+    doc_name = result['path'].replace('./data/raw/', '')
+    page_info = f", p.{result.get('page', 'N/A')}"
+    context.append(f"- ({doc_name}{page_info}) {result['content'][:300]}...")
+
+context_text = "\\n".join(context)
+
+# Crear prompt estructurado para el LLM
+prompt = f\"\"\"Eres un asistente académico. Responde usando SOLO la información proporcionada.
+
+Pregunta: {query}
+Fuentes: {context_text}
+
+Responde de forma clara y concisa en español.\"\"\"
+
+# Generar respuesta con Ollama
+client = ollama.Client(host="http://ollama:11434")
+response = client.generate(
+    model="phi3:mini",
+    prompt=prompt,
+    options={"temperature": 0.5, "num_predict": 256}
+)
+
+answer = response['response']
+            """,
+            "explanation": "Se usa un modelo de lenguaje (LLM) para generar una respuesta natural basada en los documentos más relevantes. El prompt incluye contexto específico y instrucciones para responder solo con la información proporcionada."
+        }
+
+    def step_4_document_storage_example(self) -> Dict[str, Any]:
+        """Step 10: Show how documents are stored in vector databases"""
+
+        # Example document chunk
+        example_doc = {
+            "content": "PostgreSQL con pgvector permite almacenar vectores de alta dimensionalidad directamente en la base de datos relacional.",
+            "path": "./data/raw/Fx Tema 1 Introduccion V2024.pdf",
+            "page": 15,
+            "chunk_id": "chunk_42",
+            "metadata": {
+                "word_count": 18,
+                "quality_score": 0.95,
+                "extractor": "pdfplumber"
+            }
+        }
+
+        # Generate embedding for this document
+        doc_embedding = self._create_mock_embeddings(
+            [example_doc["content"]])[0]
+
+        # Qdrant storage format
+        qdrant_point = {
+            "id": "doc_42",
+            "vector": doc_embedding,
+            "payload": {
+                "content": example_doc["content"],
+                "path": example_doc["path"],
+                "page": example_doc["page"],
+                "chunk_id": example_doc["chunk_id"],
+                "metadata": example_doc["metadata"]
+            }
+        }
+
+        # PostgreSQL storage format
+        postgres_insert = f"""
+INSERT INTO docs_clean (id, content, embedding, path, page, chunk_id, metadata)
+VALUES (
+    'doc_42',
+    '{example_doc["content"]}',
+    '[{",".join(map(str, doc_embedding[:10]))}...]'::vector,
+    '{example_doc["path"]}',
+    {example_doc["page"]},
+    '{example_doc["chunk_id"]}',
+    '{json.dumps(example_doc["metadata"])}'::jsonb
+);
+        """
+
+        return {
+            "step": "4. Almacenamiento en Bases de Datos Vectoriales",
+            "description": "Demostrar cómo se almacenan los documentos vectorizados en Qdrant y PostgreSQL",
+            "example_document": example_doc,
+            "vector_generated": {
+                "dimensions": len(doc_embedding),
+                "sample_values": doc_embedding[:10],
+                "normalization": "L2 normalized for cosine similarity"
+            },
+            "qdrant_storage": {
+                "collection": "course_docs_clean",
+                "point_structure": qdrant_point,
+                "curl_command": f"""curl -X PUT '{QDRANT_URL}/collections/course_docs_clean/points' \\
+  -H 'Content-Type: application/json' \\
+  -d '{{
+    "points": [
+      {{
+        "id": "doc_42",
+        "vector": {json.dumps(doc_embedding[:5])}...,
+        "payload": {{
+          "content": "{example_doc["content"][:50]}...",
+          "path": "{example_doc["path"]}",
+          "page": {example_doc["page"]}
+        }}
+      }}
+    ]
+  }}'"""
+            },
+            "postgres_storage": {
+                "table": "docs_clean",
+                "sql_insert": postgres_insert,
+                "psql_command": f'psql "{PGVECTOR_DATABASE_URL}" -c "\\\\copy docs_clean(content,embedding,path,page) FROM STDIN WITH CSV;"'
+            },
+            "code_example": """
+# Qdrant: Insertar punto vectorial
+import requests
+
+point_data = {
+    "points": [{
+        "id": doc_id,
+        "vector": embedding.tolist(),
+        "payload": {
+            "content": doc_content,
+            "path": doc_path,
+            "page": page_num,
+            "metadata": metadata_dict
+        }
+    }]
+}
+
+response = requests.put(
+    f"{qdrant_url}/collections/course_docs_clean/points",
+    json=point_data
+)
+
+# PostgreSQL: Insertar con pgvector
+import psycopg2
+
+cursor.execute(\"\"\"
+    INSERT INTO docs_clean (content, embedding, path, page, metadata)
+    VALUES (%s, %s, %s, %s, %s)
+\"\"\", (content, embedding_str, path, page, json.dumps(metadata)))
+            """,
+            "explanation": "Los documentos se procesan en fragmentos, se vectorizan y se almacenan junto con sus metadatos. Qdrant almacena vectores nativamente, mientras que PostgreSQL usa la extensión pgvector para manejar vectores como un tipo de dato."
+        }
+
+    def step_5_upload_to_qdrant(self, chunks: List[str], embeddings: List[List[float]]) -> Dict[str, Any]:
+        """Step 5: Upload documents to Qdrant with HNSW indexing"""
+        try:
+            from qdrant_client import QdrantClient
+            from qdrant_client.models import Distance, VectorParams, PointStruct
+            import uuid
+
+            # Connect to Qdrant - use Docker service name
+            client = QdrantClient(host="qdrant", port=6333)
+            collection_name = "demo_collection"
+
+            # Check if collection exists, create if not
+            try:
+                client.get_collection(collection_name)
+                collection_exists = True
+            except:
+                collection_exists = False
+
+            if not collection_exists:
+                # Create collection with HNSW index
+                client.create_collection(
+                    collection_name=collection_name,
+                    vectors_config=VectorParams(
+                        size=len(embeddings[0]),
+                        distance=Distance.COSINE,  # Cosine similarity metric
+                        # HNSW parameters for efficient ANN search
+                        hnsw_config={
+                            "m": 16,              # Number of connections per layer
+                            "ef_construct": 100    # Size of candidate list for construction
+                        }
+                    )
+                )
+
+            # Upload vectors with metadata
+            points = []
+            for idx, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+                point = PointStruct(
+                    id=str(uuid.uuid4()),
+                    vector=embedding,
+                    payload={
+                        "content": chunk,
+                        "chunk_index": idx,
+                        "source": "demo_pipeline",
+                        "timestamp": "2025-11-10"
+                    }
+                )
+                points.append(point)
+
+            # Batch upload
+            client.upsert(collection_name=collection_name, points=points)
+
+            # Get collection info
+            collection_info = client.get_collection(collection_name)
+
+            return {
+                "step": "5. Subir a Qdrant con HNSW",
+                "description": "Cargar vectores en Qdrant usando índice HNSW para búsqueda ANN eficiente",
+                "database": "Qdrant",
+                "algorithm": "HNSW (Hierarchical Navigable Small World)",
+                "output": {
+                    "collection_name": collection_name,
+                    "vectors_uploaded": len(points),
+                    "vector_size": len(embeddings[0]),
+                    "distance_metric": "Cosine Similarity",
+                    "indexed_count": collection_info.vectors_count,
+                    "status": "success"
+                },
+                "hnsw_params": {
+                    "m": 16,
+                    "ef_construct": 100,
+                    "explanation": "M controla conexiones por capa (mayor = más preciso pero más memoria). EF_construct controla calidad de índice."
+                },
+                "code_example": """
+from qdrant_client import QdrantClient
+from qdrant_client.models import Distance, VectorParams, PointStruct
+
+# Conectar a Qdrant
+client = QdrantClient(host="localhost", port=6333)
+
+# Crear colección con HNSW
+client.create_collection(
+    collection_name="demo_collection",
+    vectors_config=VectorParams(
+        size=768,
+        distance=Distance.COSINE,
+        hnsw_config={
+            "m": 16,              # Conexiones por capa
+            "ef_construct": 100   # Calidad de construcción
+        }
+    )
+)
+
+# Subir vectores
+points = [
+    PointStruct(
+        id=str(uuid.uuid4()),
+        vector=embedding,
+        payload={"content": text, "metadata": {...}}
+    )
+    for text, embedding in zip(texts, embeddings)
+]
+client.upsert(collection_name="demo_collection", points=points)
+""",
+                "curl_example": """
+# Crear colección via API REST
+curl -X PUT 'http://localhost:6333/collections/demo_collection' \\
+  -H 'Content-Type: application/json' \\
+  -d '{
+    "vectors": {
+      "size": 768,
+      "distance": "Cosine",
+      "hnsw_config": {"m": 16, "ef_construct": 100}
+    }
+  }'
+
+# Subir punto
+curl -X PUT 'http://localhost:6333/collections/demo_collection/points' \\
+  -H 'Content-Type: application/json' \\
+  -d '{
+    "points": [
+      {
+        "id": 1,
+        "vector": [0.1, 0.2, ...],
+        "payload": {"content": "text", "metadata": {}}
+      }
+    ]
+  }'
+""",
+                "explanation": """
+HNSW (Hierarchical Navigable Small World):
+- Algoritmo de grafo para búsqueda aproximada de vecinos más cercanos (ANN)
+- Construye múltiples capas de grafos conectados
+- Búsqueda O(log n) en vez de O(n) de fuerza bruta
+- Trade-off: velocidad vs precisión ajustable con parámetros
+
+Métricas de Distancia:
+- Cosine: Mide ángulo entre vectores (mejor para texto)
+- Euclidean: Distancia L2 (mejor para imágenes)  
+- Dot Product: Producto punto (similar a cosine pero sin normalizar)
+
+ANN (Approximate Nearest Neighbor):
+- No garantiza resultado exacto pero es 1000x más rápido aproximadamente
+- Para millones de vectores, ANN es prácticamente obligatorio
+- Precisión típica: 95-99% con velocidad sub-milisegundo
+"""
+            }
+        except Exception as e:
+            return {
+                "step": "5. Subir a Qdrant con HNSW",
+                "description": "Cargar vectores en Qdrant usando índice HNSW para búsqueda ANN eficiente",
+                "database": "Qdrant",
+                "algorithm": "HNSW (Hierarchical Navigable Small World)",
+                "output": {
+                    "collection_name": "demo_collection",
+                    "vectors_uploaded": len(embeddings),
+                    "vector_size": len(embeddings[0]) if embeddings else 768,
+                    "distance_metric": "Cosine Similarity",
+                    "status": "demo_mode",
+                    "error": str(e)
+                },
+                "hnsw_params": {
+                    "m": 16,
+                    "ef_construct": 100,
+                    "explanation": "M controla conexiones por capa (mayor = más preciso pero más memoria). EF_construct controla calidad de índice."
+                },
+                "code_example": """
+from qdrant_client import QdrantClient
+from qdrant_client.models import Distance, VectorParams, PointStruct
+
+# Conectar a Qdrant
+client = QdrantClient(host="qdrant", port=6333)
+
+# Crear colección con HNSW
+client.create_collection(
+    collection_name="demo_collection",
+    vectors_config=VectorParams(
+        size=768,
+        distance=Distance.COSINE,
+        hnsw_config={
+            "m": 16,              # Conexiones por capa
+            "ef_construct": 100   # Calidad de construcción
+        }
+    )
+)
+
+# Subir vectores
+points = [
+    PointStruct(
+        id=str(uuid.uuid4()),
+        vector=embedding,
+        payload={"content": text, "metadata": {...}}
+    )
+    for text, embedding in zip(texts, embeddings)
+]
+client.upsert(collection_name="demo_collection", points=points)
+""",
+                "curl_example": """
+# Crear colección via API REST
+curl -X PUT 'http://qdrant:6333/collections/demo_collection' \\
+  -H 'Content-Type: application/json' \\
+  -d '{
+    "vectors": {
+      "size": 768,
+      "distance": "Cosine",
+      "hnsw_config": {"m": 16, "ef_construct": 100}
+    }
+  }'
+
+# Subir punto
+curl -X PUT 'http://qdrant:6333/collections/demo_collection/points' \\
+  -H 'Content-Type: application/json' \\
+  -d '{
+    "points": [
+      {
+        "id": 1,
+        "vector": [0.1, 0.2, ...],
+        "payload": {"content": "text", "metadata": {}}
+      }
+    ]
+  }'
+""",
+                "explanation": "Asegúrate de que Qdrant esté corriendo en qdrant:6333. En modo demo, se muestran las operaciones que se realizarían."
+            }
+
+    def step_6_upload_to_pgvector(self, chunks: List[str], embeddings: List[List[float]]) -> Dict[str, Any]:
+        """Step 6: Upload documents to PostgreSQL with pgvector"""
+        try:
+            import psycopg2
+            import json
+
+            # Connect to PostgreSQL - use Docker service name
+            conn = psycopg2.connect(
+                host="pgvector_db",
+                port=5432,
+                database="vectordb",
+                user="pguser",
+                password="pgpass"
+            )
+            cur = conn.cursor()
+
+            # Ensure table exists with proper schema
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS demo_vectors (
+                    id SERIAL PRIMARY KEY,
+                    content TEXT NOT NULL,
+                    embedding vector(768),
+                    metadata JSONB,
+                    created_at TIMESTAMP DEFAULT NOW()
+                );
+            """)
+
+            # Create IVFFlat index for efficient search
+            try:
+                cur.execute("""
+                    CREATE INDEX IF NOT EXISTS demo_vectors_embedding_idx 
+                    ON demo_vectors 
+                    USING ivfflat (embedding vector_cosine_ops)
+                    WITH (lists = 100);
+                """)
+            except:
+                pass  # Index might already exist
+
+            # Insert vectors
+            inserted_count = 0
+            for idx, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+                embedding_json = json.dumps(embedding)
+                metadata_json = json.dumps({
+                    "chunk_index": idx,
+                    "source": "demo_pipeline",
+                    "timestamp": "2025-11-10"
+                })
+
+                cur.execute("""
+                    INSERT INTO demo_vectors (content, embedding, metadata)
+                    VALUES (%s, %s::vector, %s::jsonb)
+                """, (chunk, embedding_json, metadata_json))
+                inserted_count += 1
+
+            conn.commit()
+
+            # Get table stats
+            cur.execute("SELECT COUNT(*) FROM demo_vectors;")
+            total_vectors = cur.fetchone()[0]
+
+            cur.close()
+            conn.close()
+
+            return {
+                "step": "6. Subir a PostgreSQL + pgvector",
+                "description": "Almacenar vectores en PostgreSQL con índice IVFFlat para búsqueda rápida",
+                "database": "PostgreSQL + pgvector",
+                "algorithm": "IVFFlat (Inverted File with Flat compression)",
+                "output": {
+                    "table_name": "demo_vectors",
+                    "vectors_uploaded": inserted_count,
+                    "total_in_table": total_vectors,
+                    "vector_size": 768,
+                    "distance_operator": "<=> (cosine distance)",
+                    "status": "success"
+                },
+                "ivfflat_params": {
+                    "lists": 100,
+                    "explanation": "Divide vectores en 100 clusters. Búsqueda solo en clusters relevantes (ANN)."
+                },
+                "code_example": """
+import psycopg2
+import json
+
+# Conectar a PostgreSQL
+conn = psycopg2.connect(
+    host="localhost", database="vectordb",
+    user="pguser", password="pgpass"
+)
+cur = conn.cursor()
+
+# Crear tabla con vector column
+cur.execute('''
+    CREATE TABLE demo_vectors (
+        id SERIAL PRIMARY KEY,
+        content TEXT,
+        embedding vector(768),
+        metadata JSONB
+    );
+''')
+
+# Crear índice IVFFlat para ANN search
+cur.execute('''
+    CREATE INDEX ON demo_vectors 
+    USING ivfflat (embedding vector_cosine_ops)
+    WITH (lists = 100);
+''')
+
+# Insertar vector
+embedding_json = json.dumps(embedding_list)
+cur.execute(
+    "INSERT INTO demo_vectors (content, embedding, metadata) "
+    "VALUES (%s, %s::vector, %s::jsonb)",
+    (text, embedding_json, metadata_json)
+)
+conn.commit()
+""",
+                "sql_queries": """
+-- Buscar vectores similares con cosine distance
+SELECT 
+    content,
+    1 - (embedding <=> %s::vector) as similarity,
+    embedding <=> %s::vector as distance
+FROM demo_vectors
+ORDER BY embedding <=> %s::vector
+LIMIT 5;
+
+-- Operadores de distancia disponibles:
+-- <->  L2 distance (Euclidean)
+-- <#>  Inner product (negative dot product)  
+-- <=>  Cosine distance
+
+-- Ver estadísticas del índice
+SELECT * FROM pg_indexes WHERE tablename = 'demo_vectors';
+""",
+                "explanation": """
+pgvector Extension:
+- Agrega tipos de datos vector a PostgreSQL
+- Operadores optimizados para similaridad
+- Índices especializados (IVFFlat, HNSW)
+
+IVFFlat Index:
+- Inverted File with Flat compression
+- Divide espacio vectorial en clusters (lists)
+- Búsqueda solo en clusters cercanos (ANN)
+- Trade-off: lists más grande = más preciso pero más lento
+
+Ventajas pgvector:
+- Todo en una base de datos relacional
+- ACID transactions + vectores
+- Joins entre datos relacionales y vectores  
+- Sintaxis SQL familiar
+
+Desventajas vs Qdrant:
+- Menos optimizado que DB vectorial dedicada
+- No escala tan bien para más de 10M vectores
+- Menos features avanzados (filtros, scoring, etc)
+"""
+            }
+        except Exception as e:
+            return {
+                "step": "6. Subir a PostgreSQL + pgvector",
+                "error": str(e),
+                "explanation": "Asegúrate de que PostgreSQL con pgvector esté corriendo en localhost:5432"
+            }
+
+    def step_11_ann_vs_exact_search(self, query_embedding: List[float]) -> Dict[str, Any]:
+        """Step 11: Compare ANN (Approximate) vs Exact search performance"""
+        import time
+        import numpy as np
+
+        try:
+            from qdrant_client import QdrantClient
+
+            client = QdrantClient(host="qdrant", port=6333)
+            collection_name = "demo_collection"
+
+            # ANN Search with HNSW
+            start_ann = time.time()
+            ann_results = client.search(
+                collection_name=collection_name,
+                query_vector=query_embedding,
+                limit=5,
+                search_params={"hnsw_ef": 128}  # Search quality parameter
+            )
+            ann_time = (time.time() - start_ann) * 1000  # ms
+
+            # Exact Search (disable HNSW)
+            start_exact = time.time()
+            exact_results = client.search(
+                collection_name=collection_name,
+                query_vector=query_embedding,
+                limit=5,
+                search_params={"exact": True}  # Force exact search
+            )
+            exact_time = (time.time() - start_exact) * 1000  # ms
+
+            # Compare results
+            ann_scores = [r.score for r in ann_results]
+            exact_scores = [r.score for r in exact_results]
+
+            # Calculate precision: how many ANN results match exact top-5
+            ann_ids = {r.id for r in ann_results}
+            exact_ids = {r.id for r in exact_results}
+            precision = len(ann_ids.intersection(exact_ids)) / len(exact_ids)
+
+            return {
+                "step": "11. ANN vs Búsqueda Exacta",
+                "description": "Comparar búsqueda aproximada (HNSW) vs búsqueda exacta (fuerza bruta)",
+                "output": {
+                    "ann_search": {
+                        "time_ms": round(ann_time, 2),
+                        "top_scores": [round(s, 4) for s in ann_scores],
+                        "algorithm": "HNSW (Approximate)"
+                    },
+                    "exact_search": {
+                        "time_ms": round(exact_time, 2),
+                        "top_scores": [round(s, 4) for s in exact_scores],
+                        "algorithm": "Brute Force (Exact)"
+                    },
+                    "comparison": {
+                        "speedup": round(exact_time / ann_time, 2),
+                        "precision": round(precision * 100, 2),
+                        "verdict": f"ANN es {round(exact_time/ann_time, 1)}x más rápido con {round(precision*100, 1)}% precisión"
+                    }
+                },
+                "code_example": """
+from qdrant_client import QdrantClient
+
+client = QdrantClient("localhost", 6333)
+
+# Búsqueda ANN con HNSW (rápida, aproximada)
+ann_results = client.search(
+    collection_name="demo_collection",
+    query_vector=query_embedding,
+    limit=5,
+    search_params={"hnsw_ef": 128}  # Mayor = más preciso
+)
+
+# Búsqueda Exacta (lenta, precisa al 100%)
+exact_results = client.search(
+    collection_name="demo_collection", 
+    query_vector=query_embedding,
+    limit=5,
+    search_params={"exact": True}
+)
+""",
+                "explanation": """
+🚀 ANN (Approximate Nearest Neighbor):
+- Sacrifica pequeña precisión por velocidad dramática
+- Típicamente 95-99% precisión con 100-1000x velocidad
+- Esencial para bases de datos con >100k vectores
+- Parámetro hnsw_ef controla trade-off velocidad/precisión
+
+🎯 Búsqueda Exacta (Brute Force):
+- Compara query con TODOS los vectores
+- 100% precisión garantizada
+- O(n) complejidad - se vuelve muy lenta
+- Solo viable para datasets pequeños (<10k vectores)
+
+📊 Cuándo usar cada una:
+- ANN: Producción, latencia crítica, millones de vectores
+- Exact: Desarrollo, validación, datasets pequeños, máxima precisión requerida
+
+💡 Benchmark típico (1M vectores):
+- ANN: ~5ms para top-5, 98% precisión
+- Exact: ~5000ms para top-5, 100% precisión
+- En producción, SIEMPRE usar ANN
+"""
+            }
+        except Exception as e:
+            return {
+                "step": "11. ANN vs Búsqueda Exacta",
+                "error": str(e),
+                "explanation": "Requiere colección demo_collection en Qdrant"
+            }
+
+    def step_14_cosine_similarity_calculation(self, query_embedding: List[float], doc_embeddings: List[List[float]]) -> Dict[str, Any]:
+        """Step 14: Detailed cosine similarity calculation with math"""
+        import numpy as np
+
+        # Use first 10 dims for visualization
+        query_vec = np.array(query_embedding[:10])
+        doc_vec = np.array(
+            doc_embeddings[0][:10]) if doc_embeddings else np.random.randn(10)
+
+        # Step by step cosine calculation
+        dot_product = np.dot(query_vec, doc_vec)
+        query_norm = np.linalg.norm(query_vec)
+        doc_norm = np.linalg.norm(doc_vec)
+        cosine_sim = dot_product / (query_norm * doc_norm)
+
+        # Full vector calculation
+        full_query = np.array(query_embedding)
+        full_doc = np.array(doc_embeddings[0]) if doc_embeddings else np.random.randn(
+            len(query_embedding))
+        full_cosine = np.dot(full_query, full_doc) / \
+            (np.linalg.norm(full_query) * np.linalg.norm(full_doc))
+
+        # Calculate for multiple documents
+        similarities = []
+        for doc_emb in doc_embeddings[:5]:
+            doc_array = np.array(doc_emb)
+            sim = np.dot(full_query, doc_array) / \
+                (np.linalg.norm(full_query) * np.linalg.norm(doc_array))
+            similarities.append(float(sim))
+
+        return {
+            "step": "14. Cálculo de Similitud Coseno",
+            "description": "Matemática detallada de cómo se calcula la similitud entre vectores",
+            "formula": "cosine_similarity = (A · B) / (||A|| × ||B||)",
+            "calculation_steps": {
+                "1_dot_product": {
+                    "formula": "A · B = Σ(a_i × b_i)",
+                    "value": float(dot_product),
+                    "explanation": "Suma de productos elemento por elemento"
+                },
+                "2_query_magnitude": {
+                    "formula": "||A|| = √(Σ(a_i²))",
+                    "value": float(query_norm),
+                    "explanation": "Longitud del vector query (norma L2)"
+                },
+                "3_doc_magnitude": {
+                    "formula": "||B|| = √(Σ(b_i²))",
+                    "value": float(doc_norm),
+                    "explanation": "Longitud del vector documento"
+                },
+                "4_cosine_similarity": {
+                    "formula": f"{dot_product:.4f} / ({query_norm:.4f} × {doc_norm:.4f})",
+                    "value": float(cosine_sim),
+                    "explanation": "Similitud coseno normalizada entre -1 y 1"
+                }
+            },
+            "output": {
+                "sample_calculation": {
+                    "dimensions_shown": 10,
+                    "cosine_similarity": float(cosine_sim)
+                },
+                "full_vector_calculation": {
+                    "dimensions": len(query_embedding),
+                    "cosine_similarity": float(full_cosine)
+                },
+                "multiple_documents": {
+                    "similarities": similarities,
+                    "best_match_index": int(np.argmax(similarities)),
+                    "best_match_score": float(max(similarities))
+                }
+            },
+            "code_example": """
+import numpy as np
+
+def cosine_similarity(vec_a, vec_b):
+    # Paso 1: Producto punto
+    dot_product = np.dot(vec_a, vec_b)
+    
+    # Paso 2: Magnitudes (normas)
+    norm_a = np.linalg.norm(vec_a)
+    norm_b = np.linalg.norm(vec_b)
+    
+    # Paso 3: Similitud coseno
+    similarity = dot_product / (norm_a * norm_b)
+    
+    return similarity
+
+# Ejemplo con vectores de 768 dimensiones
+query_emb = np.array([...])  # Vector de consulta
+doc_emb = np.array([...])    # Vector de documento
+
+similarity = cosine_similarity(query_emb, doc_emb)
+print(f"Similitud: {similarity:.4f}")
+
+# Para múltiples documentos
+docs = [doc1_emb, doc2_emb, doc3_emb]
+similarities = [cosine_similarity(query_emb, doc) for doc in docs]
+best_match = np.argmax(similarities)
+""",
+            "explanation": """
+📐 Similitud Coseno Explicada:
+- Mide el ángulo entre dos vectores
+- Rango: -1 (opuestos) a 1 (idénticos)
+- 0 = vectores ortogonales (no relacionados)
+- Ignora magnitud, solo dirección
+
+🔢 Por qué funciona para texto:
+- Vectores de palabras similares apuntan en direcciones similares
+- "Rey" - "Hombre" + "Mujer" ≈ "Reina" funciona por geometría
+- Embeddings capturan relaciones semánticas como geometría
+
+⚡ Optimizaciones en producción:
+- Vectores pre-normalizados: similarity = dot_product
+- SIMD instructions para paralelizar cálculos
+- GPU acceleration para batch processing
+- Índices ANN evitan calcular todas las similaridades
+
+📊 Interpretación de scores:
+- > 0.9: Muy similar (casi duplicados)
+- 0.7-0.9: Alta similaridad semántica
+- 0.5-0.7: Relacionados temáticamente  
+- < 0.5: Poco o nada relacionados
+"""
+        }
+
+    def step_15_ranking_and_reranking(self, search_results: List[Dict], query: str) -> Dict[str, Any]:
+        """Step 15: Initial ranking + reranking strategies"""
+
+        # Initial ranking by cosine similarity
+        initial_ranked = sorted(
+            search_results, key=lambda x: x.get('score', 0), reverse=True)
+
+        # Reranking strategy 1: Boost recent documents
+        reranked_recency = initial_ranked.copy()
+        for item in reranked_recency:
+            if 'timestamp' in item.get('metadata', {}):
+                # Add small boost for recent docs
+                item['adjusted_score'] = item['score'] * 1.05
+            else:
+                item['adjusted_score'] = item['score']
+        reranked_recency.sort(key=lambda x: x['adjusted_score'], reverse=True)
+
+        # Reranking strategy 2: Length-based scoring
+        reranked_length = initial_ranked.copy()
+        for item in reranked_length:
+            content_length = len(item.get('content', ''))
+            # Prefer medium-length chunks (200-500 chars)
+            if 200 <= content_length <= 500:
+                length_boost = 1.1
+            elif content_length < 200:
+                length_boost = 0.9
+            else:
+                length_boost = 1.0
+            item['adjusted_score'] = item['score'] * length_boost
+        reranked_length.sort(key=lambda x: x['adjusted_score'], reverse=True)
+
+        # Reranking strategy 3: Diversity (MMR - Maximal Marginal Relevance)
+        diversified = [initial_ranked[0]] if initial_ranked else []
+        remaining = initial_ranked[1:].copy()
+
+        while remaining and len(diversified) < 5:
+            # Select next doc that maximizes: relevance - similarity to already selected
+            best_idx = 0
+            best_score = -float('inf')
+
+            for idx, candidate in enumerate(remaining):
+                relevance = candidate['score']
+                # Simple diversity: just alternate selection
+                diversity_penalty = 0.1 * len(diversified)
+                mmr_score = relevance - diversity_penalty
+
+                if mmr_score > best_score:
+                    best_score = mmr_score
+                    best_idx = idx
+
+            diversified.append(remaining.pop(best_idx))
+
+        return {
+            "step": "13. Ranking y Re-ranking",
+            "description": "Estrategias para ordenar y re-ordenar resultados después de búsqueda vectorial",
+            "strategies": {
+                "initial_ranking": {
+                    "method": "Cosine Similarity",
+                    "description": "Ordenar por score de similitud coseno",
+                    "top_3_scores": [r['score'] for r in initial_ranked[:3]]
+                },
+                "rerank_recency": {
+                    "method": "Recency Boost",
+                    "description": "Dar boost a documentos más recientes",
+                    "top_3_scores": [r['adjusted_score'] for r in reranked_recency[:3]],
+                    "boost_factor": 1.05
+                },
+                "rerank_length": {
+                    "method": "Length-based Scoring",
+                    "description": "Preferir chunks de longitud óptima (200-500 chars)",
+                    "top_3_scores": [r['adjusted_score'] for r in reranked_length[:3]],
+                    "optimal_range": "200-500 caracteres"
+                },
+                "rerank_diversity": {
+                    "method": "MMR (Maximal Marginal Relevance)",
+                    "description": "Balancear relevancia con diversidad",
+                    "selected_count": len(diversified),
+                    "explanation": "Evita resultados muy similares entre sí"
+                }
+            },
+            "output": {
+                "initial_top_3": [
+                    {"content": r['content'][:100], "score": r['score']}
+                    for r in initial_ranked[:3]
+                ],
+                "reranked_top_3": [
+                    {"content": r['content'][:100], "score": r.get(
+                        'adjusted_score', r['score'])}
+                    for r in reranked_length[:3]
+                ]
+            },
+            "code_example": """
+# Ranking inicial por similitud
+results = sorted(search_results, key=lambda x: x['score'], reverse=True)
+
+# Re-ranking con boost de recencia
+for result in results:
+    days_old = (today - result['date']).days
+    recency_boost = 1.0 / (1 + days_old/30)  # Decay over time
+    result['final_score'] = result['score'] * (1 + 0.1 * recency_boost)
+
+# Re-ranking con preferencia de longitud
+for result in results:
+    length = len(result['content'])
+    if 200 <= length <= 500:
+        length_factor = 1.1  # Boost
+    elif length < 100:
+        length_factor = 0.8  # Penalize
+    else:
+        length_factor = 1.0
+    result['final_score'] = result['score'] * length_factor
+
+# MMR para diversidad
+def mmr_rerank(results, lambda_param=0.5):
+    selected = [results[0]]
+    remaining = results[1:]
+    
+    while remaining and len(selected) < k:
+        best_idx = 0
+        best_score = -float('inf')
+        
+        for idx, candidate in enumerate(remaining):
+            relevance = candidate['score']
+            
+            # Calcular similaridad máxima con ya seleccionados
+            max_sim = max([
+                cosine_similarity(candidate['embedding'], s['embedding'])
+                for s in selected
+            ])
+            
+            # MMR score: balancear relevancia y diversidad
+            mmr_score = lambda_param * relevance - (1-lambda_param) * max_sim
+            
+            if mmr_score > best_score:
+                best_score = mmr_score
+                best_idx = idx
+        
+        selected.append(remaining.pop(best_idx))
+    
+    return selected
+
+reranked = mmr_rerank(results, lambda_param=0.7)
+""",
+            "explanation": """
+🎯 Estrategias de Ranking:
+
+1️⃣ RANKING INICIAL (Similitud Coseno):
+   - Primero: ordenar por score de búsqueda vectorial
+   - Más simple y directo
+   - Base para otros métodos
+
+2️⃣ RE-RANKING POR RECENCIA:
+   - Documentos recientes son más relevantes
+   - Útil para noticias, logs, datos temporales
+   - Trade-off: información vieja puede ser valiosa
+
+3️⃣ RE-RANKING POR LONGITUD:
+   - Chunks muy cortos: poco contexto
+   - Chunks muy largos: mucho ruido
+   - Óptimo: 200-500 caracteres para embeddings
+
+4️⃣ MMR (DIVERSIDAD):
+   - Evita resultados redundantes
+   - Top-5 cubre más temas
+   - Balance: relevancia vs novedad
+
+🏆 MEJOR PRÁCTICA:
+   1. Búsqueda vectorial inicial (top-50)
+   2. Re-ranking con modelo cross-encoder (top-10)
+   3. Aplicar reglas de negocio (filtros, boosts)
+   4. MMR para diversidad (top-5 final)
+
+⚡ EN PRODUCCIÓN:
+   - A/B testing de estrategias
+   - Métricas: MRR, NDCG, Precision@K
+   - Logging de clicks para reentrenamiento
+"""
+        }
+
+    def run_complete_demo(self, query: str = "¿Qué es pgvector?", model: str = "phi3:mini") -> List[Dict[str, Any]]:
+        """Run complete educational pipeline with logical workflow order
+
+        Complete Educational Pipeline - Logical Flow:
+        FASE 1: PREPARACIÓN DE DOCUMENTOS
+        PASO 1: Análisis de Texto
+        PASO 2: Limpieza y Fragmentación de Texto  
+        PASO 3: Generación de Embeddings
+
+        FASE 2: ALMACENAMIENTO EN BASES DE DATOS
+        PASO 4: Almacenamiento en Bases de Datos Vectoriales (concepto)
+        PASO 5: Subir a Qdrant con HNSW
+        PASO 6: Subir a PostgreSQL + pgvector
+
+        FASE 3: CONSULTAS Y BÚSQUEDAS
+        PASO 7: Procesamiento de Consulta
+        PASO 8: Búsqueda Vectorial (Qdrant)
+        PASO 9: Búsqueda Vectorial (PostgreSQL pgvector)
+        PASO 10: Matemáticas de Similitud
+        PASO 11: ANN vs Búsqueda Exacta
+
+        FASE 4: PROCESAMIENTO DE RESULTADOS
+        PASO 12: Clasificación y Presentación de Resultados
+        PASO 13: Ranking y Re-ranking
+        PASO 14: Cálculo de Similitud Coseno (detallado)
+        PASO 15: Generación de Respuesta con IA
+        """
+
+        demo_steps = []
+
+        # ===== FASE 1: PREPARACIÓN DE DOCUMENTOS =====
+        # Paso 1: Análisis de Texto
+        step1 = self.step_1_parse_text()
+        demo_steps.append(step1)
+
+        # Paso 2: Limpieza y Fragmentación de Texto
+        step2 = self.step_2_clean_text(step1["output"]["sentences"])
+        demo_steps.append(step2)
+
+        # Paso 3: Generación de Embeddings
+        step3 = self.step_3_create_embeddings(step2["output"]["chunks"])
+        demo_steps.append(step3)
+
+        # ===== FASE 2: ALMACENAMIENTO EN BASES DE DATOS =====
+        # Paso 4: Almacenamiento en Bases de Datos Vectoriales (concepto)
+        step4 = self.step_4_document_storage_example()
+        demo_steps.append(step4)
+
+        # Paso 5: Subir a Qdrant con HNSW
+        step5 = self.step_5_upload_to_qdrant(
+            step2["output"]["chunks"],
+            step3["output"]["full_embeddings"]
+        )
+        demo_steps.append(step5)
+
+        # Paso 6: Subir a PostgreSQL + pgvector
+        step6 = self.step_6_upload_to_pgvector(
+            step2["output"]["chunks"],
+            step3["output"]["full_embeddings"]
+        )
+        demo_steps.append(step6)
+
+        # ===== FASE 3: CONSULTAS Y BÚSQUEDAS =====
+        # Paso 7: Procesamiento de Consulta
+        step7 = self.step_7_query_processing(query)
+        demo_steps.append(step7)
+
+        # Paso 8: Búsqueda Vectorial (Qdrant)
+        step8 = self.step_8_vector_search_qdrant(
+            step7["output"]["full_embedding"])
+        demo_steps.append(step8)
+
+        # Paso 9: Búsqueda Vectorial (PostgreSQL pgvector)
+        step9 = self.step_9_vector_search_pgvector(
+            step7["output"]["full_embedding"])
+        demo_steps.append(step9)
+
+        # Paso 10: Matemáticas de Similitud
+        step10 = self.step_10_similarity_math(
+            step7["output"]["full_embedding"],
+            step3["output"]["full_embeddings"]
+        )
+        demo_steps.append(step10)
+
+        # Paso 11: ANN vs Búsqueda Exacta
+        step11 = self.step_11_ann_vs_exact_search(
+            step7["output"]["full_embedding"])
+        demo_steps.append(step11)
+
+        # ===== FASE 4: PROCESAMIENTO DE RESULTADOS =====
+        # Paso 12: Clasificación y Presentación de Resultados
+        step12 = self.step_8_result_ranking(step8["output"])
+        demo_steps.append(step12)
+
+        # Paso 13: Ranking y Re-ranking
+        if isinstance(step8["output"], list) and step8["output"]:
+            step13 = self.step_15_ranking_and_reranking(step8["output"], query)
+        else:
+            # Fallback with mock results
+            mock_results = [
+                {
+                    "content": "PostgreSQL con pgvector es una extensión que permite almacenar vectores.",
+                    "score": 0.85,
+                    "path": "./data/raw/ejemplo.pdf",
+                    "page": 10
+                }
+            ]
+            step13 = self.step_15_ranking_and_reranking(mock_results, query)
+        demo_steps.append(step13)
+
+        # Paso 14: Cálculo de Similitud Coseno (detallado)
+        if step3["output"]["full_embeddings"]:
+            step14 = self.step_14_cosine_similarity_calculation(
+                step7["output"]["full_embedding"],
+                step3["output"]["full_embeddings"][:3]
+            )
+            demo_steps.append(step14)
+
+        # Paso 15: Generación de Respuesta con IA
+        if isinstance(step12["output"], list) and step12["output"]:
+            step15 = self.step_9_ai_generation(step12["output"], query, model)
+        else:
+            # Fallback with mock results for demo
+            mock_results = [
+                {
+                    "rank": 1,
+                    "result": {
+                        "content": "PostgreSQL con pgvector es una extensión que permite almacenar vectores.",
+                        "score": 0.85,
+                        "path": "./data/raw/ejemplo.pdf",
+                        "page": 10
+                    }
+                }
+            ]
+            step15 = self.step_9_ai_generation(mock_results, query, model)
+        demo_steps.append(step15)
+
+        return demo_steps
+
+
+def create_demo_html(demo_steps: List[Dict[str, Any]], query: str, model: str = "phi3:mini") -> str:
     """Crear demostración HTML completa mostrando todos los pasos del pipeline"""
 
     html = f"""
@@ -630,12 +1843,12 @@ def create_demo_html(demo_steps: List[Dict[str, Any]], query: str) -> str:
             padding: 25px;
             background: rgba(255,255,255,0.03);
             border-radius: 12px;
-            border-left: 4px solid #4CAF50;
+            border-left: 4px solid #8b5cf6;
             box-shadow: 0 4px 15px rgba(0,0,0,0.3);
         }}
         
         .step-header {{
-            color: #4CAF50;
+            color: #8b5cf6;
             font-size: 1.4em;
             font-weight: bold;
             margin-bottom: 10px;
@@ -644,7 +1857,7 @@ def create_demo_html(demo_steps: List[Dict[str, Any]], query: str) -> str:
         }}
         
         .step-number {{
-            background: #4CAF50;
+            background: #8b5cf6;
             color: #000;
             width: 30px;
             height: 30px;
@@ -704,7 +1917,7 @@ def create_demo_html(demo_steps: List[Dict[str, Any]], query: str) -> str:
         
         .explanation {{
             background: rgba(76, 175, 80, 0.1);
-            border-left: 3px solid #4CAF50;
+            border-left: 3px solid #8b5cf6;
             padding: 15px;
             margin: 15px 0;
             border-radius: 0 8px 8px 0;
@@ -725,7 +1938,7 @@ def create_demo_html(demo_steps: List[Dict[str, Any]], query: str) -> str:
         }}
         
         .section-title {{
-            color: #4CAF50;
+            color: #8b5cf6;
             font-weight: bold;
             margin-bottom: 10px;
             font-size: 1.1em;
@@ -745,22 +1958,85 @@ def create_demo_html(demo_steps: List[Dict[str, Any]], query: str) -> str:
             position: fixed;
             top: 20px;
             right: 20px;
-            background: rgba(0,0,0,0.8);
-            padding: 15px;
+            background: rgba(0,0,0,0.9);
+            padding: 10px;
             border-radius: 10px;
             border: 1px solid rgba(255,255,255,0.2);
+            max-width: 250px;
+            opacity: 0.3;
+            transition: opacity 0.3s ease;
+        }}
+        
+        .navigation:hover {{
+            opacity: 1;
+        }}
+        
+        .nav-header {{
+            color: #8b5cf6;
+            font-weight: bold;
+            margin-bottom: 10px;
+            font-size: 0.9em;
+        }}
+        
+        .nav-section {{
+            margin-bottom: 15px;
+        }}
+        
+        .nav-section-title {{
+            color: #a78bfa;
+            font-weight: bold;
+            font-size: 0.8em;
+            margin-bottom: 5px;
+            text-transform: uppercase;
         }}
         
         .nav-link {{
             display: block;
-            color: #4CAF50;
+            color: #d1d5db;
             text-decoration: none;
-            padding: 5px 0;
-            font-size: 0.9em;
+            padding: 3px 0;
+            font-size: 0.8em;
+            transition: color 0.2s;
         }}
         
         .nav-link:hover {{
-            color: #66BB6A;
+            color: #8b5cf6;
+        }}
+        
+        .phase-divider {{
+            background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+            padding: 20px;
+            margin: 30px 0;
+            border-radius: 10px;
+            text-align: center;
+            color: white;
+            font-weight: bold;
+            font-size: 1.2em;
+        }}
+        
+        .step-container {{
+            margin-bottom: 40px;
+            padding: 30px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            border-left: 4px solid #8b5cf6;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }}
+        
+        .input-output {{
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+            margin: 25px 0;
+        }}
+        
+        .explanation {{
+            background: rgba(139, 92, 246, 0.1);
+            border-left: 3px solid #8b5cf6;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+            line-height: 1.7;
         }}
         
         @media (max-width: 768px) {{
@@ -781,26 +2057,84 @@ def create_demo_html(demo_steps: List[Dict[str, Any]], query: str) -> str:
     # Add header
     html += f"""
     <div class="header">
-        <h1>{get_svg_icon("experiment", "24", "#4CAF50")} Demo Completo del Pipeline RAG</h1>
+        <h1>{get_svg_icon("experiment", "24", "#8b5cf6")} Demo Completo del Pipeline RAG</h1>
         <p><strong>Consulta:</strong> "{query}"</p>
         <p>Análisis completo paso a paso de texto a búsqueda vectorial</p>
     </div>
     
     <div class="navigation">
-        <strong>Navegación Rápida:</strong>
-        <a href="#step1" class="nav-link">1. Analizar Texto</a>
-        <a href="#step2" class="nav-link">2. Limpiar Texto</a>
-        <a href="#step3" class="nav-link">3. Embeddings</a>
-        <a href="#step4" class="nav-link">4. Procesar Consulta</a>
-        <a href="#step5" class="nav-link">5. Búsqueda Qdrant</a>
-        <a href="#step6" class="nav-link">6. Búsqueda pgvector</a>
-        <a href="#step7" class="nav-link">7. Matemáticas</a>
-        <a href="#step8" class="nav-link">8. Clasificación</a>
+        <div class="nav-header">Navegación del Pipeline</div>
+        
+        <div class="nav-section">
+            <div class="nav-section-title">Fase 1: Documentos</div>
+            <a href="#step1" class="nav-link">1. Análisis de Texto</a>
+            <a href="#step2" class="nav-link">2. Limpieza de Texto</a>
+            <a href="#step3" class="nav-link">3. Embeddings</a>
+        </div>
+        
+        <div class="nav-section">
+            <div class="nav-section-title">Fase 2: Almacenamiento</div>
+            <a href="#step4" class="nav-link">4. Concepto Almacenamiento</a>
+            <a href="#step5" class="nav-link">5. Upload Qdrant</a>
+            <a href="#step6" class="nav-link">6. Upload PostgreSQL</a>
+        </div>
+        
+        <div class="nav-section">
+            <div class="nav-section-title">Fase 3: Consultas</div>
+            <a href="#step7" class="nav-link">7. Procesamiento Query</a>
+            <a href="#step8" class="nav-link">8. Búsqueda Qdrant</a>
+            <a href="#step9" class="nav-link">9. Búsqueda pgvector</a>
+            <a href="#step10" class="nav-link">10. Matemáticas</a>
+            <a href="#step11" class="nav-link">11. ANN vs Exact</a>
+        </div>
+        
+        <div class="nav-section">
+            <div class="nav-section-title">Fase 4: Resultados</div>
+            <a href="#step12" class="nav-link">12. Clasificación</a>
+            <a href="#step13" class="nav-link">13. Re-ranking</a>
+            <a href="#step14" class="nav-link">14. Coseno Detallado</a>
+            <a href="#step15" class="nav-link">15. Generación IA</a>
+        </div>
     </div>"""
-
     for i, step in enumerate(demo_steps, 1):
         step_id = f"step{i}"
 
+        # Add phase dividers
+        if i == 1:
+            html += f"""
+    <div class="phase-divider">
+        FASE 1: PREPARACIÓN DE DOCUMENTOS
+        <div style="font-size: 0.8em; font-weight: normal; margin-top: 5px;">
+            Análisis, limpieza y vectorización del texto
+        </div>
+    </div>"""
+        elif i == 4:
+            html += f"""
+    <div class="phase-divider">
+        FASE 2: ALMACENAMIENTO EN BASES DE DATOS
+        <div style="font-size: 0.8em; font-weight: normal; margin-top: 5px;">
+            Configuración e ingesta de vectores en Qdrant y PostgreSQL
+        </div>
+    </div>"""
+        elif i == 7:
+            html += f"""
+    <div class="phase-divider">
+        FASE 3: CONSULTAS Y BÚSQUEDAS
+        <div style="font-size: 0.8em; font-weight: normal; margin-top: 5px;">
+            Procesamiento de consultas y búsqueda de similitud
+        </div>
+    </div>"""
+        elif i == 12:
+            html += f"""
+    <div class="phase-divider">
+        FASE 4: PROCESAMIENTO DE RESULTADOS
+        <div style="font-size: 0.8em; font-weight: normal; margin-top: 5px;">
+            Ranking, re-ranking y generación de respuestas con IA
+        </div>
+    </div>"""
+
+        print(i)
+        print(step.get("description", step.get("step", f"Step {i}")))
         html += f"""
     <div id="{step_id}" class="step-container">
         <div class="step-header">
@@ -808,11 +2142,11 @@ def create_demo_html(demo_steps: List[Dict[str, Any]], query: str) -> str:
             {step['step']}
         </div>
         
-        <div class="description">{step['description']}</div>
+        <div class="description">{step.get('description', step.get('step', ''))}</div>
         
         <div class="input-output">
             <div class="input-section">
-                <div class="section-title">{get_svg_icon("input", "16", "#4CAF50")} Entrada</div>
+                <div class="section-title">{get_svg_icon("input", "16", "#8b5cf6")} Entrada</div>
                 <div class="json-block">{format_json_with_syntax_highlighting(step.get('input', {}))}</div>
             </div>
             
@@ -850,9 +2184,9 @@ def create_demo_html(demo_steps: List[Dict[str, Any]], query: str) -> str:
 
     html += f"""
     <div class="header" style="margin-top: 40px;">
-        <h2>{get_svg_icon("experiment", "20", "#4CAF50")} ¡Pipeline Completo!</h2>
+        <h2>{get_svg_icon("experiment", "20", "#8b5cf6")} ¡Pipeline Completo!</h2>
         <p>Esta demostración mostró el pipeline completo RAG desde texto crudo hasta resultados clasificados.</p>
-        <p><a href="/" style="color: #4CAF50;">← Volver al Menú Principal</a></p>
+        <p><a href="/" style="color: #8b5cf6;">← Volver al Menú Principal</a></p>
     </div>
 </body>
 </html>"""

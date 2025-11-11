@@ -1,0 +1,563 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block extra_css %}
+/* GPU Status and General Response - Consistent Flat Design */
+.status-section {
+background: rgba(55, 65, 81, 0.4);
+border: 1px solid rgba(107, 114, 128, 0.3);
+border-radius: 12px;
+padding: 24px;
+margin: 20px 0;
+}
+
+.status-section h3 {
+margin: 0 0 20px 0;
+color: #a78bfa;
+font-size: 20px;
+font-weight: 700;
+display: flex;
+align-items: center;
+gap: 10px;
+}
+
+.info-card {
+background: rgba(31, 41, 55, 0.4);
+border: 1px solid rgba(75, 85, 99, 0.4);
+border-radius: 10px;
+padding: 20px;
+margin-bottom: 16px;
+transition: all 0.3s ease;
+}
+
+.info-card:hover {
+background: rgba(31, 41, 55, 0.6);
+border-color: rgba(156, 163, 175, 0.5);
+transform: translateY(-2px);
+box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+.info-header {
+font-weight: 600;
+color: #c7d2fe;
+margin-bottom: 12px;
+font-size: 16px;
+display: flex;
+align-items: center;
+gap: 8px;
+}
+
+.info-content {
+color: #d1d5db;
+line-height: 1.7;
+font-size: 15px;
+}
+
+.info-content p {
+margin: 8px 0;
+display: flex;
+align-items: center;
+gap: 8px;
+}
+
+/* Status Indicators - Modern Design */
+.status-indicator {
+display: inline-block;
+width: 10px;
+height: 10px;
+border-radius: 50%;
+margin-right: 10px;
+box-shadow: 0 0 8px rgba(0, 0, 0, 0.3);
+flex-shrink: 0;
+}
+
+.status-ok {
+background: linear-gradient(135deg, #10b981, #059669);
+box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+}
+
+.status-warning {
+background: linear-gradient(135deg, #f59e0b, #d97706);
+box-shadow: 0 0 12px rgba(245, 158, 11, 0.4);
+}
+
+.status-error {
+background: linear-gradient(135deg, #ef4444, #dc2626);
+box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
+}
+
+/* Error Section */
+.error-section {
+background: linear-gradient(135deg, rgba(153, 27, 27, 0.8), rgba(127, 29, 29, 0.6));
+border: 1px solid #dc2626;
+color: #fecaca;
+padding: 24px;
+border-radius: 12px;
+margin: 20px 0;
+box-shadow: 0 4px 15px rgba(220, 38, 38, 0.2);
+}
+
+.error-section h3 {
+color: #fca5a5;
+margin: 0 0 16px 0;
+font-size: 18px;
+display: flex;
+align-items: center;
+gap: 8px;
+}
+
+/* Comparison Grid - Enhanced Layout */
+.comparison-grid {
+display: grid;
+grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+gap: 24px;
+margin: 20px 0;
+}
+
+.comparison-item {
+background: rgba(55, 65, 81, 0.4);
+border: 1px solid rgba(107, 114, 128, 0.3);
+border-radius: 12px;
+padding: 24px;
+transition: all 0.3s ease;
+position: relative;
+overflow: hidden;
+}
+
+.comparison-item::before {
+content: '';
+position: absolute;
+top: 0;
+left: 0;
+width: 4px;
+height: 100%;
+background: linear-gradient(to bottom, #8b5cf6, #7c3aed);
+}
+
+.comparison-item:hover {
+background: rgba(55, 65, 81, 0.6);
+border-color: rgba(156, 163, 175, 0.5);
+transform: translateY(-4px);
+box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+}
+
+.comparison-header {
+font-size: 18px;
+font-weight: 700;
+color: #a78bfa;
+margin-bottom: 16px;
+display: flex;
+align-items: center;
+gap: 10px;
+}
+
+/* System Status - Enhanced Visibility */
+.system-status {
+background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(124, 58, 237, 0.05));
+border: 1px solid rgba(167, 139, 250, 0.3);
+border-radius: 12px;
+padding: 24px;
+margin: 20px 0;
+}
+
+.system-status h3 {
+color: #a78bfa;
+margin: 0 0 20px 0;
+font-size: 20px;
+font-weight: 700;
+display: flex;
+align-items: center;
+gap: 10px;
+}
+
+.status-grid {
+display: grid;
+grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+gap: 16px;
+margin-top: 16px;
+}
+
+.status-item {
+background: rgba(31, 41, 55, 0.4);
+border: 1px solid rgba(75, 85, 99, 0.4);
+border-radius: 8px;
+padding: 16px;
+display: flex;
+align-items: center;
+gap: 12px;
+transition: all 0.3s ease;
+}
+
+.status-item:hover {
+background: rgba(31, 41, 55, 0.6);
+border-color: rgba(156, 163, 175, 0.5);
+}
+
+.status-item strong {
+color: #f8fafc;
+margin-right: 8px;
+}
+
+/* Results Section */
+.results-section {
+margin: 20px 0;
+}
+
+.result-item {
+background: rgba(55, 65, 81, 0.4);
+border: 1px solid rgba(107, 114, 128, 0.3);
+border-radius: 10px;
+padding: 20px;
+margin-bottom: 16px;
+transition: all 0.3s ease;
+}
+
+.result-item:hover {
+background: rgba(55, 65, 81, 0.6);
+border-color: rgba(156, 163, 175, 0.5);
+transform: translateY(-2px);
+box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+}
+
+.result-header {
+font-weight: 600;
+color: #c7d2fe;
+margin-bottom: 12px;
+font-size: 16px;
+}
+
+.result-content {
+color: #d1d5db;
+line-height: 1.6;
+margin-bottom: 10px;
+}
+
+.similarity-badge {
+display: inline-block;
+background: rgba(16, 185, 129, 0.2);
+border: 1px solid #10b981;
+color: #6ee7b7;
+padding: 4px 8px;
+border-radius: 6px;
+font-size: 12px;
+font-weight: 600;
+}
+
+/* Code blocks */
+code {
+background: rgba(17, 24, 39, 0.8);
+border: 1px solid rgba(55, 65, 81, 0.6);
+border-radius: 6px;
+padding: 2px 6px;
+font-family: 'JetBrains Mono', 'Fira Code', monospace;
+font-size: 13px;
+color: #fbbf24;
+}
+
+/* Details Toggle - Enhanced */
+.details-toggle {
+margin-top: 40px;
+text-align: center;
+padding: 30px;
+background: rgba(31, 41, 55, 0.3);
+border: 1px solid rgba(75, 85, 99, 0.3);
+border-radius: 12px;
+}
+
+/* JSON highlighting for GPU status */
+.json-string { color: #fbbf24; font-weight: 500; }
+.json-number { color: #34d399; font-weight: 600; }
+.json-boolean { color: #60a5fa; font-weight: 600; }
+.json-null { color: #f87171; font-weight: 600; }
+.json-key { color: #a78bfa; font-weight: 600; }
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+.comparison-grid {
+grid-template-columns: 1fr;
+}
+
+.status-grid {
+grid-template-columns: 1fr;
+}
+
+.status-item {
+flex-direction: column;
+align-items: flex-start;
+gap: 8px;
+}
+}
+{% endblock %}
+
+{% block header_content %}
+<div class="search-bar">
+    <input type="text" class="search-input" placeholder="Nueva búsqueda..." value="" id="searchInput">
+    <button class="search-btn" onclick="newSearch()">
+        {{ get_svg_icon("search", "16", "#ffffff") }} Buscar
+    </button>
+    <button class="nav-btn" onclick="window.location.href='/'">
+        {{ get_svg_icon("home", "16", "#ffffff") }} Menu Principal
+    </button>
+</div>
+<div class="title">
+    {{ get_svg_icon("settings", "28", "#ffffff") }} {{ page_title }}
+</div>
+<div class="subtitle">
+    {% if backend %}Motor: {{ backend|upper }}{% endif %}
+    {% if total_results %}| Resultados: {{ total_results }}{% endif %}
+    {% if search_time_ms %}| Tiempo: {{ search_time_ms }}ms{% endif %}
+</div>
+{% endblock %}
+
+{% block content %}
+{% if error %}
+<div class="error-section">
+    <h3>{{ get_svg_icon("alert-circle", "20", "#fca5a5") }} Error</h3>
+    <p><strong>{{ error }}</strong></p>
+    {% if status %}
+    <p>Código de estado: {{ status }}</p>
+    {% endif %}
+</div>
+{% else %}
+
+{% if qdrant and postgres %}
+<!-- Comparison View -->
+<div class="status-section">
+    <h3>{{ get_svg_icon("balance", "20", "#3b82f6") }} Comparación de Motores</h3>
+    <div class="comparison-grid">
+        <div class="comparison-item">
+            <div class="comparison-header">🔥 Qdrant</div>
+            <div class="info-content">
+                <p><strong>Resultados:</strong> {{ qdrant.total_results }}</p>
+                <p><strong>Tiempo:</strong> {{ qdrant.search_time_ms }}ms</p>
+                <p><strong>Estado:</strong> <span class="status-indicator status-ok"></span>Conectado</p>
+            </div>
+        </div>
+        <div class="comparison-item">
+            <div class="comparison-header">🐘 PostgreSQL</div>
+            <div class="info-content">
+                <p><strong>Resultados:</strong> {{ postgres.total_results }}</p>
+                <p><strong>Tiempo:</strong> {{ postgres.search_time_ms }}ms</p>
+                <p><strong>Estado:</strong> <span class="status-indicator status-ok"></span>Conectado</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if results %}
+<!-- Results View -->
+<div class="status-section results-section">
+    <h3>{{ get_svg_icon("clipboard", "20", "#3b82f6") }} Resultados de Búsqueda</h3>
+    {% for result in results %}
+    <div class="result-item">
+        <div class="result-header">{{ loop.index }}. {{ result.reference or result.document }}</div>
+        <div class="result-content">{{ result.content or result.preview }}</div>
+        {% if result.similarity %}
+        <div style="margin-top: 12px;">
+            <span class="similarity-badge">Similitud: {{ result.similarity }}</span>
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if filters %}
+<!-- Filters Info -->
+<div class="status-section">
+    <h3>{{ get_svg_icon("filter", "20", "#3b82f6") }} Filtros Disponibles</h3>
+    {% for filter_type, options in filters.items() %}
+    <div class="info-card">
+        <div class="info-header">{{ filter_type }}</div>
+        <div class="info-content">
+            {% if options is iterable and options is not string %}
+            {{ options|join(', ') }}
+            {% else %}
+            {{ options }}
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if examples %}
+<!-- Examples -->
+<div class="status-section">
+    <h3>{{ get_svg_icon("lightbulb", "20", "#3b82f6") }} Ejemplos de Uso</h3>
+    {% for example in examples %}
+    <div class="info-card">
+        <div class="info-header">{{ example.description }}</div>
+        <div class="info-content">
+            <code>{{ example.query }}</code>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if gpu_available is defined %}
+<!-- System Status -->
+<div class="system-status">
+    <h3>{{ get_svg_icon("cpu", "20", "#3b82f6") }} Estado del Sistema</h3>
+    <div class="status-grid">
+        <div class="status-item">
+            <span class="status-indicator {% if gpu_available %}status-ok{% else %}status-warning{% endif %}"></span>
+            <div>
+                <strong>GPU:</strong> {{ 'Disponible' if gpu_available else 'No disponible' }}
+            </div>
+        </div>
+        <div class="status-item">
+            <span class="status-indicator status-ok"></span>
+            <div>
+                <strong>Ejecutando en:</strong> {{ running_on }}
+            </div>
+        </div>
+        <div class="status-item">
+            <span class="status-indicator status-ok"></span>
+            <div>
+                <strong>Modelo:</strong> {{ model_name }}
+            </div>
+        </div>
+        {% if embedding_dimensions %}
+        <div class="status-item">
+            <span class="status-indicator status-ok"></span>
+            <div>
+                <strong>Dimensiones:</strong> {{ embedding_dimensions }}
+            </div>
+        </div>
+        {% endif %}
+        {% if qdrant_status is defined %}
+        <div class="status-item">
+            <span
+                class="status-indicator {% if qdrant_status == '✅' %}status-ok{% else %}status-warning{% endif %}"></span>
+            <div>
+                <strong>Qdrant:</strong> {{ qdrant_status }}
+            </div>
+        </div>
+        {% endif %}
+        {% if postgres_status is defined %}
+        <div class="status-item">
+            <span
+                class="status-indicator {% if postgres_status == '✅' %}status-ok{% else %}status-warning{% endif %}"></span>
+            <div>
+                <strong>PostgreSQL:</strong> {{ postgres_status }}
+            </div>
+        </div>
+        {% endif %}
+        {% if pgvector_status is defined %}
+        <div class="status-item">
+            <span
+                class="status-indicator {% if pgvector_status == '✅' %}status-ok{% else %}status-warning{% endif %}"></span>
+            <div>
+                <strong>pgvector:</strong> {{ pgvector_status }}
+            </div>
+        </div>
+        {% endif %}
+        {% if ollama_status is defined %}
+        <div class="status-item">
+            <span
+                class="status-indicator {% if ollama_status == '✅' %}status-ok{% else %}status-warning{% endif %}"></span>
+            <div>
+                <strong>Ollama:</strong> {{ ollama_status }}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+{% endif %}
+
+<div class="details-toggle">
+    <button class="toggle-btn" onclick="toggleDetails()">
+        {{ get_svg_icon("eye", "16", "#ffffff") }} Ver detalles técnicos JSON
+    </button>
+    <div class="json-details" id="jsonDetails">
+        <div class="json-content" id="jsonContent">{{ json_data }}</div>
+    </div>
+</div>
+
+<div class="navigation">
+    <div class="nav-group">
+        <a href="/" class="nav-link primary">
+            {{ get_svg_icon("home", "16", "#ffffff") }} Inicio
+        </a>
+        <a href="/ask?q=bases+de+datos+vectoriales" class="nav-link">
+            {{ get_svg_icon("search", "16", "#3b82f6") }} Búsqueda
+        </a>
+        <a href="/ai?q=bases+de+datos+vectoriales" class="nav-link">
+            {{ get_svg_icon("robot", "16", "#3b82f6") }} AI Search
+        </a>
+        <a href="/compare?q=pgvector" class="nav-link">
+            {{ get_svg_icon("balance", "16", "#3b82f6") }} Comparar
+        </a>
+    </div>
+    <div class="nav-group">
+        <a href="/demo/pipeline?q=demo+completo" class="nav-link">
+            {{ get_svg_icon("zap", "16", "#3b82f6") }} Pipeline RAG
+        </a>
+        <a href="/manual/embed?text=PostgreSQL+vectorial" class="nav-link">
+            {{ get_svg_icon("layers", "16", "#3b82f6") }} Demo Embedding
+        </a>
+        <a href="/demo/similarity" class="nav-link">
+            {{ get_svg_icon("target", "16", "#3b82f6") }} Demo Similitud
+        </a>
+    </div>
+    <div class="nav-group">
+        <a href="/gpu-status" class="nav-link">
+            {{ get_svg_icon("cpu", "16", "#3b82f6") }} System Status
+        </a>
+        <a href="/filters/examples" class="nav-link">
+            {{ get_svg_icon("filter", "16", "#3b82f6") }} Filtros
+        </a>
+        <a href="/docs" class="nav-link">
+            {{ get_svg_icon("book", "16", "#3b82f6") }} API Docs
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function toggleDetails() {
+        const details = document.getElementById('jsonDetails');
+        const btn = document.querySelector('.toggle-btn');
+
+        if (details.classList.contains('show')) {
+            details.classList.remove('show');
+            btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="m12 1v6m0 6v6"/></svg> Ver detalles técnicos JSON`;
+        } else {
+            details.classList.add('show');
+            btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="m12 1v6m0 6v6"/></svg> Ocultar detalles JSON`;
+            highlightJSON();
+        }
+    }
+
+    function highlightJSON() {
+        const jsonContent = document.getElementById('jsonContent');
+        let html = jsonContent.innerHTML;
+
+        html = html.replace(/"([^"]+)":/g, '<span style="color: #a78bfa;">"$1"</span>:');
+        html = html.replace(/: "([^"]*)"/g, ': <span style="color: #fbbf24;">"$1"</span>');
+        html = html.replace(/: ([0-9]+\.?[0-9]*)/g, ': <span style="color: #34d399;">$1</span>');
+        html = html.replace(/: (true|false)/g, ': <span style="color: #60a5fa;">$1</span>');
+        html = html.replace(/: (null)/g, ': <span style="color: #f87171;">$1</span>');
+
+        jsonContent.innerHTML = html;
+    }
+
+    function newSearch() {
+        const query = document.getElementById('searchInput').value;
+        if (query.trim()) {
+            window.location.href = `/ask?q=${encodeURIComponent(query)}`;
+        }
+    }
+
+    document.getElementById('searchInput').addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') newSearch();
+    });
+</script>
+{% endblock %}

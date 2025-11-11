@@ -1,0 +1,589 @@
+{% extends "base.html" %}
+
+{% block title %}AI Response: {{ query }}{% endblock %}
+
+{% block extra_css %}
+/* Question Section */
+.question-section {
+background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+padding: 25px;
+border-radius: 12px;
+margin-bottom: 25px;
+border: 1px solid #6366f1;
+box-shadow: 0 4px 15px rgba(99, 102, 241, 0.2);
+}
+.question-label {
+font-weight: 700;
+color: #ffffff;
+font-size: 18px;
+margin-bottom: 12px;
+display: flex;
+align-items: center;
+gap: 8px;
+}
+.question-text {
+font-size: 18px;
+color: #f1f5f9;
+line-height: 1.6;
+font-weight: 500;
+}
+
+/* Answer Section */
+.answer-section {
+background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+padding: 30px;
+border-radius: 12px;
+margin-bottom: 25px;
+border: 1px solid #8b5cf6;
+box-shadow: 0 4px 15px rgba(139, 92, 246, 0.2);
+}
+.answer-label {
+font-weight: 700;
+color: #ffffff;
+font-size: 20px;
+margin-bottom: 20px;
+display: flex;
+align-items: center;
+gap: 10px;
+}
+.answer-label .model-badge {
+font-size: 12px;
+background: rgba(255,255,255,0.2);
+padding: 4px 8px;
+border-radius: 6px;
+font-weight: 600;
+backdrop-filter: blur(10px);
+}
+.answer-text {
+font-size: 18px;
+line-height: 1.8;
+color: #f8fafc;
+white-space: pre-wrap;
+word-wrap: break-word;
+text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+.model-info {
+font-size: 14px;
+color: rgba(255,255,255,0.8);
+margin-top: 15px;
+padding: 10px 15px;
+background: rgba(255,255,255,0.1);
+border-radius: 6px;
+backdrop-filter: blur(10px);
+}
+
+/* Sources Section */
+.sources-section {
+margin-top: 30px;
+background: #252525;
+padding: 25px;
+border-radius: 12px;
+border: 1px solid #3a3a3a;
+box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+}
+.sources-section h3 {
+margin: 0 0 25px 0;
+color: #f59e0b;
+font-size: 22px;
+display: flex;
+align-items: center;
+gap: 10px;
+font-weight: 700;
+}
+.source-item {
+background: #333;
+padding: 20px;
+border-radius: 10px;
+margin-bottom: 20px;
+border: 1px solid #444;
+transition: all 0.3s ease;
+position: relative;
+overflow: hidden;
+}
+.source-item:hover {
+background: #3a3a3a;
+border-color: #a78bfa;
+transform: translateY(-2px);
+box-shadow: 0 6px 20px rgba(167, 139, 250, 0.15);
+}
+.source-item::before {
+content: '';
+position: absolute;
+top: 0;
+left: 0;
+width: 4px;
+height: 100%;
+background: linear-gradient(to bottom, #a78bfa, #8b5cf6);
+}
+.source-header {
+display: flex;
+align-items: center;
+gap: 15px;
+margin-bottom: 15px;
+flex-wrap: wrap;
+}
+.source-number {
+background: linear-gradient(135deg, #a78bfa, #8b5cf6);
+color: white;
+padding: 6px 10px;
+border-radius: 50%;
+font-weight: bold;
+font-size: 14px;
+min-width: 28px;
+text-align: center;
+box-shadow: 0 2px 8px rgba(167, 139, 250, 0.3);
+}
+.source-doc {
+font-weight: 600;
+color: #c7d2fe;
+flex: 1;
+min-width: 200px;
+font-size: 15px;
+}
+.source-similarity {
+background: linear-gradient(135deg, #4c1d95, #6d28d9);
+color: #c4b5fd;
+padding: 6px 10px;
+border-radius: 6px;
+font-size: 12px;
+font-weight: 600;
+border: 1px solid #8b5cf6;
+}
+.source-preview {
+color: #d1d5db;
+font-style: italic;
+border-left: 3px solid #a78bfa;
+padding-left: 15px;
+margin-left: 15px;
+line-height: 1.6;
+background: rgba(167, 139, 250, 0.05);
+padding: 12px 15px;
+border-radius: 6px;
+font-size: 14px;
+}
+
+/* Controls Row */
+.controls-row {
+display: flex;
+gap: 25px;
+margin-bottom: 20px;
+flex-wrap: wrap;
+background: #1f2937;
+padding: 20px;
+border-radius: 10px;
+border: 1px solid #374151;
+}
+.control-group {
+display: flex;
+align-items: center;
+gap: 10px;
+}
+.control-group label {
+font-weight: 600;
+min-width: 60px;
+color: #f3f4f6;
+font-size: 14px;
+}
+.select-control {
+padding: 10px 15px;
+border: 1px solid #4b5563;
+border-radius: 8px;
+background: #374151;
+color: #f3f4f6;
+cursor: pointer;
+min-width: 140px;
+font-weight: 500;
+transition: all 0.3s ease;
+}
+.select-control:hover {
+border-color: #6b7280;
+background: #4b5563;
+}
+.select-control:focus {
+outline: none;
+border-color: #3b82f6;
+box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+.select-control option {
+background: #374151;
+color: #f3f4f6;
+padding: 8px;
+}
+
+/* Enhanced Toggle Button */
+.toggle-btn {
+background: linear-gradient(135deg, #4b5563, #374151);
+color: #e5e7eb;
+border: none;
+padding: 15px 30px;
+border-radius: 10px;
+cursor: pointer;
+font-size: 16px;
+font-weight: 600;
+transition: all 0.3s ease;
+display: inline-flex;
+align-items: center;
+gap: 10px;
+border: 1px solid #6b7280;
+box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+.toggle-btn:hover {
+background: linear-gradient(135deg, #6b7280, #4b5563);
+transform: translateY(-2px);
+box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+}
+.toggle-btn:active {
+transform: translateY(0);
+}
+
+/* Enhanced JSON Details */
+.json-details {
+display: none;
+margin-top: 25px;
+background: #111827;
+padding: 25px;
+border-radius: 10px;
+border: 1px solid #374151;
+box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+transition: all 0.3s ease;
+}
+.json-details.show {
+display: block;
+animation: slideDown 0.3s ease-out;
+}
+.json-content {
+background: #0f172a;
+padding: 25px;
+border-radius: 8px;
+overflow-x: auto;
+font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+font-size: 13px;
+line-height: 1.6;
+text-align: left;
+white-space: pre-wrap;
+word-wrap: break-word;
+border: 1px solid #1f2937;
+}
+
+/* Enhanced Navigation */
+.navigation {
+display: flex;
+gap: 20px;
+justify-content: space-between;
+margin-top: 40px;
+flex-wrap: wrap;
+}
+.nav-group {
+display: flex;
+gap: 12px;
+flex-wrap: wrap;
+}
+.nav-link {
+display: inline-flex;
+align-items: center;
+gap: 8px;
+padding: 14px 24px;
+background: #374151;
+color: #e5e7eb;
+text-decoration: none;
+border-radius: 10px;
+font-weight: 600;
+transition: all 0.3s ease;
+border: 1px solid #4b5563;
+font-size: 14px;
+}
+.nav-link:hover {
+background: #4b5563;
+transform: translateY(-2px);
+box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+}
+.nav-link.primary {
+background: linear-gradient(135deg, #2563eb, #1d4ed8);
+border-color: #3b82f6;
+}
+.nav-link.primary:hover {
+background: linear-gradient(135deg, #3b82f6, #2563eb);
+}
+
+/* JSON Syntax Highlighting - Enhanced */
+.json-string { color: #fbbf24; font-weight: 500; }
+.json-number { color: #34d399; font-weight: 600; }
+.json-boolean { color: #60a5fa; font-weight: 600; }
+.json-null { color: #f87171; font-weight: 600; }
+.json-key { color: #a78bfa; font-weight: 600; }
+.json-bracket { color: #ffd700; font-weight: bold; }
+.json-brace { color: #da70d6; font-weight: bold; }
+.json-comma { color: #ffffff; }
+.json-colon { color: #ffffff; }
+
+/* Animations */
+@keyframes slideDown {
+from {
+opacity: 0;
+transform: translateY(-20px);
+}
+to {
+opacity: 1;
+transform: translateY(0);
+}
+}
+
+@keyframes fadeInUp {
+from {
+opacity: 0;
+transform: translateY(20px);
+}
+to {
+opacity: 1;
+transform: translateY(0);
+}
+}
+
+.fade-in {
+animation: fadeInUp 0.6s ease-out forwards;
+}
+
+/* Details Toggle Section */
+.details-toggle {
+margin-top: 40px;
+text-align: center;
+padding: 30px;
+background: #1f2937;
+border-radius: 12px;
+border: 1px solid #374151;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+.controls-row {
+flex-direction: column;
+gap: 15px;
+}
+.navigation {
+flex-direction: column;
+align-items: center;
+}
+.source-header {
+flex-direction: column;
+align-items: flex-start;
+gap: 10px;
+}
+.answer-text {
+font-size: 16px;
+}
+.question-text {
+font-size: 16px;
+}
+}
+{% endblock %}
+
+{% block header_content %}
+<div class="search-bar">
+    <input type="text" class="search-input" placeholder="Nueva búsqueda..." value="{{ query }}" id="searchInput">
+    <button class="search-btn" onclick="newSearch()">{{ get_svg_icon("search", "16", "#ffffff") }} Buscar</button>
+    <button class="nav-btn" onclick="window.location.href='/ask?q={{ query|urlencode }}'">{{ get_svg_icon("target",
+        "16", "#ffffff") }} Solo /ask</button>
+    <button class="nav-btn" onclick="window.location.href='/'">{{ get_svg_icon("home", "16", "#ffffff") }} Menu
+        Principal</button>
+</div>
+<div class="controls-row">
+    <div class="control-group">
+        <label for="backendSelect">Motor:</label>
+        <select id="backendSelect" class="select-control">
+            <option value="qdrant" {% if backend=='QDRANT' %}selected{% endif %}>Qdrant</option>
+            <option value="pgvector" {% if backend=='PGVECTOR' %}selected{% endif %}>PostgreSQL</option>
+        </select>
+    </div>
+    <div class="control-group">
+        <label for="modelSelect">Modelo:</label>
+        <select id="modelSelect" class="select-control">
+            <option value="phi3:mini" {% if model=='phi3:mini' %}selected{% endif %}>Phi3 Mini</option>
+            <option value="llama3.1:8b" {% if model=='llama3.1:8b' %}selected{% endif %}>Llama 3.1 8B</option>
+            <option value="gemma2:2b" {% if model=='gemma2:2b' %}selected{% endif %}>Gemma2 2B</option>
+            <option value="qwen2.5:3b" {% if model=='qwen2.5:3b' %}selected{% endif %}>Qwen2.5 3B</option>
+        </select>
+    </div>
+</div>
+<div class="title">
+    {{ get_svg_icon("robot", "32", "#ffffff") }} Respuesta AI
+</div>
+<div class="subtitle">Resultados: {{ total_results }} | Motor: {{ backend }} | Modelo: {{ model }}</div>
+{% endblock %}
+
+{% block content %}
+<div class="question-section">
+    <div class="question-label">
+        {{ get_svg_icon("help-circle", "20", "#ffffff") }} Pregunta:
+    </div>
+    <div class="question-text">{{ query }}</div>
+</div>
+
+<div class="answer-section">
+    <div class="answer-label">
+        {{ get_svg_icon("robot", "24", "#ffffff") }}
+        <span>Respuesta AI:</span>
+        <span class="model-badge">{{ model }}</span>
+    </div>
+    <div class="answer-text">{{ ai_response }}</div>
+    <div class="model-info">
+        {{ get_svg_icon("info", "16", "#ffffff") }}
+        Respuesta generada por <strong>{{ model }}</strong> usando {{ total_results }} fuentes relevantes del
+        conocimiento del curso
+    </div>
+</div>
+
+{% if sources %}
+<div class="sources-section">
+    <h3>{{ get_svg_icon("book-open", "24", "#f59e0b") }} Fuentes de Conocimiento:</h3>
+    {% for source in sources %}
+    <div class="source-item fade-in" style="animation-delay: {{ loop.index0 * 0.1 }}s;">
+        <div class="source-header">
+            <span class="source-number">{{ loop.index }}</span>
+            <span class="source-doc">
+                {% if source.reference %}
+                {{ source.reference }}
+                {% elif source.page %}
+                {{ source.get("document", "").replace("data/raw/", "").replace(".pdf", "") }} - página {{ source.page }}
+                {% else %}
+                {{ source.get("document", "").replace("data/raw/", "").replace(".pdf", "") }}
+                {% endif %}
+                {% if source.chapter %}, {{ source.chapter }}{% endif %}
+            </span>
+            <span class="source-similarity">{{ source.similarity }}</span>
+        </div>
+        <div class="source-preview">{{ source.preview or source.content or "" }}</div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="details-toggle" style="margin-top: 30px; text-align: center;">
+    <button class="toggle-btn" onclick="toggleDetails()">
+        {{ get_svg_icon("settings", "16", "#ffffff") }} Ver detalles técnicos JSON
+    </button>
+    <div class="json-details" id="jsonDetails">
+        <div class="json-content" id="jsonContent">{{ json_data }}</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function toggleDetails() {
+        const details = document.getElementById('jsonDetails');
+        const btn = document.querySelector('.toggle-btn');
+
+        if (details.classList.contains('show')) {
+            details.classList.remove('show');
+            btn.innerHTML = `{{ get_svg_icon("eye", "16", "#ffffff")|safe }} Ver detalles técnicos JSON`;
+        } else {
+            details.classList.add('show');
+            btn.innerHTML = `{{ get_svg_icon("eye-off", "16", "#ffffff")|safe }} Ocultar detalles JSON`;
+            highlightJSON();
+        }
+    }
+
+    function highlightJSON() {
+        const jsonContent = document.getElementById('jsonContent');
+        if (!jsonContent) return;
+
+        let text = jsonContent.textContent;
+
+        // Enhanced JSON syntax highlighting
+        text = text.replace(/"([^"\\]*(\\.[^"\\]*)*)"/g, function (match, string) {
+            if (match.slice(-2) === '":') {
+                // This is a key
+                return '<span class="json-key">' + match.slice(0, -1) + '</span><span class="json-colon">:</span>';
+            } else {
+                // This is a string value
+                return '<span class="json-string">' + match + '</span>';
+            }
+        });
+
+        // Highlight numbers
+        text = text.replace(/\b(\d+\.?\d*)\b/g, '<span class="json-number">$1</span>');
+
+        // Highlight booleans
+        text = text.replace(/\b(true|false)\b/g, '<span class="json-boolean">$1</span>');
+
+        // Highlight null
+        text = text.replace(/\bnull\b/g, '<span class="json-null">null</span>');
+
+        // Highlight brackets and braces
+        text = text.replace(/[\[\]]/g, '<span class="json-bracket">$&</span>');
+        text = text.replace(/[{}]/g, '<span class="json-brace">$&</span>');
+
+        // Highlight commas
+        text = text.replace(/,/g, '<span class="json-comma">,</span>');
+
+        jsonContent.innerHTML = text;
+    }
+
+    function newSearch() {
+        const query = document.getElementById('searchInput').value;
+        const backend = document.getElementById('backendSelect').value;
+        const model = document.getElementById('modelSelect').value;
+
+        if (query.trim()) {
+            const params = new URLSearchParams({
+                q: query.trim(),
+                backend: backend,
+                model: model
+            });
+            window.location.href = `/ai?${params.toString()}`;
+        }
+    }
+
+    function updateSettings() {
+        const query = document.getElementById('searchInput').value;
+        if (query.trim()) {
+            newSearch();
+        }
+    }
+
+    // Enhanced initialization with animations
+    document.addEventListener('DOMContentLoaded', function () {
+        // Add event listeners for controls
+        const backendSelect = document.getElementById('backendSelect');
+        const modelSelect = document.getElementById('modelSelect');
+        const searchInput = document.getElementById('searchInput');
+
+        if (backendSelect) backendSelect.addEventListener('change', updateSettings);
+        if (modelSelect) modelSelect.addEventListener('change', updateSettings);
+        if (searchInput) {
+            searchInput.addEventListener('keypress', function (e) {
+                if (e.key === 'Enter') newSearch();
+            });
+        }
+
+        // Add subtle animations to source items
+        const sourceItems = document.querySelectorAll('.source-item');
+        sourceItems.forEach((item, index) => {
+            item.style.animationDelay = (index * 0.1) + 's';
+            item.classList.add('fade-in');
+        });
+
+        // Add enhanced hover effects
+        const navLinks = document.querySelectorAll('.nav-link');
+        navLinks.forEach(link => {
+            link.addEventListener('mouseenter', function () {
+                this.style.transform = 'translateY(-3px) scale(1.02)';
+            });
+            link.addEventListener('mouseleave', function () {
+                this.style.transform = 'translateY(0) scale(1)';
+            });
+        });
+
+        // Animate sections on load
+        setTimeout(() => {
+            document.querySelector('.question-section')?.classList.add('fade-in');
+            setTimeout(() => {
+                document.querySelector('.answer-section')?.classList.add('fade-in');
+            }, 200);
+            setTimeout(() => {
+                document.querySelector('.sources-section')?.classList.add('fade-in');
+            }, 400);
+        }, 100);
+    });
+</script>
+{% endblock %}

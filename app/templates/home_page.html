@@ -1,0 +1,728 @@
+{% extends "base.html" %}
+
+{% block title %}RAG Demo - Sistema de Búsqueda Inteligente{% endblock %}
+
+{% block extra_css %}
+/* Global loading overlay */
+.loading-overlay {
+position: fixed;
+top: 0;
+left: 0;
+width: 100%;
+height: 100%;
+background: rgba(0, 0, 0, 0.85);
+display: none;
+justify-content: center;
+align-items: center;
+z-index: 10000;
+backdrop-filter: blur(5px);
+}
+.loading-overlay.active {
+display: flex;
+}
+.spinner {
+width: 50px;
+height: 50px;
+border: 4px solid rgba(255,255,255,0.3);
+border-top: 4px solid #8b5cf6;
+border-radius: 50%;
+animation: spin 1s linear infinite;
+margin-bottom: 20px;
+}
+.loading-text {
+color: white;
+font-size: 18px;
+font-weight: 500;
+text-align: center;
+}
+@keyframes spin {
+0% { transform: rotate(0deg); }
+100% { transform: rotate(360deg); }
+}
+
+/* Search section styling */
+.search-section {
+background: linear-gradient(135deg, #4c1d95 0%, #8b5cf6 50%, #a78bfa 100%);
+border-radius: 20px;
+padding: 40px 30px;
+margin: 30px 0;
+text-align: center;
+box-shadow: 0 20px 40px rgba(139, 92, 246, 0.3);
+position: relative;
+overflow: hidden;
+}
+.search-section::before {
+content: '';
+position: absolute;
+top: 0;
+left: 0;
+right: 0;
+bottom: 0;
+background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.1) 50%, transparent 70%);
+animation: shimmer 3s infinite;
+}
+@keyframes shimmer {
+0% { transform: translateX(-100%); }
+100% { transform: translateX(100%); }
+}
+.search-title {
+font-size: 28px;
+font-weight: 700;
+color: white;
+margin-bottom: 20px;
+display: flex;
+align-items: center;
+justify-content: center;
+gap: 12px;
+}
+.search-bar {
+display: flex;
+max-width: 600px;
+margin: 0 auto 30px auto;
+gap: 15px;
+position: relative;
+z-index: 1;
+}
+.search-input {
+flex: 1;
+padding: 18px 25px;
+border: none;
+border-radius: 50px;
+font-size: 16px;
+background: rgba(255,255,255,0.95);
+color: #1f2937;
+box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+transition: all 0.3s ease;
+backdrop-filter: blur(10px);
+}
+.search-input:focus {
+outline: none;
+background: white;
+box-shadow: 0 12px 35px rgba(0,0,0,0.2);
+transform: translateY(-2px);
+}
+.search-input::placeholder {
+color: #6b7280;
+font-style: italic;
+}
+.search-btn {
+padding: 18px 35px;
+background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+color: white;
+border: none;
+border-radius: 50px;
+font-weight: 600;
+font-size: 16px;
+cursor: pointer;
+transition: all 0.3s ease;
+display: flex;
+align-items: center;
+gap: 10px;
+box-shadow: 0 8px 25px rgba(139, 92, 246, 0.4);
+position: relative;
+overflow: hidden;
+}
+.search-btn:hover {
+transform: translateY(-3px);
+box-shadow: 0 15px 35px rgba(139, 92, 246, 0.5);
+}
+.search-btn.btn-loading {
+pointer-events: none;
+opacity: 0.8;
+}
+.search-btn.btn-loading::after {
+content: '';
+position: absolute;
+top: 0;
+left: 0;
+right: 0;
+bottom: 0;
+background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.2) 50%, transparent 70%);
+animation: loading-shimmer 1.5s infinite;
+}
+@keyframes loading-shimmer {
+0% { transform: translateX(-100%); }
+100% { transform: translateX(100%); }
+}
+
+/* Search loading animation */
+.search-loading {
+display: none;
+align-items: center;
+justify-content: center;
+gap: 10px;
+color: white;
+font-weight: 500;
+margin-top: 15px;
+}
+.search-loading.active {
+display: flex;
+}
+.dots {
+display: flex;
+gap: 4px;
+}
+.dot {
+width: 8px;
+height: 8px;
+background: white;
+border-radius: 50%;
+animation: bounce 1.4s infinite;
+}
+.dot:nth-child(2) {
+animation-delay: 0.2s;
+}
+.dot:nth-child(3) {
+animation-delay: 0.4s;
+}
+@keyframes bounce {
+0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
+40% { transform: scale(1.2); opacity: 1; }
+}
+
+/* Quick searches */
+.quick-searches {
+position: relative;
+z-index: 1;
+}
+.quick-title {
+font-size: 18px;
+font-weight: 600;
+color: white;
+margin-bottom: 20px;
+display: flex;
+align-items: center;
+justify-content: center;
+gap: 8px;
+}
+.quick-buttons {
+display: flex;
+flex-wrap: wrap;
+justify-content: center;
+gap: 12px;
+}
+.quick-btn {
+display: inline-flex;
+align-items: center;
+gap: 8px;
+padding: 12px 20px;
+background: rgba(255,255,255,0.2);
+color: white;
+text-decoration: none;
+border-radius: 25px;
+font-weight: 500;
+font-size: 14px;
+transition: all 0.3s ease;
+backdrop-filter: blur(10px);
+border: 1px solid rgba(255,255,255,0.3);
+}
+.quick-btn:hover {
+background: rgba(255,255,255,0.3);
+transform: translateY(-2px);
+box-shadow: 0 8px 25px rgba(255,255,255,0.2);
+}
+
+/* Features section */
+.features-section {
+margin: 40px 0;
+}
+.features-grid {
+display: grid;
+grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+gap: 25px;
+margin: 30px 0;
+}
+.action-card {
+background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+border-radius: 15px;
+padding: 30px;
+text-align: center;
+cursor: pointer;
+transition: all 0.4s ease;
+border: 2px solid transparent;
+position: relative;
+overflow: hidden;
+}
+.action-card::before {
+content: '';
+position: absolute;
+top: 0;
+left: 0;
+right: 0;
+bottom: 0;
+background: linear-gradient(135deg, transparent 0%, rgba(139, 92, 246, 0.1) 50%, transparent 100%);
+opacity: 0;
+transition: opacity 0.3s ease;
+}
+.action-card:hover {
+transform: translateY(-8px);
+box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+border-color: #8b5cf6;
+}
+.action-card:hover::before {
+opacity: 1;
+}
+.action-icon {
+width: 60px;
+height: 60px;
+background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+border-radius: 50%;
+display: flex;
+align-items: center;
+justify-content: center;
+margin: 0 auto 20px auto;
+transition: all 0.3s ease;
+}
+.action-card:hover .action-icon {
+transform: scale(1.1) rotate(5deg);
+}
+.action-title {
+font-size: 20px;
+font-weight: 700;
+color: #1f2937;
+margin-bottom: 12px;
+}
+.action-description {
+color: #64748b;
+line-height: 1.6;
+font-size: 15px;
+}
+
+/* API Routes section */
+.api-routes-section {
+background: #f8fafc;
+border-radius: 20px;
+padding: 40px;
+margin: 40px 0;
+border: 2px solid #e2e8f0;
+}
+.section-title {
+font-size: 24px;
+font-weight: 700;
+color: #1f2937;
+margin-bottom: 30px;
+display: flex;
+align-items: center;
+gap: 12px;
+}
+.api-grid {
+display: grid;
+grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+gap: 20px;
+}
+.api-card {
+background: white;
+border-radius: 12px;
+padding: 25px;
+border: 1px solid #e5e7eb;
+transition: all 0.3s ease;
+cursor: pointer;
+}
+.api-card:hover {
+border-color: #8b5cf6;
+box-shadow: 0 8px 25px rgba(139, 92, 246, 0.15);
+transform: translateY(-3px);
+}
+.api-method {
+display: inline-block;
+padding: 4px 10px;
+border-radius: 20px;
+font-size: 12px;
+font-weight: 600;
+margin-bottom: 12px;
+}
+.api-method.get {
+background: #dcfdf4;
+color: #059669;
+}
+.api-method.post {
+background: #dbeafe;
+color: #1d4ed8;
+}
+.api-endpoint {
+font-family: 'Monaco', monospace;
+font-size: 14px;
+color: #374151;
+margin-bottom: 8px;
+}
+.api-description {
+color: #6b7280;
+font-size: 13px;
+line-height: 1.4;
+}
+
+/* Navigation section */
+.nav-section {
+text-align: center;
+margin: 40px 0;
+}
+.nav-buttons {
+display: flex;
+justify-content: center;
+gap: 20px;
+flex-wrap: wrap;
+}
+.nav-btn-large {
+display: inline-flex;
+align-items: center;
+gap: 10px;
+padding: 15px 30px;
+background: #374151;
+color: white;
+text-decoration: none;
+border-radius: 12px;
+font-weight: 600;
+transition: all 0.3s ease;
+box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+.nav-btn-large:hover {
+background: #4b5563;
+transform: translateY(-2px);
+box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+.search-bar {
+flex-direction: column;
+max-width: 100%;
+}
+.search-input {
+margin-bottom: 15px;
+}
+.quick-buttons {
+justify-content: center;
+}
+.quick-btn {
+font-size: 12px;
+padding: 10px 15px;
+}
+.features-grid {
+grid-template-columns: 1fr;
+}
+.api-grid {
+grid-template-columns: 1fr;
+}
+.nav-buttons {
+flex-direction: column;
+align-items: center;
+}
+}
+{% endblock %}
+
+{% block header_content %}
+<!-- Remove the default header for home page -->
+{% endblock %}
+
+{% block content %}
+<!-- Global loading overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+    <div>
+        <div class="spinner"></div>
+        <div class="loading-text">Procesando consulta...</div>
+    </div>
+</div>
+
+<!-- Custom header for home page -->
+<div class="header" style="background: linear-gradient(135deg, #4c1d95 0%, #8b5cf6 100%); margin-bottom: 0;">
+    <div class="title">
+        {{ get_svg_icon("search", "32", "#ffffff") }} RAG Demo
+    </div>
+    <div class="subtitle">Sistema de Búsqueda Inteligente con IA</div>
+</div>
+
+<div class="search-section">
+    <div class="search-title">
+        {{ get_svg_icon("search", "24", "#ffffff") }} Buscar en Documentos
+    </div>
+    <div class="search-bar">
+        <input type="text" class="search-input" placeholder="Medicamentos seguros en el embarazo" id="searchInput">
+        <button class="search-btn" onclick="searchWithAI()" id="searchButton">
+            {{ get_svg_icon("robot", "18", "#ffffff") }} AI Search
+        </button>
+    </div>
+
+    <!-- Loading indicator -->
+    <div class="search-loading" id="searchLoading">
+        <span>Buscando</span>
+        <div class="dots">
+            <div class="dot"></div>
+            <div class="dot"></div>
+            <div class="dot"></div>
+        </div>
+    </div>
+
+    <div class="quick-searches">
+        <div class="quick-title">
+            {{ get_svg_icon("target", "20", "#ffffff") }} Búsquedas Rápidas:
+        </div>
+        <div class="quick-buttons">
+            <a href="/ai?q=bases+de+datos+vectoriales" class="quick-btn">
+                {{ get_svg_icon("book", "16", "#ffffff") }} Bases de Datos
+            </a>
+            <a href="/ai?q=pgvector+postgresql" class="quick-btn">
+                {{ get_svg_icon("book", "16", "#ffffff") }} PgVector
+            </a>
+            <a href="/ai?q=qdrant+vector+database" class="quick-btn">
+                {{ get_svg_icon("book", "16", "#ffffff") }} Qdrant
+            </a>
+            <a href="/ai?q=embeddings+vectoriales" class="quick-btn">
+                {{ get_svg_icon("book", "16", "#ffffff") }} Embeddings
+            </a>
+            <a href="/ai?q=rag+pipeline+demo" class="quick-btn">
+                {{ get_svg_icon("book", "16", "#ffffff") }} RAG Pipeline
+            </a>
+            <a href="/ai?q=similitud+coseno+vectorial" class="quick-btn">
+                {{ get_svg_icon("book", "16", "#ffffff") }} Similitud
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="features-section">
+    <div class="features-grid">
+        <div class="action-card"
+            onclick="navigateWithLoading('/ask?q=bases+de+datos+vectoriales', 'Preparando búsqueda...')">
+            <div class="action-icon">
+                {{ get_svg_icon("search", "24", "#ffffff") }}
+            </div>
+            <div class="action-title">Búsqueda Semántica</div>
+            <div class="action-description">Busca documentos usando similitud vectorial sin generar respuesta de IA
+            </div>
+        </div>
+
+        <div class="action-card" onclick="navigateWithLoading('/ai?q=bases+de+datos+vectoriales', 'Iniciando IA...')">
+            <div class="action-icon">
+                {{ get_svg_icon("robot", "24", "#ffffff") }}
+            </div>
+            <div class="action-title">Respuesta con IA</div>
+            <div class="action-description">Genera respuestas inteligentes basadas en documentos encontrados</div>
+        </div>
+
+        <div class="action-card"
+            onclick="navigateWithLoading('/compare?q=pgvector+vs+qdrant', 'Comparando backends...')">
+            <div class="action-icon">
+                {{ get_svg_icon("balance", "24", "#ffffff") }}
+            </div>
+            <div class="action-title">Comparar Motores</div>
+            <div class="action-description">Compara rendimiento entre Qdrant y PgVector</div>
+        </div>
+
+        <div class="action-card"
+            onclick="navigateWithLoading('/manual/embed?text=PostgreSQL+con+pgvector', 'Cargando demostración...')">
+            <div class="action-icon">
+                {{ get_svg_icon("layers", "24", "#ffffff") }}
+            </div>
+            <div class="action-title">Demo Embedding</div>
+            <div class="action-description">Visualiza cómo se convierten textos en vectores</div>
+        </div>
+
+        <div class="action-card"
+            onclick="navigateWithLoading('/manual/search?q=vectores+similitud', 'Preparando demo...')">
+            <div class="action-icon">
+                {{ get_svg_icon("target", "24", "#ffffff") }}
+            </div>
+            <div class="action-title">Demo Búsqueda</div>
+            <div class="action-description">Demostración paso a paso del proceso de búsqueda vectorial</div>
+        </div>
+
+        <div class="action-card" onclick="navigateWithLoading('/gpu-status', 'Verificando estado...')">
+            <div class="action-icon">
+                {{ get_svg_icon("cpu", "24", "#ffffff") }}
+            </div>
+            <div class="action-title">Estado del Sistema</div>
+            <div class="action-description">Verifica el estado de GPU, backends y modelos disponibles</div>
+        </div>
+
+        <div class="action-card" onclick="navigateWithLoading('/demo/pipeline', 'Cargando pipeline completo...')">
+            <div class="action-icon">
+                {{ get_svg_icon("zap", "24", "#ffffff") }}
+            </div>
+            <div class="action-title">Pipeline RAG Completo</div>
+            <div class="action-description">Demostración paso a paso de todo el pipeline RAG desde texto a respuesta
+            </div>
+        </div>
+
+        <div class="action-card" onclick="navigateWithLoading('/filters/examples', 'Cargando ejemplos...')">
+            <div class="action-icon">
+                {{ get_svg_icon("filter", "24", "#ffffff") }}
+            </div>
+            <div class="action-title">Filtros y Ejemplos</div>
+            <div class="action-description">Ejemplos de búsquedas avanzadas con filtros</div>
+        </div>
+
+        <div class="action-card" onclick="navigateWithLoading('/demo/similarity', 'Cargando similitud...')">
+            <div class="action-icon">
+                {{ get_svg_icon("database", "24", "#ffffff") }}
+            </div>
+            <div class="action-title">Demo Similitud</div>
+            <div class="action-description">Visualiza cálculos de similitud coseno entre vectores</div>
+        </div>
+    </div>
+</div>
+
+<div class="api-routes-section">
+    <div class="section-title">
+        {{ get_svg_icon("settings", "24", "#1f2937") }} Todas las Rutas API
+    </div>
+    <div class="api-grid">
+        <div class="api-card" onclick="navigateWithLoading('/ask?q=test', 'Ejecutando búsqueda...')">
+            <div class="api-method get">GET</div>
+            <div class="api-endpoint">/ask</div>
+            <div class="api-description">Búsqueda semántica en documentos</div>
+        </div>
+
+        <div class="api-card" onclick="navigateWithLoading('/ai?q=test', 'Generando respuesta IA...')">
+            <div class="api-method get">GET</div>
+            <div class="api-endpoint">/ai</div>
+            <div class="api-description">Respuesta de IA basada en documentos</div>
+        </div>
+
+        <div class="api-card" onclick="navigateWithLoading('/compare?q=test', 'Comparando motores...')">
+            <div class="api-method get">GET</div>
+            <div class="api-endpoint">/compare</div>
+            <div class="api-description">Comparación entre backends</div>
+        </div>
+
+        <div class="api-card" onclick="navigateWithLoading('/docs', 'Cargando documentación...')">
+            <div class="api-method get">GET</div>
+            <div class="api-endpoint">/docs</div>
+            <div class="api-description">Documentación interactiva de la API</div>
+        </div>
+
+        <div class="api-card" onclick="navigateWithLoading('/manual/embedding?text=test', 'Cargando demo...')">
+            <div class="api-method get">GET</div>
+            <div class="api-endpoint">/manual/embedding</div>
+            <div class="api-description">Demostración de embedding manual</div>
+        </div>
+
+        <div class="api-card" onclick="navigateWithLoading('/gpu-status', 'Verificando sistema...')">
+            <div class="api-method get">GET</div>
+            <div class="api-endpoint">/gpu-status</div>
+            <div class="api-description">Estado del sistema y GPU</div>
+        </div>
+    </div>
+</div>
+
+<div class="nav-section">
+    <div class="nav-buttons">
+        <a href="/docs" class="nav-btn-large">
+            {{ get_svg_icon("book", "20", "#ffffff") }} Documentación API
+        </a>
+        <a href="/filter-examples" class="nav-btn-large">
+            {{ get_svg_icon("settings", "20", "#ffffff") }} Ejemplos de Filtros
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function showLoading(message = 'Procesando consulta...') {
+        document.getElementById('loadingOverlay').classList.add('active');
+        document.querySelector('.loading-text').textContent = message;
+    }
+
+    function showSearchLoading() {
+        document.getElementById('searchLoading').classList.add('active');
+        document.getElementById('searchButton').classList.add('btn-loading');
+        document.getElementById('searchButton').disabled = true;
+    }
+
+    function searchWithAI() {
+        const query = document.getElementById('searchInput').value;
+        if (query.trim()) {
+            showSearchLoading();
+            showLoading('Generando respuesta con IA...');
+            // Small delay to show animation before redirect
+            setTimeout(() => {
+                window.location.href = `/ai?q=${encodeURIComponent(query.trim())}`;
+            }, 300);
+        }
+    }
+
+    function searchOnly() {
+        const query = document.getElementById('searchInput').value;
+        if (query.trim()) {
+            showSearchLoading();
+            showLoading('Buscando documentos...');
+            setTimeout(() => {
+                window.location.href = `/ask?q=${encodeURIComponent(query.trim())}`;
+            }, 300);
+        }
+    }
+
+    // Add loading to feature cards
+    function navigateWithLoading(url, message) {
+        showLoading(message);
+        setTimeout(() => {
+            window.location.href = url;
+        }, 300);
+    }
+
+    // Allow Enter key to search
+    document.getElementById('searchInput').addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') {
+            searchWithAI();
+        }
+    });
+
+    // Add loading to quick search buttons
+    document.addEventListener('DOMContentLoaded', function () {
+        // Add loading to quick search buttons
+        const quickButtons = document.querySelectorAll('.quick-btn');
+        quickButtons.forEach(btn => {
+            btn.addEventListener('click', function (e) {
+                e.preventDefault();
+                showLoading('Ejecutando búsqueda rápida...');
+                setTimeout(() => {
+                    window.location.href = this.href;
+                }, 300);
+            });
+        });
+
+        // Add loading to feature cards
+        const featureCards = document.querySelectorAll('.action-card');
+        featureCards.forEach(card => {
+            const originalOnclick = card.getAttribute('onclick');
+            if (originalOnclick) {
+                card.removeAttribute('onclick');
+                card.addEventListener('click', function () {
+                    if (originalOnclick.includes('/ask')) {
+                        showLoading('Preparando búsqueda...');
+                    } else if (originalOnclick.includes('/ai')) {
+                        showLoading('Iniciando IA...');
+                    } else if (originalOnclick.includes('/compare')) {
+                        showLoading('Comparando backends...');
+                    }
+                    setTimeout(() => {
+                        eval(originalOnclick);
+                    }, 300);
+                });
+            }
+        });
+
+        // Example text cycling
+        const examples = [
+            "¿Cuáles son las vacunas recomendadas para embarazadas?",
+            "¿Qué es la preeclampsia?",
+            "Tratamiento de diabetes gestacional",
+            "Complicaciones del parto prematuro",
+            "Medicamentos seguros en el embarazo",
+            "Bases de datos vectoriales",
+            "Similitud coseno en vectores",
+            "Embeddings multilingües"
+        ];
+
+        const input = document.getElementById('searchInput');
+        let currentExample = 0;
+
+        function cycleExamples() {
+            input.placeholder = examples[currentExample];
+            currentExample = (currentExample + 1) % examples.length;
+        }
+
+        setInterval(cycleExamples, 3000);
+    });
+</script>
+{% endblock %}

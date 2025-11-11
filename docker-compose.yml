@@ -11,6 +11,7 @@ services:
   app:
     build: .
     container_name: app
+    runtime: nvidia
     ports:
       - "8080:8080"
     depends_on:
@@ -21,6 +22,8 @@ services:
       - QDRANT_HOST=qdrant
       - POSTGRES_HOST=postgres
       - OLLAMA_HOST=http://ollama:11434
+      - NVIDIA_VISIBLE_DEVICES=all
+      - CUDA_VISIBLE_DEVICES=0
     volumes:
       - ./data:/app/data:ro # Mount data directory for pipeline access
     command: python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8080

@@ -29,7 +29,7 @@ _model = None
 
 
 def get_model():
-    """Load and cache the embedding model with Docker-safe configuration"""
+    """Load and cache the embedding model with GPU optimization when available"""
     global _model
     if _model is None:
         if SentenceTransformer is None:
@@ -40,29 +40,35 @@ def get_model():
             import torch
             import os
 
+            # Detect GPU availability
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            print(f"🔧 Loading embedding model on: {device}")
+
             # Docker-safe PyTorch configuration
             torch.set_default_dtype(torch.float32)
-            if hasattr(torch, 'set_default_device'):
-                torch.set_default_device('cpu')
 
             # Environment setup for containers
             os.environ['TOKENIZERS_PARALLELISM'] = 'false'
 
-            # Load model with container-safe parameters
+            # Load model with device optimization
             _model = SentenceTransformer(
                 EMBED_MODEL,
-                device='cpu',
-                trust_remote_code=False,
-                use_auth_token=False
+                device=device,
+                trust_remote_code=False
             )
 
-            # Ensure all parameters are properly on CPU and float32
-            _model = _model.cpu()
-            for param in _model.parameters():
-                if param.device.type != 'cpu':
-                    param.data = param.data.cpu()
-                if param.dtype != torch.float32:
-                    param.data = param.data.float()
+            # Device-specific optimizations
+            if device == "cuda":
+                print("🚀 Model loaded with GPU acceleration")
+            else:
+                print("💻 Model loaded on CPU")
+                # CPU-specific optimizations for containers
+                _model = _model.cpu()
+                for param in _model.parameters():
+                    if param.device.type != 'cpu':
+                        param.data = param.data.cpu()
+                    if param.dtype != torch.float32:
+                        param.data = param.data.float()
 
             # Test the model to ensure it works
             with torch.no_grad():

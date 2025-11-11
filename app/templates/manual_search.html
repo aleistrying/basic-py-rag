@@ -1,0 +1,406 @@
+{% extends "base.html" %}
+
+{% block title %}Demostración de Búsqueda - {{ query }}{% endblock %}
+
+{% block extra_css %}
+.search-demo-section {
+background: #262626;
+border-radius: 15px;
+padding: 25px;
+margin: 20px 0;
+border-left: 4px solid #0ea5e9;
+}
+.demo-title {
+font-size: 1.4rem;
+font-weight: 600;
+color: #0ea5e9;
+margin-bottom: 20px;
+display: flex;
+align-items: center;
+gap: 10px;
+}
+.search-process {
+display: grid;
+grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+gap: 20px;
+margin: 20px 0;
+}
+.process-step {
+background: #1f2937;
+padding: 20px;
+border-radius: 10px;
+border: 1px solid #374151;
+text-align: center;
+}
+.step-number {
+display: inline-block;
+width: 40px;
+height: 40px;
+background: #0ea5e9;
+color: white;
+border-radius: 50%;
+line-height: 40px;
+font-weight: 600;
+margin-bottom: 15px;
+}
+.step-title {
+font-weight: 600;
+color: #f0f0f0;
+margin-bottom: 10px;
+}
+.step-description {
+color: #d1d5db;
+font-size: 0.9rem;
+line-height: 1.5;
+}
+.query-analysis {
+background: #1e3a8a;
+color: white;
+padding: 20px;
+border-radius: 10px;
+margin: 20px 0;
+}
+.vector-comparison {
+background: #333;
+border-radius: 10px;
+padding: 20px;
+margin: 15px 0;
+}
+.comparison-header {
+display: flex;
+justify-content: space-between;
+align-items: center;
+margin-bottom: 15px;
+color: #0ea5e9;
+font-weight: 600;
+}
+.similarity-bar {
+background: #1f1f1f;
+border-radius: 10px;
+height: 25px;
+margin: 10px 0;
+position: relative;
+overflow: hidden;
+}
+.similarity-fill {
+height: 100%;
+border-radius: 10px;
+display: flex;
+align-items: center;
+justify-content: flex-end;
+padding-right: 10px;
+font-size: 0.8rem;
+font-weight: 600;
+color: white;
+transition: width 0.8s ease;
+}
+.sim-high { background: linear-gradient(90deg, #10b981, #059669); }
+.sim-medium { background: linear-gradient(90deg, #f59e0b, #d97706); }
+.sim-low { background: linear-gradient(90deg, #ef4444, #dc2626); }
+.embedding-display {
+background: #1a1a1a;
+border-radius: 8px;
+padding: 15px;
+margin: 15px 0;
+font-family: 'Monaco', 'Menlo', monospace;
+font-size: 12px;
+overflow-x: auto;
+border: 1px solid #404040;
+}
+.results-grid {
+display: grid;
+gap: 15px;
+margin: 20px 0;
+}
+.result-card {
+background: #2a2a2a;
+border-radius: 10px;
+padding: 20px;
+border-left: 4px solid #0ea5e9;
+transition: all 0.3s ease;
+}
+.result-card:hover {
+background: #2f2f2f;
+transform: translateX(5px);
+}
+.result-rank {
+display: inline-block;
+background: #0ea5e9;
+color: white;
+padding: 5px 10px;
+border-radius: 20px;
+font-size: 0.8rem;
+font-weight: 600;
+margin-bottom: 10px;
+}
+.result-content {
+color: #d1d5db;
+line-height: 1.6;
+margin-bottom: 15px;
+}
+.result-score {
+text-align: right;
+font-size: 0.9rem;
+color: #10b981;
+font-weight: 600;
+}
+.search-stats {
+background: #1f2937;
+border-radius: 10px;
+padding: 20px;
+margin: 20px 0;
+display: grid;
+grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+gap: 15px;
+text-align: center;
+}
+.stat-value {
+font-size: 1.5rem;
+font-weight: 700;
+color: #0ea5e9;
+display: block;
+}
+.stat-label {
+font-size: 0.8rem;
+color: #9ca3af;
+margin-top: 5px;
+}
+.algorithm-box {
+background: #065f46;
+color: #d1fae5;
+padding: 20px;
+border-radius: 10px;
+margin: 20px 0;
+}
+.formula {
+background: #1a1a1a;
+padding: 15px;
+border-radius: 8px;
+font-family: 'Monaco', 'Menlo', monospace;
+margin: 10px 0;
+text-align: center;
+font-size: 1.1rem;
+color: #fbbf24;
+}
+{% endblock %}
+
+{% block header_content %}
+<div class="title">
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2">
+        <circle cx="11" cy="11" r="8"></circle>
+        <path d="m21 21-4.35-4.35"></path>
+    </svg>
+    Demostración de Búsqueda Vectorial
+</div>
+<div class="subtitle">Query: "{{ query }}" | {{ results_count }} resultados en {{ search_time_ms }}ms</div>
+{% endblock %}
+
+{% block content %}
+<div class="query-analysis">
+    <h3>🔍 Análisis de la Consulta</h3>
+    <p><strong>Query Original:</strong> {{ query }}</p>
+    <p><strong>Embedding Vector:</strong> [{{ embedding_query|join(', ') }}...]</p>
+    <p>La consulta se convierte en un vector de {{ embedding_query|length * 256 if embedding_query else 768 }}
+        dimensiones para la comparación.</p>
+</div>
+
+<div class="search-process">
+    <div class="process-step">
+        <div class="step-number">1</div>
+        <div class="step-title">Embedding Query</div>
+        <div class="step-description">Convertir la consulta en un vector usando el modelo E5</div>
+    </div>
+    <div class="process-step">
+        <div class="step-number">2</div>
+        <div class="step-title">Búsqueda Vectorial</div>
+        <div class="step-description">Buscar documentos similares en la base vectorial</div>
+    </div>
+    <div class="process-step">
+        <div class="step-number">3</div>
+        <div class="step-title">Cálculo Similitud</div>
+        <div class="step-description">Calcular similitud coseno entre vectores</div>
+    </div>
+    <div class="process-step">
+        <div class="step-number">4</div>
+        <div class="step-title">Ranking Resultados</div>
+        <div class="step-description">Ordenar por puntuación de similitud</div>
+    </div>
+</div>
+
+{% if results %}
+<div class="search-demo-section">
+    <div class="demo-title">
+        <span>📊</span> Resultados con Similitud
+    </div>
+
+    <div class="results-grid">
+        {% for result in results %}
+        <div class="result-card">
+            <div class="result-rank">Resultado #{{ loop.index }}</div>
+            <div class="result-content">{{ result.content }}</div>
+            <div class="similarity-bar">
+                {% set sim_score = result.similarity|float %}
+                <div class="similarity-fill 
+                    {% if sim_score > 0.8 %}sim-high
+                    {% elif sim_score > 0.6 %}sim-medium
+                    {% else %}sim-low{% endif %}" style="width: {{ (sim_score * 100)|round }}%;">
+                    {{ result.similarity }}
+                </div>
+            </div>
+            <div class="result-score">Similitud: {{ result.similarity }}</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<div class="search-stats">
+    <div>
+        <span class="stat-value">{{ results_count }}</span>
+        <div class="stat-label">Resultados</div>
+    </div>
+    <div>
+        <span class="stat-value">{{ search_time_ms }}</span>
+        <div class="stat-label">Tiempo (ms)</div>
+    </div>
+    <div>
+        <span class="stat-value">{{ backend|upper }}</span>
+        <div class="stat-label">Motor</div>
+    </div>
+    <div>
+        <span class="stat-value">768</span>
+        <div class="stat-label">Dimensiones</div>
+    </div>
+</div>
+
+<div class="algorithm-box">
+    <h3>🧮 Similitud Coseno</h3>
+    <p>La similitud entre vectores se calcula usando la similitud coseno:</p>
+    <div class="formula">
+        similarity = (A · B) / (||A|| × ||B||)
+    </div>
+    <p><strong>A · B:</strong> Producto punto de los vectores</p>
+    <p><strong>||A||, ||B||:</strong> Normas (magnitudes) de los vectores</p>
+    <p><strong>Resultado:</strong> Valor entre -1 y 1 (1 = idénticos, 0 = no relacionados)</p>
+</div>
+
+{% if embedding_query %}
+<div class="search-demo-section">
+    <div class="demo-title">
+        <span>🔢</span> Vector de la Consulta (preview)
+    </div>
+    <div class="embedding-display">
+        Query Vector: [{{ embedding_query|join(', ') }}...] ({{ embedding_query|length * 256 if embedding_query else 768
+        }} dims total)
+    </div>
+</div>
+{% endif %}
+
+{% if similarity_scores %}
+<div class="search-demo-section">
+    <div class="demo-title">
+        <span>📈</span> Distribución de Similitudes
+    </div>
+    {% for score in similarity_scores %}
+    <div class="vector-comparison">
+        <div class="comparison-header">
+            <span>Resultado {{ loop.index }}</span>
+            <span>{{ score }}</span>
+        </div>
+        <div class="similarity-bar">
+            {% set score_float = score|float %}
+            <div class="similarity-fill 
+                {% if score_float > 0.8 %}sim-high
+                {% elif score_float > 0.6 %}sim-medium
+                {% else %}sim-low{% endif %}" style="width: {{ (score_float * 100)|round }}%;">
+                {{ score }}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="search-demo-section">
+    <div class="demo-title">
+        <span>💡</span> ¿Cómo funciona la búsqueda vectorial?
+    </div>
+    <div style="color: #d1d5db; line-height: 1.7;">
+        <p><strong>1. Vectorización:</strong> Tu consulta se convierte en un vector numérico que captura su significado
+            semántico.</p>
+        <p><strong>2. Comparación:</strong> Se compara tu vector con todos los vectores de documentos en la base de
+            datos.</p>
+        <p><strong>3. Similitud:</strong> Se calcula qué tan "cerca" están los vectores usando similitud coseno.</p>
+        <p><strong>4. Ranking:</strong> Los documentos se ordenan por similitud, mostrando los más relevantes primero.
+        </p>
+        <p><strong>Ventaja:</strong> Encuentra documentos semánticamente similares, no solo con las mismas palabras.</p>
+    </div>
+</div>
+
+<div class="details-toggle" style="margin-top: 30px; text-align: center;">
+    <button class="toggle-btn" onclick="toggleDetails()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="m12 1v6m0 6v6"></path>
+        </svg>
+        Ver detalles técnicos JSON
+    </button>
+    <div class="json-details" id="jsonDetails">
+        <div class="json-content" id="jsonContent">{{ json_data }}</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function toggleDetails() {
+        const details = document.getElementById('jsonDetails');
+        const btn = document.querySelector('.toggle-btn');
+
+        if (details.classList.contains('show')) {
+            details.classList.remove('show');
+            btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="m12 1v6m0 6v6"/></svg> Ver detalles técnicos JSON`;
+        } else {
+            details.classList.add('show');
+            btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="m12 1v6m0 6v6"/></svg> Ocultar detalles JSON`;
+            highlightJSON();
+        }
+    }
+
+    function highlightJSON() {
+        const jsonContent = document.getElementById('jsonContent');
+        let html = jsonContent.innerHTML;
+
+        html = html.replace(/"([^"]+)":/g, '<span style="color: #a78bfa;">"$1"</span>:');
+        html = html.replace(/: "([^"]*)"/g, ': <span style="color: #fbbf24;">"$1"</span>');
+        html = html.replace(/: ([0-9]+\.?[0-9]*)/g, ': <span style="color: #34d399;">$1</span>');
+        html = html.replace(/: (true|false)/g, ': <span style="color: #60a5fa;">$1</span>');
+        html = html.replace(/: (null)/g, ': <span style="color: #f87171;">$1</span>');
+
+        jsonContent.innerHTML = html;
+    }
+
+    function newSearch() {
+        const query = document.getElementById('searchInput').value;
+        if (query.trim()) {
+            window.location.href = `/manual/search?q=${encodeURIComponent(query)}`;
+        }
+    }
+
+    document.getElementById('searchInput').addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') newSearch();
+    });
+
+    // Animate similarity bars
+    document.addEventListener('DOMContentLoaded', function () {
+        setTimeout(() => {
+            const bars = document.querySelectorAll('.similarity-fill');
+            bars.forEach((bar, index) => {
+                setTimeout(() => {
+                    bar.style.width = bar.style.width;
+                }, index * 200);
+            });
+        }, 500);
+    });
+</script>
+{% endblock %}

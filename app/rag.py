@@ -75,7 +75,94 @@ def build_context(hits: List[dict]) -> str:
 # Nota: Para la demo se puede imprimir el contexto; la generación con LLM es opcional
 
 
-def rag_answer(query: str, backend: str = "qdrant", k: int = 5, filters: dict = None):
+def extract_document_metadata(filename: str) -> dict:
+    """Extract structured metadata from document filename"""
+    import re
+    metadata = {
+        'course': None,
+        'theme': None,
+        'topic': None,
+        'year': None,
+        'version': None
+    }
+
+    # Extract course information
+    if 'BD Avanzadas' in filename or 'SBDA' in filename:
+        metadata['course'] = 'Sistemas de Base de Datos Avanzadas'
+    elif 'Obstetricia' in filename:
+        metadata['course'] = 'Williams Obstetricia'
+    elif 'Guia de Curso' in filename:
+        metadata['course'] = 'Guía de Curso'
+
+    # Extract theme/topic numbers
+    theme_match = re.search(r'Tema\s*(\d+)', filename, re.IGNORECASE)
+    if theme_match:
+        metadata['theme'] = f"Tema {theme_match.group(1)}"
+
+    # Extract specific topics
+    if 'Introduccion' in filename:
+        metadata['topic'] = 'Introducción'
+    elif 'Modelos' in filename:
+        metadata['topic'] = 'Modelos de Sistemas'
+    elif 'Presentacion' in filename:
+        metadata['topic'] = 'Presentación'
+    elif 'Guia de Curso' in filename:
+        metadata['topic'] = 'Guía del Curso'
+
+    # Extract year
+    year_match = re.search(r'(20\d{2})', filename)
+    if year_match:
+        metadata['year'] = year_match.group(1)
+
+    # Extract version
+    version_match = re.search(r'[vV](\d+)', filename)
+    if version_match:
+        metadata['version'] = version_match.group(1)
+
+    return metadata
+
+
+def extract_content_metadata(content: str) -> dict:
+    """Extract metadata from content text"""
+    import re
+    metadata = {
+        'chapter': None,
+        'section': None
+    }
+
+    # Extract chapter information
+    if 'CAPÍTULO' in content[:200]:
+        chapter_match = re.search(r'CAPÍTULO\s+(\d+)', content[:200])
+        if chapter_match:
+            metadata['chapter'] = chapter_match.group(1)
+    elif 'TEMA' in content[:100]:
+        tema_match = re.search(r'TEMA\s+(\d+)', content[:100])
+        if tema_match:
+            metadata['chapter'] = tema_match.group(1)
+
+    # Extract section information from common patterns
+    content_upper = content[:200].upper()
+    if 'OBJETIVO' in content_upper:
+        metadata['section'] = 'Objetivos'
+    elif 'INTRODUCCIÓN' in content_upper or 'INTRODUCCION' in content_upper:
+        metadata['section'] = 'Introducción'
+    elif 'CRONOGRAMA' in content_upper:
+        metadata['section'] = 'Cronograma'
+    elif 'EVALUACIÓN' in content_upper or 'EVALUACION' in content_upper:
+        metadata['section'] = 'Evaluación'
+    elif 'METODOLOGÍA' in content_upper or 'METODOLOGIA' in content_upper:
+        metadata['section'] = 'Metodología'
+    elif 'IMPLEMENTACIÓN' in content_upper or 'IMPLEMENTACION' in content_upper:
+        metadata['section'] = 'Implementación'
+    elif 'MODELOS' in content_upper:
+        metadata['section'] = 'Modelos'
+    elif 'LABORATORIO' in content_upper:
+        metadata['section'] = 'Laboratorio'
+
+    return metadata
+
+
+def search_knowledge_base(query: str, backend: str = "qdrant", k: int = 5, filters: dict = None) -> dict:
     # Validate backend name
     if backend not in BACKENDS:
         available_backends = list(BACKENDS.keys())
@@ -216,63 +303,64 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
     for item in reranked:
         content = item.get('content', '') or ''  # Handle None content
 
-        # Enhanced document information
-        doc_name = item['path'].replace('./data/raw/', '').replace('.pdf', '')
+        # Enhanced document information with rich metadata extraction
+        import re
+        doc_path = item['path'].replace('./data/raw/', '').replace('.pdf', '')
+        metadata = item.get('metadata', {})
 
-        # Build enhanced reference with page/section info
-        reference_parts = [doc_name]
-        if item.get('page'):
-            reference_parts.append(f"página {item['page']}")
-        elif item.get('chunk_id'):
-            reference_parts.append(f"sección {item['chunk_id']}")
+        # Extract document metadata from filename
+        doc_metadata = extract_document_metadata(doc_path)
 
         # Look for chapter and topic information in content
-        chapter_info = ""
-        topic_info = ""
-        section_info = ""
+        content_metadata = extract_content_metadata(content)
 
-        # Extract chapter information
-        if 'CAPÍTULO' in content[:200]:
-            import re
-            chapter_match = re.search(r'CAPÍTULO\s+(\d+)', content[:200])
-            if chapter_match:
-                chapter_info = f"Cap. {chapter_match.group(1)}"
-
-        # Extract topic/section information from common patterns
-        content_lower = content[:300].lower()
-        if 'vacuna' in content_lower or 'inmunización' in content_lower:
-            topic_info = "Vacunación"
-        elif 'diabetes' in content_lower:
-            topic_info = "Diabetes"
-        elif 'hipertensión' in content_lower or 'presión arterial' in content_lower:
-            topic_info = "Hipertensión"
-        elif 'parto' in content_lower or 'trabajo de parto' in content_lower:
-            topic_info = "Parto"
-        elif 'embarazo' in content_lower or 'gestación' in content_lower:
-            topic_info = "Embarazo"
-        elif 'feto' in content_lower or 'fetal' in content_lower:
-            topic_info = "Desarrollo Fetal"
-        elif 'complicación' in content_lower:
-            topic_info = "Complicaciones"
-
-        # Build enhanced reference
+        # Build detailed reference for "Fuentes consultadas" (clean, no file path)
         ref_parts = []
+        if doc_metadata.get('theme'):
+            ref_parts.append(doc_metadata['theme'])
+        if doc_metadata.get('topic'):
+            ref_parts.append(doc_metadata['topic'])
         if item.get('page'):
             ref_parts.append(f"p.{item['page']}")
-        if chapter_info:
-            ref_parts.append(chapter_info)
-        if topic_info:
-            ref_parts.append(topic_info)
+        if content_metadata.get('chapter'):
+            ref_parts.append(f"Cap. {content_metadata['chapter']}")
+        if content_metadata.get('section'):
+            ref_parts.append(content_metadata['section'])
+
+        clean_reference = " - ".join(
+            ref_parts) if ref_parts else "Documento de curso"
+
+        # Build enhanced reference for detailed sources section
+        detailed_parts = []
+        if doc_metadata.get('course'):
+            detailed_parts.append(f"Curso: {doc_metadata['course']}")
+        if doc_metadata.get('theme'):
+            detailed_parts.append(doc_metadata['theme'])
+        if doc_metadata.get('topic'):
+            detailed_parts.append(doc_metadata['topic'])
+        if doc_metadata.get('year'):
+            detailed_parts.append(f"Año: {doc_metadata['year']}")
+        if doc_metadata.get('version'):
+            detailed_parts.append(f"v{doc_metadata['version']}")
 
         enhanced_reference = " | ".join(
-            ref_parts) if ref_parts else "Sin contexto específico"
+            detailed_parts) if detailed_parts else clean_reference
 
         results.append({
-            "document": item['path'].replace('./data/raw/', '').replace('.pdf', ''),
-            "reference": enhanced_reference,
+            "document": doc_path,
+            "reference": clean_reference,  # Clean reference without file path
+            "detailed_reference": enhanced_reference,  # Full reference with all metadata
             "page": item.get('page'),
-            "chapter": chapter_info if chapter_info else None,
-            "topic": topic_info if topic_info else None,
+            "chapter": content_metadata.get('chapter'),
+            "section": content_metadata.get('section'),
+            "theme": doc_metadata.get('theme'),
+            "topic": doc_metadata.get('topic'),
+            "course": doc_metadata.get('course'),
+            "year": doc_metadata.get('year'),
+            "version": doc_metadata.get('version'),
+            "extractor": metadata.get('extractor', 'unknown'),
+            "word_count": metadata.get('word_count', 0),
+            "quality_score": metadata.get('quality_score', 0),
             "similarity": f"{item['sim']:.3f}",
             "preview": content[:120] + "..." if len(content) > 120 else content
         })
@@ -304,19 +392,12 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
         # Extract the generated text
         generated_text = response.get('response', '').strip()
 
-        # Build enhanced source attribution footer
+        # Build enhanced source attribution footer with clean references
         source_references = []
         for i, result in enumerate(results[:3], 1):  # Show top 3 sources
-            ref_parts = []
-            if result.get('page'):
-                ref_parts.append(f"p.{result['page']}")
-            if result.get('section'):
-                ref_parts.append(result['section'])
-            if result.get('chapter'):
-                ref_parts.append(result['chapter'])
-
-            ref_suffix = f" ({', '.join(ref_parts)})" if ref_parts else ""
-            source_references.append(f"{i}. {result['document']}{ref_suffix}")
+            # Use the clean reference that doesn't include file path
+            clean_ref = result.get('reference', 'Documento de curso')
+            source_references.append(f"{i}. {clean_ref}")
 
         # Add enhanced footer to the response
         if source_references:
