@@ -12,6 +12,8 @@ Usage:
     python scripts/main_pipeline.py --config           # Show configuration
     python scripts/main_pipeline.py --stats            # Show pipeline statistics
     python scripts/main_pipeline.py --force            # Force re-processing
+    python scripts/main_pipeline.py --parallel         # Enable parallel processing
+    python scripts/main_pipeline.py --parallel --workers 8  # Parallel with 8 workers
 """
 
 from ingest_config import *
@@ -25,15 +27,24 @@ import logging
 import os
 import sys
 import time
+import asyncio
+import multiprocessing as mp
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import List, Dict, Any, Optional
+import threading
 
 # Add current directory to Python path
 sys.path.insert(0, str(Path(__file__).parent))
 
-# Configure logging
+# Configure logging - REDUCED noise for pipeline processing
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
+
+# Reduce noise from dependencies
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
+logging.getLogger("qdrant_client").setLevel(logging.WARNING)
 
 # Import our unified modules
 
@@ -47,11 +58,28 @@ class UnifiedMainPipeline:
                  use_enhanced_extraction: bool = True,
                  memory_safe_mode: bool = True,
                  batch_size: Optional[int] = None,
-                 large_docs: bool = False):
+                 large_docs: bool = False,
+                 distance_metric: str = "cosine",
+                 index_algorithm: str = "hnsw",
+                 process_all_combinations: bool = True,
+                 parallel_mode: bool = False,
+                 max_workers: Optional[int] = None):
         self.use_enhanced_extraction = use_enhanced_extraction
         self.memory_safe_mode = memory_safe_mode
         self.batch_size = batch_size
         self.large_docs = large_docs
+        self.distance_metric = distance_metric
+        self.index_algorithm = index_algorithm
+        self.process_all_combinations = process_all_combinations
+        self.parallel_mode = parallel_mode
+
+        # Configure parallel processing
+        if parallel_mode:
+            self.max_workers = max_workers or max(1, mp.cpu_count() // 2)
+            logger.info(
+                f"🔥 Parallel mode enabled with {self.max_workers} workers")
+        else:
+            self.max_workers = 1
 
         # Initialize PDF processor
         if use_enhanced_extraction:
@@ -62,7 +90,10 @@ class UnifiedMainPipeline:
         self.embedding_processor = UnifiedEmbeddingProcessor(
             memory_safe_mode=memory_safe_mode,
             batch_size=batch_size,
-            large_docs=large_docs
+            large_docs=large_docs,
+            distance_metric=distance_metric,
+            index_algorithm=index_algorithm,
+            process_all_combinations=process_all_combinations
         )
 
     def check_dependencies(self) -> bool:
@@ -130,6 +161,9 @@ class UnifiedMainPipeline:
         logger.info(f"   Model:      {EMBED_MODEL}")
         logger.info(f"   Dimensions: {QDRANT_VECTOR_SIZE}")
         logger.info(f"   Distance:   {QDRANT_DISTANCE}")
+        logger.info(f"   Algorithm:  {self.index_algorithm}")
+        logger.info(
+            f"   All Combos: {'✅ Enabled (16 combinations)' if self.process_all_combinations else '❌ Single only'}")
         logger.info(
             f"   Prefixes:   '{E5_QUERY_PREFIX}' / '{E5_PASSAGE_PREFIX}'")
 
@@ -142,6 +176,68 @@ class UnifiedMainPipeline:
         pg_status = "✅ Enabled" if USE_PGVECTOR else "❌ Disabled"
         logger.info(f"   Qdrant:     {qdrant_status} → {QDRANT_COLLECTION}")
         logger.info(f"   PostgreSQL: {pg_status} → {PG_TABLE}")
+
+    def process_pdf_parallel(self, pdf_files: List[Path]) -> bool:
+        """
+        Process PDF files in parallel using multiprocessing
+        """
+        if not pdf_files:
+            return True
+
+        logger.info(
+            f"🔄 Processing {len(pdf_files)} PDFs with {self.max_workers} parallel workers...")
+        start_time = time.time()
+
+        # Use ProcessPoolExecutor for CPU-bound PDF processing
+        with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
+            # Submit all PDF processing jobs
+            future_to_pdf = {}
+            for pdf_file in pdf_files:
+                future = executor.submit(self._process_single_pdf, pdf_file)
+                future_to_pdf[future] = pdf_file
+
+            # Collect results with progress tracking
+            completed = 0
+            failed = 0
+            for future in as_completed(future_to_pdf):
+                pdf_file = future_to_pdf[future]
+                try:
+                    success = future.result()
+                    if success:
+                        completed += 1
+                        logger.info(
+                            f"✅ Completed: {pdf_file.name} ({completed}/{len(pdf_files)})")
+                    else:
+                        failed += 1
+                        logger.warning(f"⚠️  Failed: {pdf_file.name}")
+                except Exception as e:
+                    failed += 1
+                    logger.error(f"❌ Error processing {pdf_file.name}: {e}")
+
+        elapsed = time.time() - start_time
+        logger.info(f"🎉 Parallel PDF processing complete!")
+        logger.info(f"   ✅ Success: {completed}/{len(pdf_files)} files")
+        logger.info(
+            f"   ⏱️  Time: {elapsed:.1f}s (avg: {elapsed/len(pdf_files):.1f}s per file)")
+        logger.info(f"   🔥 Speedup: ~{self.max_workers:.1f}x theoretical")
+
+        return failed == 0
+
+    def _process_single_pdf(self, pdf_file: Path) -> bool:
+        """
+        Process a single PDF file - used by parallel processing
+        This runs in a separate process
+        """
+        try:
+            # Import here to avoid pickling issues in multiprocessing
+            from pdf_processing import process_single_pdf
+
+            # Process the PDF
+            process_single_pdf(pdf_file)
+            return True
+        except Exception as e:
+            logger.error(f"Error processing {pdf_file}: {e}")
+            return False
 
     def run_full_pipeline(self,
                           skip_existing: bool = True,
@@ -211,7 +307,26 @@ class UnifiedMainPipeline:
                     logger.info(
                         "🔬 Using enhanced extraction (multi-library + tables)")
                     if self.pdf_processor:
-                        process_all_pdfs()
+                        # Get PDF files to process
+                        pdf_files = list(Path(RAW_DIR).glob(
+                            "*.pdf")) if Path(RAW_DIR).exists() else []
+
+                        if pdf_files:
+                            if self.parallel_mode and len(pdf_files) > 1:
+                                # Use parallel processing for multiple PDFs
+                                logger.info(
+                                    f"🚀 Using parallel processing for {len(pdf_files)} PDFs")
+                                pdf_success = self.process_pdf_parallel(
+                                    pdf_files)
+                                if not pdf_success:
+                                    logger.warning(
+                                        "⚠️  Some PDFs failed parallel processing")
+                            else:
+                                # Use sequential processing
+                                logger.info("🔄 Using sequential processing")
+                                process_all_pdfs()
+
+                    # Process text files (usually fewer, so sequential is fine)
                     process_text_files()
                 else:
                     logger.info("📄 Using basic extraction (legacy mode)")
@@ -346,11 +461,12 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python scripts/main_pipeline.py                    # Full pipeline with enhanced extraction
+  python scripts/main_pipeline.py                    # Full pipeline (all 16 combinations)
   python scripts/main_pipeline.py --clear            # Clear databases first
   python scripts/main_pipeline.py --memory-safe      # Use memory-safe processing  
   python scripts/main_pipeline.py --basic            # Use basic extraction only
   python scripts/main_pipeline.py --force            # Force re-processing
+  python scripts/main_pipeline.py --single-combination # Process only single combination
         """
     )
 
@@ -374,6 +490,22 @@ Examples:
                         help="Optimize for large documents (medical textbooks, etc.)")
     parser.add_argument("--no-skip", action="store_true",
                         help="Don't skip existing files (re-process everything)")
+    parser.add_argument("--distance-metric", type=str, default="cosine",
+                        choices=["cosine", "euclidean",
+                                 "dot_product", "manhattan"],
+                        help="Distance metric for vector similarity (default: cosine)")
+    parser.add_argument("--index-algorithm", type=str, default="hnsw",
+                        choices=["hnsw", "ivfflat",
+                                 "scalar_quantization", "exact"],
+                        help="Index algorithm for vector search (default: hnsw)")
+    parser.add_argument("--all-combinations", action="store_true", default=True,
+                        help="Process all 16 combinations of backends and metrics (default)")
+    parser.add_argument("--single-combination", action="store_true",
+                        help="Process only single combination instead of all 16")
+    parser.add_argument("--parallel", action="store_true",
+                        help="Enable parallel processing for improved performance")
+    parser.add_argument("--workers", type=int,
+                        help="Number of parallel workers (default: auto-detect)")
 
     args = parser.parse_args()
 
@@ -382,7 +514,12 @@ Examples:
         use_enhanced_extraction=not args.basic,
         memory_safe_mode=args.memory_safe,
         batch_size=args.batch_size,
-        large_docs=args.large_docs
+        large_docs=args.large_docs,
+        distance_metric=args.distance_metric,
+        index_algorithm=args.index_algorithm,
+        process_all_combinations=args.all_combinations and not args.single_combination,
+        parallel_mode=args.parallel,
+        max_workers=args.workers
     )
 
     # Handle special commands

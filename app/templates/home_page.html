@@ -623,6 +623,34 @@
             </div>
         </div>
 
+        <div class="action-card" onclick="navigateWithLoading('/pipeline', 'Cargando gestión de pipeline...')">
+            <div class="action-icon">
+                {{ get_svg_icon("settings", "24", "#ffffff") }}
+            </div>
+            <div class="action-title">{{ get_svg_icon("gear", "20", "#8b5cf6") }} Gestión de Pipeline</div>
+            <div class="action-description">Configure algoritmos, procese documentos y visualice datos con gráficos
+                interactivos
+            </div>
+        </div>
+
+        <div class="action-card" onclick="navigateWithLoading('/pipeline/stats', 'Cargando estadísticas...')">
+            <div class="action-icon">
+                {{ get_svg_icon("bar-chart", "24", "#ffffff") }}
+            </div>
+            <div class="action-title">{{ get_svg_icon("chart", "20", "#8b5cf6") }} Estadísticas del Sistema</div>
+            <div class="action-description">Métricas detalladas de documentos, embeddings y rendimiento del pipeline
+            </div>
+        </div>
+
+        <div class="action-card"
+            onclick="navigateWithLoading('/pipeline/visualization', 'Generando visualizaciones...')">
+            <div class="action-icon">
+                {{ get_svg_icon("pie-chart", "24", "#ffffff") }}
+            </div>
+            <div class="action-title">{{ get_svg_icon("trending-up", "20", "#8b5cf6") }} Visualizaciones</div>
+            <div class="action-description">Gráficos interactivos de similitud vectorial y métricas del pipeline</div>
+        </div>
+
         <div class="action-card" onclick="navigateWithLoading('/filters/examples', 'Cargando ejemplos...')">
             <div class="action-icon">
                 {{ get_svg_icon("filter", "24", "#ffffff") }}
@@ -663,7 +691,7 @@
             <div class="action-icon">
                 {{ get_svg_icon("target", "24", "#ffffff") }}
             </div>
-            <div class="action-title">🧩 Query Decomposition</div>
+            <div class="action-title">{{ get_svg_icon("puzzle-piece", "20", "#8b5cf6") }} Query Decomposition</div>
             <div class="action-description">Divide consultas complejas en sub-preguntas y responde paso a paso</div>
         </div>
 
@@ -681,7 +709,7 @@
             <div class="action-icon">
                 {{ get_svg_icon("balance", "24", "#ffffff") }}
             </div>
-            <div class="action-title">🔀 Hybrid Search</div>
+            <div class="action-title">{{ get_svg_icon("shuffle-variant", "20", "#8b5cf6") }} Hybrid Search</div>
             <div class="action-description">Combina búsqueda semántica (vectores) con léxica (BM25) usando RRF</div>
         </div>
 
@@ -690,7 +718,7 @@
             <div class="action-icon">
                 {{ get_svg_icon("refresh-cw", "24", "#ffffff") }}
             </div>
-            <div class="action-title">🔁 Iterative Retrieval</div>
+            <div class="action-title">{{ get_svg_icon("repeat-variant", "20", "#8b5cf6") }} Iterative Retrieval</div>
             <div class="action-description">Refina la búsqueda iterativamente analizando las brechas en los resultados
             </div>
         </div>
@@ -736,6 +764,24 @@
             <div class="api-method get">GET</div>
             <div class="api-endpoint">/gpu-status</div>
             <div class="api-description">Estado del sistema y GPU</div>
+        </div>
+
+        <div class="api-card" onclick="navigateWithLoading('/pipeline/stats', 'Cargando estadísticas...')">
+            <div class="api-method get">GET</div>
+            <div class="api-endpoint">/pipeline/stats</div>
+            <div class="api-description">Estadísticas del pipeline y documentos</div>
+        </div>
+
+        <div class="api-card" onclick="navigateWithLoading('/pipeline/visualization', 'Generando gráficos...')">
+            <div class="api-method get">GET</div>
+            <div class="api-endpoint">/pipeline/visualization</div>
+            <div class="api-description">Visualizaciones interactivas del pipeline</div>
+        </div>
+
+        <div class="api-card" onclick="navigateWithLoading('/demo/pipeline', 'Cargando demo completo...')">
+            <div class="api-method get">GET</div>
+            <div class="api-endpoint">/demo/pipeline</div>
+            <div class="api-description">Demo paso a paso del pipeline RAG completo</div>
         </div>
     </div>
 </div>

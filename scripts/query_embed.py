@@ -42,7 +42,10 @@ def get_model():
 
             # Detect GPU availability
             device = "cuda" if torch.cuda.is_available() else "cpu"
-            print(f"🔧 Loading embedding model on: {device}")
+            # Only print during model loading, not during normal usage
+            if not hasattr(get_model, '_already_printed'):
+                print(f"🔧 Loading embedding model on: {device}")
+                get_model._already_printed = True
 
             # Docker-safe PyTorch configuration
             torch.set_default_dtype(torch.float32)
@@ -59,9 +62,11 @@ def get_model():
 
             # Device-specific optimizations
             if device == "cuda":
-                print("🚀 Model loaded with GPU acceleration")
+                if not hasattr(get_model, '_already_printed'):
+                    print("🚀 Model loaded with GPU acceleration")
             else:
-                print("💻 Model loaded on CPU")
+                if not hasattr(get_model, '_already_printed'):
+                    print("💻 Model loaded on CPU")
                 # CPU-specific optimizations for containers
                 _model = _model.cpu()
                 for param in _model.parameters():

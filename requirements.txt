@@ -6,6 +6,8 @@ sqlalchemy
 qdrant-client
 sentence-transformers
 python-dotenv
+pandas
+python-multipart
 
 # PyTorch with CUDA support (install from PyTorch index)
 --index-url https://download.pytorch.org/whl/cu121
@@ -32,3 +34,5 @@ cryptography
 ollama 
 
 rapidfuzz
+plotly
+kaleido

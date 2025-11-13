@@ -6,7 +6,7 @@ import os
 CLEAN_SQL_BASE = """ 
 SELECT content, source_path, page, chunk_id, metadata,
        (1 - (embedding <=> %s::vector)) AS similarity 
-FROM docs_clean 
+FROM {table_name}
 WHERE 1=1 {where_clause}
 ORDER BY embedding <=> %s::vector 
 LIMIT %s; 
@@ -54,6 +54,40 @@ def get_available_table(conn):
         return None
 
 
+def get_available_table_with_suffix(conn, collection_suffix=None):
+    """Check if algorithm-specific table exists and has data, with fallback to default"""
+    try:
+        with conn.cursor() as cur:
+            # If collection_suffix provided, try algorithm-specific table first
+            if collection_suffix:
+                algorithm_table = f"docs_clean_{collection_suffix}"
+                cur.execute(
+                    "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = %s);",
+                    (algorithm_table,)
+                )
+                if cur.fetchone()[0]:
+                    # Verify it has data
+                    cur.execute(f"SELECT COUNT(*) FROM {algorithm_table};")
+                    if cur.fetchone()[0] > 0:
+                        return algorithm_table
+
+            # Fallback to default clean table
+            cur.execute(
+                "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'docs_clean');")
+            if cur.fetchone()[0]:
+                # Verify it has data
+                cur.execute("SELECT COUNT(*) FROM docs_clean;")
+                if cur.fetchone()[0] > 0:
+                    return "docs_clean"
+
+            # If no table with data found
+            return None
+
+    except Exception as e:
+        print(f"Error checking tables: {e}")
+        return None
+
+
 def build_where_clause(where_dict):
     """Build SQL WHERE clause from filter dictionary"""
     if not where_dict:
@@ -87,7 +121,7 @@ def build_where_clause(where_dict):
     return where_clause, params
 
 
-def search_pgvector(query_emb, k=5, where=None):
+def search_pgvector(query_emb, k=5, where=None, collection_suffix=None):
     """
     Search using PostgreSQL + pgvector with proper cosine similarity.
     Uses only the clean pipeline table format.
@@ -110,19 +144,22 @@ def search_pgvector(query_emb, k=5, where=None):
         return []  # Return empty results if can't connect
 
     try:
-        table_format = get_available_table(conn)
-        if table_format != "clean":
+        table_name = get_available_table_with_suffix(conn, collection_suffix)
+        if not table_name:
             print(
-                "Warning: docs_clean table not found or empty. Please run the clean pipeline first.")
+                "Warning: No suitable table found. Please run the clean pipeline first.")
             return []
 
         where_clause, where_params = build_where_clause(where)
 
         with conn.cursor() as cur:
-            # Convert embedding to proper format
-            emb_str = json.dumps(query_emb)
+            # Convert embedding to proper format (ensure it's a list for JSON serialization)
+            emb_list = query_emb.tolist() if hasattr(
+                query_emb, 'tolist') else list(query_emb)
+            emb_str = json.dumps(emb_list)
 
-            sql = CLEAN_SQL_BASE.format(where_clause=where_clause)
+            sql = CLEAN_SQL_BASE.format(
+                table_name=table_name, where_clause=where_clause)
             params = [emb_str, emb_str] + where_params + [k]
             cur.execute(sql, params)
             rows = cur.fetchall()

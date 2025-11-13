@@ -321,7 +321,7 @@
 {% if embedding_query %}
 <div class="search-demo-section">
     <div class="demo-title">
-        <span>🔢</span> Vector de la Consulta (preview)
+        <span>{{ get_svg_icon("hash", "16", "#8b5cf6") }}</span> Vector de la Consulta (preview)
     </div>
     <div class="embedding-display">
         Query Vector: [{{ embedding_query|join(', ') }}...] ({{ embedding_query|length * 256 if embedding_query else 768

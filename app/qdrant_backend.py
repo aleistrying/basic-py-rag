@@ -20,7 +20,7 @@ def get_available_collection():
         return CLEAN_COLLECTION
 
 
-def search_qdrant(query_emb, k=5, where=None):
+def search_qdrant(query_emb, k=5, where=None, collection_suffix=None):
     """
     Search Qdrant using the best available collection.
     Supports both clean pipeline and legacy formats.
@@ -36,6 +36,16 @@ def search_qdrant(query_emb, k=5, where=None):
             - contains: str (text must contain this string)
     """
     collection = get_available_collection()
+
+    # Use algorithm-specific collection if suffix provided
+    if collection_suffix:
+        algorithm_collection = f"{CLEAN_COLLECTION}_{collection_suffix}"
+        try:
+            client.get_collection(algorithm_collection)
+            collection = algorithm_collection
+        except:
+            # Fall back to default collection if algorithm-specific one doesn't exist
+            pass
 
     try:
         res = client.search(

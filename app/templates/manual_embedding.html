@@ -295,7 +295,7 @@
 {% if embedding_preview %}
 <div class="demo-section">
     <div class="demo-title">
-        <span>🔢</span> Preview del Vector (primeras 10 dimensiones)
+        <span>{{ get_svg_icon("hash", "16", "#8b5cf6") }}</span> Preview del Vector (primeras 10 dimensiones)
     </div>
     <div class="vector-visualization">
         {% for value in embedding_preview[:10] %}

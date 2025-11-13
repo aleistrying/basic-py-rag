@@ -605,13 +605,18 @@ for i, result in enumerate(ranked_results):
             "explanation": "Los resultados se clasifican por puntuación de similitud y se categorizan por relevancia. Los mejores resultados se usan para generar la respuesta final de IA con atribución de fuentes apropiada."
         }
 
-    def step_9_ai_generation(self, ranked_results: List[Dict], query: str, model: str = "phi3:mini") -> Dict[str, Any]:
+    def step_9_ai_generation(self, ranked_results: List[Dict], query: str, model: str = "phi3:mini", distance_metric: str = "cosine", index_algorithm: str = "hnsw") -> Dict[str, Any]:
         """Step 9: Generate AI response from ranked results"""
+
+        # Initialize variables outside try block
+        context_parts = []
+        sources_used = []
+        prompt = ""
+        final_response = ""
+        ai_status = "unknown"
 
         try:
             # Build context from top results
-            context_parts = []
-            sources_used = []
 
             # Use top 3 results
             for i, ranked_item in enumerate(ranked_results[:3]):
@@ -703,16 +708,19 @@ Respuesta:
 
         return {
             "step": "15. Generación de Respuesta con IA",
-            "description": "Generar respuesta natural usando modelo de lenguaje (LLM) basada en los documentos encontrados",
+            "description": f"Generar respuesta natural usando modelo de lenguaje (LLM) basada en los documentos encontrados con similitud {distance_metric.upper()} + índice {index_algorithm.upper()}",
             "input": {
                 "query": query,
                 "model": model,
+                "distance_metric": distance_metric.upper(),
+                "index_algorithm": index_algorithm.upper(),
                 "ranked_results_count": len(ranked_results),
                 "context_length": len(context_parts)
             },
             "output": {
                 "ai_response": final_response,
                 "model_used": model,
+                "algorithm_used": f"{distance_metric.upper()}+{index_algorithm.upper()}",
                 "status": ai_status,
                 "sources_count": len(sources_used),
                 "sources_used": sources_used
@@ -751,129 +759,352 @@ answer = response['response']
             "explanation": "Se usa un modelo de lenguaje (LLM) para generar una respuesta natural basada en los documentos más relevantes. El prompt incluye contexto específico y instrucciones para responder solo con la información proporcionada."
         }
 
-    def step_4_document_storage_example(self) -> Dict[str, Any]:
-        """Step 10: Show how documents are stored in vector databases"""
+    def step_4_storage_simulation(self, chunks: List[str], embeddings: List[List[float]], storage_type: str = "both", distance_metric: str = "cosine", index_algorithm: str = "hnsw") -> Dict[str, Any]:
+        """Step 4: Simulate database storage with real input/output for both Qdrant and PostgreSQL"""
+        import uuid
 
-        # Example document chunk
-        example_doc = {
-            "content": "PostgreSQL con pgvector permite almacenar vectores de alta dimensionalidad directamente en la base de datos relacional.",
-            "path": "./data/raw/Fx Tema 1 Introduccion V2024.pdf",
-            "page": 15,
-            "chunk_id": "chunk_42",
-            "metadata": {
-                "word_count": 18,
-                "quality_score": 0.95,
-                "extractor": "pdfplumber"
+        # Distance metric configurations
+        distance_configs = {
+            "cosine": {
+                "qdrant_distance": "Cosine",
+                "pgvector_operator": "<=>",
+                "description": "Mide el ángulo entre vectores (0-2, menor es mejor)\nIdeal para: Texto, embeddings normalizados\nIgnora magnitud, solo dirección",
+                "math_formula": "distance = 1 - (A·B)/(|A|×|B|)"
+            },
+            "euclidean": {
+                "qdrant_distance": "Euclid",
+                "pgvector_operator": "<->",
+                "description": "Distancia L2 en espacio euclidiano\nIdeal para: Coordenadas, características continuas\nSensible a magnitud y dirección",
+                "math_formula": "distance = √(Σ(ai-bi)²)"
+            },
+            "dot_product": {
+                "qdrant_distance": "Dot",
+                "pgvector_operator": "<#>",
+                "description": "Producto interno negativo (-A·B)\nIdeal para: Vectores ya normalizados\nMás rápido que coseno si vectores normalizados",
+                "math_formula": "distance = -Σ(ai×bi)"
+            },
+            "manhattan": {
+                "qdrant_distance": "Manhattan",
+                "pgvector_operator": "<+>",
+                "description": "Distancia L1 (suma de diferencias absolutas)\nIdeal para: Datos dispersos, características categóricas\nMenos sensible a outliers",
+                "math_formula": "distance = Σ|ai-bi|"
             }
         }
 
-        # Generate embedding for this document
-        doc_embedding = self._create_mock_embeddings(
-            [example_doc["content"]])[0]
-
-        # Qdrant storage format
-        qdrant_point = {
-            "id": "doc_42",
-            "vector": doc_embedding,
-            "payload": {
-                "content": example_doc["content"],
-                "path": example_doc["path"],
-                "page": example_doc["page"],
-                "chunk_id": example_doc["chunk_id"],
-                "metadata": example_doc["metadata"]
+        # Index algorithm configurations
+        index_configs = {
+            "hnsw": {
+                "qdrant_available": True,
+                "pgvector_available": False,
+                "description": "Hierarchical Navigable Small World - Algoritmo ANN muy eficiente",
+                "qdrant_config": {"m": 16, "ef_construct": 100},
+                "pgvector_config": None,  # HNSW not available in pgvector
+                "pgvector_alternative": "ivfflat"
+            },
+            "ivfflat": {
+                "qdrant_available": False,
+                "pgvector_available": True,
+                "description": "Inverted File Flat - Índice ANN básico de pgvector",
+                "pgvector_config": {"lists": 100},
+                "qdrant_alternative": "hnsw"
+            },
+            "scalar_quantization": {
+                "qdrant_available": True,
+                "pgvector_available": False,
+                "description": "Compresión escalar (int8) para reducir memoria",
+                "qdrant_config": {"type": "int8", "always_ram": True},
+                "pgvector_config": None,  # Scalar quantization not available in pgvector
+                "pgvector_alternative": "ivfflat"
+            },
+            "exact": {
+                "qdrant_available": True,
+                "pgvector_available": True,
+                "description": "Búsqueda exacta sin índice (para datasets pequeños)",
+                "qdrant_config": None,
+                "pgvector_config": None
             }
         }
 
-        # PostgreSQL storage format
-        postgres_insert = f"""
-INSERT INTO docs_clean (id, content, embedding, path, page, chunk_id, metadata)
-VALUES (
-    'doc_42',
-    '{example_doc["content"]}',
-    '[{",".join(map(str, doc_embedding[:10]))}...]'::vector,
-    '{example_doc["path"]}',
-    {example_doc["page"]},
-    '{example_doc["chunk_id"]}',
-    '{json.dumps(example_doc["metadata"])}'::jsonb
-);
-        """
+        current_distance = distance_configs.get(
+            distance_metric, distance_configs["cosine"])
+        current_index = index_configs.get(
+            index_algorithm, index_configs["hnsw"])
 
-        return {
-            "step": "4. Almacenamiento en Bases de Datos Vectoriales",
-            "description": "Demostrar cómo se almacenan los documentos vectorizados en Qdrant y PostgreSQL",
-            "example_document": example_doc,
-            "vector_generated": {
-                "dimensions": len(doc_embedding),
-                "sample_values": doc_embedding[:10],
-                "normalization": "L2 normalized for cosine similarity"
-            },
-            "qdrant_storage": {
-                "collection": "course_docs_clean",
-                "point_structure": qdrant_point,
-                "curl_command": f"""curl -X PUT '{QDRANT_URL}/collections/course_docs_clean/points' \\
-  -H 'Content-Type: application/json' \\
-  -d '{{
-    "points": [
-      {{
-        "id": "doc_42",
-        "vector": {json.dumps(doc_embedding[:5])}...,
-        "payload": {{
-          "content": "{example_doc["content"][:50]}...",
-          "path": "{example_doc["path"]}",
-          "page": {example_doc["page"]}
-        }}
-      }}
-    ]
-  }}'"""
-            },
-            "postgres_storage": {
-                "table": "docs_clean",
-                "sql_insert": postgres_insert,
-                "psql_command": f'psql "{PGVECTOR_DATABASE_URL}" -c "\\\\copy docs_clean(content,embedding,path,page) FROM STDIN WITH CSV;"'
-            },
-            "code_example": """
-# Qdrant: Insertar punto vectorial
-import requests
+        # Generate simulated storage data for demonstration
+        doc_id = str(uuid.uuid4())[:8]
 
-point_data = {
-    "points": [{
-        "id": doc_id,
-        "vector": embedding.tolist(),
-        "payload": {
-            "content": doc_content,
-            "path": doc_path,
-            "page": page_num,
-            "metadata": metadata_dict
+        storage_results = {
+            "step": "4. Simulación de Almacenamiento en Bases de Datos",
+            "description": f"Demostrar almacenamiento en {storage_type} usando métrica {distance_metric.upper()} con índice {index_algorithm.upper()}",
+            "input": {
+                "chunks_count": len(chunks),
+                "sample_chunk": chunks[0][:100] + "..." if chunks else "No chunks available",
+                "embedding_dimensions": len(embeddings[0]) if embeddings else 768,
+                "storage_type": storage_type,
+                "distance_metric": distance_metric.upper(),
+                "index_algorithm": index_algorithm.upper(),
+                "distance_description": current_distance["description"],
+                "index_description": current_index["description"]
+            },
+            "output": {
+                "distance_metric_used": distance_metric.upper(),
+                "index_algorithm_used": index_algorithm.upper(),
+                "distance_function": current_distance["math_formula"]
+            }
         }
-    }]
-}
 
-response = requests.put(
-    f"{qdrant_url}/collections/course_docs_clean/points",
-    json=point_data
+        if storage_type in ["qdrant", "both"]:
+            # Simulate Qdrant storage with algorithm-specific details
+            points_created = []
+            for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+                point_id = f"{doc_id}_qdrant_{i}"
+                points_created.append({
+                    "id": point_id,
+                    "vector_preview": embedding[:5] + [f"...más {len(embedding)-5} dims"],
+                    "payload": {
+                        "content": chunk[:150] + "..." if len(chunk) > 150 else chunk,
+                        "chunk_id": i,
+                        "doc_id": doc_id,
+                        "distance_metric": distance_metric,
+                        "index_algorithm": index_algorithm
+                    }
+                })
+
+            # Determine actual Qdrant index based on availability
+            qdrant_index = index_algorithm if current_index[
+                "qdrant_available"] else current_index["qdrant_alternative"]
+
+            qdrant_demo = {
+                "phase": f"FASE 2A: ALMACENAMIENTO EN QDRANT ({distance_metric.upper()} + {qdrant_index.upper()})",
+                "title": f"Configuración e ingesta de vectores en Qdrant con {current_distance['qdrant_distance']} distance + {qdrant_index} index",
+                "input": {
+                    "text": chunks[0][:100] + "..." if chunks else "Texto de ejemplo...",
+                    "doc_path": "docs/pipeline_demo.pdf",
+                    "page": 1,
+                    "method": f"{qdrant_index.upper()} Index + {distance_metric.upper()}"
+                },
+                "process": {
+                    "step1": "Embedding con E5-multilingual",
+                    "step2": f"Configurar distancia {current_distance['qdrant_distance']}",
+                    "step3": f"Inserción con {qdrant_index.upper()}",
+                    "step4": "Indexación automática"
+                },
+                "output": {
+                    "collection_name": f"demo_pipeline_{distance_metric}_{qdrant_index}",
+                    "points_created": points_created,
+                    "point_id": doc_id,
+                    "vector_size": len(embeddings[0]) if embeddings else 768,
+                    "distance_metric": current_distance["qdrant_distance"],
+                    "index_algorithm": qdrant_index.upper(),
+                    "index_params": current_index["qdrant_config"] if current_index["qdrant_config"] else {"type": "exact"},
+                    "indexed_count": len(chunks),
+                    "status": "success"
+                },
+                "embedding_preview": embeddings[0][:10] if embeddings else [0.1, -0.2, 0.3, 0.0, -0.1, 0.4, 0.2, -0.3, 0.1, 0.0],
+                "storage_code": '''# Qdrant: Insertar punto vectorial
+from qdrant_client import QdrantClient
+from qdrant_client.models import PointStruct
+
+client = QdrantClient(host="localhost", port=6333)
+
+# Insertar vector
+point_data = PointStruct(
+    id="{doc_id}",
+    vector={embedding_preview},
+    payload={{
+        "content": "{text}",
+        "path": "docs/pipeline_demo.pdf",
+        "page": 1,
+        "chunk_id": "{doc_id}"
+    }}
 )
 
-# PostgreSQL: Insertar con pgvector
-import psycopg2
+result = client.upsert(
+    collection_name="demo_pipeline_collection",
+    points=[point_data]
+)'''.format(
+                    doc_id=doc_id,
+                    embedding_preview=str(embeddings[0][:5] if embeddings else [
+                                          0.1, -0.2, 0.3, 0.0, -0.1]) + "...",
+                    text=(
+                        chunks[0][:50] + "..." if chunks else "Contenido del documento...")
+                ),
+                "query_example": {
+                    "query": "buscar información",
+                    "results": [
+                        {
+                            "id": doc_id,
+                            "score": 0.924,
+                            "content": chunks[0] if chunks else "Contenido de ejemplo...",
+                            "metadata": {
+                                "path": "docs/pipeline_demo.pdf",
+                                "page": 1
+                            }
+                        }
+                    ]
+                }
+            }
+            storage_results["qdrant_storage"] = qdrant_demo
 
-cursor.execute(\"\"\"
-    INSERT INTO docs_clean (content, embedding, path, page, metadata)
-    VALUES (%s, %s, %s, %s, %s)
-\"\"\", (content, embedding_str, path, page, json.dumps(metadata)))
-            """,
-            "explanation": "Los documentos se procesan en fragmentos, se vectorizan y se almacenan junto con sus metadatos. Qdrant almacena vectores nativamente, mientras que PostgreSQL usa la extensión pgvector para manejar vectores como un tipo de dato."
-        }
+        if storage_type in ["postgresql", "both"]:
+            # Simulate PostgreSQL storage with algorithm-specific details
+            rows_created = []
+            for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+                row_id = len(chunks) + 1000 + i
+                rows_created.append({
+                    "id": row_id,
+                    "content_preview": chunk[:150] + "..." if len(chunk) > 150 else chunk,
+                    "vector_preview": embedding[:5] + [f"...más {len(embedding)-5} dims"],
+                    "distance_operator": current_distance["pgvector_operator"],
+                    "distance_metric": distance_metric,
+                    "index_algorithm": index_algorithm
+                })
 
-    def step_5_upload_to_qdrant(self, chunks: List[str], embeddings: List[List[float]]) -> Dict[str, Any]:
+            # Determine actual PostgreSQL index based on availability
+            pg_index = index_algorithm if current_index[
+                "pgvector_available"] else current_index["pgvector_alternative"]
+
+            postgres_demo = {
+                "phase": f"FASE 2B: ALMACENAMIENTO EN POSTGRESQL ({distance_metric.upper()} + {pg_index.upper()})",
+                "title": f"Configuración e ingesta de vectores en PostgreSQL con pgvector + {distance_metric.upper()}",
+                "input": {
+                    "text": chunks[0][:100] + "..." if chunks else "Texto de ejemplo...",
+                    "doc_path": "docs/pipeline_demo.pdf",
+                    "page": 1,
+                    "method": f"{pg_index.upper()} Index + {distance_metric.upper()}"
+                },
+                "process": {
+                    "step1": "Embedding con E5-multilingual",
+                    "step2": f"Configurar operador {current_distance['pgvector_operator']}",
+                    "step3": "Inserción SQL con vector type",
+                    "step4": f"Indexación {pg_index.upper()}"
+                },
+                "output": {
+                    "table_name": f"demo_pipeline_{distance_metric}_{pg_index}",
+                    "rows_created": rows_created,
+                    "row_id": len(chunks) + 1000,
+                    "vector_size": len(embeddings[0]) if embeddings else 768,
+                    "distance_operator": f"{current_distance['pgvector_operator']} ({distance_metric} distance)",
+                    "distance_metric": distance_metric.upper(),
+                    "index_algorithm": pg_index.upper(),
+                    "index_params": current_index["pgvector_config"] if current_index["pgvector_config"] else {"type": "exact"},
+                    "total_in_table": len(chunks),
+                    "status": "success"
+                },
+                "embedding_preview": embeddings[0][:10] if embeddings else [0.1, -0.2, 0.3, 0.0, -0.1, 0.4, 0.2, -0.3, 0.1, 0.0],
+                "storage_code": f'''-- PostgreSQL: Insertar con pgvector ({distance_metric})
+INSERT INTO demo_pipeline_{distance_metric}_{pg_index} (
+    content, 
+    embedding, 
+    path, 
+    page, 
+    metadata,
+    distance_metric,
+    index_algorithm
+) VALUES (
+    '{chunks[0][:50] + "..." if chunks else "Contenido del documento..."}',
+    '{("[" + ",".join([f"{x:.4f}" for x in (embeddings[0][:5] if embeddings else [0.1, -0.2, 0.3, 0.0, -0.1])]) + ",...]")}'::vector,
+    'docs/pipeline_demo.pdf',
+    1,
+    '{{"chunk_id": "{doc_id}", "source": "pipeline_demo", "distance_metric": "{distance_metric}", "index_algorithm": "{pg_index}"}}'::jsonb,
+    '{distance_metric}',
+    '{pg_index}'
+);
+
+-- Crear índice {pg_index.upper()} para {distance_metric}
+CREATE INDEX IF NOT EXISTS demo_vectors_{distance_metric}_{pg_index}_idx 
+ON demo_pipeline_{distance_metric}_{pg_index}
+USING {pg_index} (embedding {current_distance["pgvector_operator"]}_ops) 
+WITH ({("lists = " + str(current_index["pgvector_config"]["lists"])) if current_index["pgvector_config"] else "-- exact search"});
+
+-- Verificar inserción
+SELECT id, content, path, page, distance_metric, index_algorithm 
+FROM demo_pipeline_{distance_metric}_{pg_index}
+WHERE id = currval('demo_pipeline_{distance_metric}_{pg_index}_id_seq');''',
+                "query_example": {
+                    "query": f"SELECT content, (embedding {current_distance['pgvector_operator']} '[0.1,0.2,0.3,...]'::vector) AS distance FROM demo_pipeline_{distance_metric}_{pg_index} WHERE distance_metric='{distance_metric}' ORDER BY distance LIMIT 3",
+                    "explanation": f"Búsqueda usando {distance_metric.upper()} distance con operador {current_distance['pgvector_operator']}:\n{current_distance['description']}\nFórmula: {current_distance['math_formula']}",
+                    "results": [
+                        {
+                            "id": len(chunks) + 1000,
+                            "distance": 0.076,
+                            "content": chunks[0] if chunks else "Contenido de ejemplo...",
+                            "metadata": {
+                                "path": "docs/pipeline_demo.pdf",
+                                "page": 1
+                            }
+                        }
+                    ]
+                }
+            }
+            storage_results["postgresql_storage"] = postgres_demo
+
+        storage_results["code_example"] = '''
+# Comparación de almacenamiento vectorial
+
+## QDRANT (Vector Database Nativa)
+- Optimizada específicamente para vectores
+- HNSW index de alta performance 
+- API REST simple y potente
+- Escalabilidad horizontal
+- Filtrado avanzado de metadatos
+
+## POSTGRESQL + PGVECTOR
+- Integra vectores en BD relacional
+- IVFFlat index para ANN search
+- ACID transactions + vectores
+- SQL familiar para desarrolladores
+- Joins entre datos relacionales y vectores
+'''
+
+        storage_results["explanation"] = f"""
+Simulación de almacenamiento en {storage_type.upper()}:
+
+🗄️ PREPARACIÓN DE DATOS:
+- {len(chunks)} fragmentos procesados
+- {len(embeddings[0]) if embeddings else 768} dimensiones por vector
+- Metadatos incluyen ruta, página, ID de chunk
+
+{'🟡 QDRANT STORAGE:' if storage_type in ["qdrant", "both"] else ''}
+{'- Colección: demo_pipeline_collection' if storage_type in ["qdrant", "both"] else ''}
+{'- Índice HNSW para búsqueda ANN rápida' if storage_type in ["qdrant", "both"] else ''}
+{'- Payload con metadatos estructurados' if storage_type in ["qdrant", "both"] else ''}
+
+{'🟦 POSTGRESQL STORAGE:' if storage_type in ["postgresql", "both"] else ''}
+{'- Tabla: demo_pipeline_vectors' if storage_type in ["postgresql", "both"] else ''}
+{'- Índice IVFFlat para búsquedas eficientes' if storage_type in ["postgresql", "both"] else ''}
+{'- JSONB metadata + vector type nativo' if storage_type in ["postgresql", "both"] else ''}
+
+⚡ OPTIMIZACIÓN:
+- Vectores normalizados para similitud coseno
+- Índices configurados para balance velocidad/precisión  
+- Metadatos permiten filtrado avanzado
+- Batch insertion para mejor performance
+"""
+
+        return storage_results
+
+    def step_5_upload_to_qdrant(self, chunks: List[str], embeddings: List[List[float]], distance_metric: str = "cosine", index_algorithm: str = "hnsw") -> Dict[str, Any]:
         """Step 5: Upload documents to Qdrant with HNSW indexing"""
         try:
             from qdrant_client import QdrantClient
             from qdrant_client.models import Distance, VectorParams, PointStruct
             import uuid
 
+            # Distance metric to Qdrant Distance mapping
+            distance_mapping = {
+                "cosine": Distance.COSINE,
+                "euclidean": Distance.EUCLID,
+                "dot_product": Distance.DOT,
+                "manhattan": Distance.MANHATTAN
+            }
+
+            qdrant_distance = distance_mapping.get(
+                distance_metric, Distance.COSINE)
+
             # Connect to Qdrant - use Docker service name
             client = QdrantClient(host="qdrant", port=6333)
-            collection_name = "demo_collection"
+            collection_name = f"demo_collection_{distance_metric}_{index_algorithm}"
 
             # Check if collection exists, create if not
             try:
@@ -883,12 +1114,12 @@ cursor.execute(\"\"\"
                 collection_exists = False
 
             if not collection_exists:
-                # Create collection with HNSW index
+                # Create collection with HNSW index and specified distance metric
                 client.create_collection(
                     collection_name=collection_name,
                     vectors_config=VectorParams(
                         size=len(embeddings[0]),
-                        distance=Distance.COSINE,  # Cosine similarity metric
+                        distance=qdrant_distance,  # Use selected distance metric
                         # HNSW parameters for efficient ANN search
                         hnsw_config={
                             "m": 16,              # Number of connections per layer
@@ -919,15 +1150,25 @@ cursor.execute(\"\"\"
             collection_info = client.get_collection(collection_name)
 
             return {
-                "step": "5. Subir a Qdrant con HNSW",
-                "description": "Cargar vectores en Qdrant usando índice HNSW para búsqueda ANN eficiente",
+                "step": f"5. Subir a Qdrant con {index_algorithm.upper()} ({distance_metric.upper()})",
+                "description": f"Cargar vectores en Qdrant usando índice {index_algorithm.upper()} para búsqueda ANN eficiente con distancia {distance_metric.upper()}",
                 "database": "Qdrant",
-                "algorithm": "HNSW (Hierarchical Navigable Small World)",
+                "algorithm": f"{index_algorithm.upper()} + {distance_metric.upper()} distance",
+                "input": {
+                    "embeddings_count": len(embeddings),
+                    "vector_dimensions": len(embeddings[0]) if embeddings else 768,
+                    "distance_metric": distance_metric.upper(),
+                    "index_algorithm": index_algorithm.upper(),
+                    "sample_vector": embeddings[0][:5] if embeddings else [0.1, -0.2, 0.3, 0.0, -0.1],
+                    "collection_name": collection_name
+                },
                 "output": {
                     "collection_name": collection_name,
                     "vectors_uploaded": len(points),
                     "vector_size": len(embeddings[0]),
-                    "distance_metric": "Cosine Similarity",
+                    "distance_metric": distance_metric.upper(),
+                    "index_algorithm": index_algorithm.upper(),
+                    "qdrant_distance": qdrant_distance.name if hasattr(qdrant_distance, 'name') else str(qdrant_distance),
                     "indexed_count": collection_info.vectors_count,
                     "status": "success"
                 },
@@ -1088,13 +1329,24 @@ curl -X PUT 'http://qdrant:6333/collections/demo_collection/points' \\
                 "explanation": "Asegúrate de que Qdrant esté corriendo en qdrant:6333. En modo demo, se muestran las operaciones que se realizarían."
             }
 
-    def step_6_upload_to_pgvector(self, chunks: List[str], embeddings: List[List[float]]) -> Dict[str, Any]:
+    def step_6_upload_to_pgvector(self, chunks: List[str], embeddings: List[List[float]], distance_metric: str = "cosine", index_algorithm: str = "ivfflat") -> Dict[str, Any]:
         """Step 6: Upload documents to PostgreSQL with pgvector"""
         try:
             import psycopg2
             import json
 
             # Connect to PostgreSQL - use Docker service name
+            # Algorithm to pgvector operator mapping
+            operator_mapping = {
+                "cosine": "vector_cosine_ops",
+                "euclidean": "vector_l2_ops",
+                "dot_product": "vector_ip_ops",
+                "manhattan": "vector_l1_ops"
+            }
+
+            pgvector_operator = operator_mapping.get(
+                distance_metric, "vector_cosine_ops")
+
             conn = psycopg2.connect(
                 host="pgvector_db",
                 port=5432,
@@ -1111,57 +1363,69 @@ curl -X PUT 'http://qdrant:6333/collections/demo_collection/points' \\
                     content TEXT NOT NULL,
                     embedding vector(768),
                     metadata JSONB,
+                    algorithm VARCHAR(50),
                     created_at TIMESTAMP DEFAULT NOW()
                 );
             """)
 
-            # Create IVFFlat index for efficient search
+            # Create algorithm-specific index for efficient search
             try:
-                cur.execute("""
-                    CREATE INDEX IF NOT EXISTS demo_vectors_embedding_idx 
-                    ON demo_vectors 
-                    USING ivfflat (embedding vector_cosine_ops)
-                    WITH (lists = 100);
-                """)
+                index_name = f"demo_vectors_embedding_{distance_metric}_{index_algorithm}_idx"
+                if index_algorithm == "ivfflat":
+                    cur.execute(f"""
+                        CREATE INDEX IF NOT EXISTS {index_name}
+                        ON demo_vectors 
+                        USING ivfflat (embedding {pgvector_operator})
+                        WITH (lists = 100);
+                    """)
+                else:
+                    # For exact search, no special index needed
+                    pass
             except:
                 pass  # Index might already exist
 
-            # Insert vectors
+            # Insert vectors with algorithm info
             inserted_count = 0
             for idx, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
                 embedding_json = json.dumps(embedding)
                 metadata_json = json.dumps({
                     "chunk_index": idx,
                     "source": "demo_pipeline",
-                    "timestamp": "2025-11-10"
+                    "timestamp": "2025-11-10",
+                    "distance_metric": distance_metric,
+                    "index_algorithm": index_algorithm
                 })
 
                 cur.execute("""
-                    INSERT INTO demo_vectors (content, embedding, metadata)
-                    VALUES (%s, %s::vector, %s::jsonb)
-                """, (chunk, embedding_json, metadata_json))
+                    INSERT INTO demo_vectors (content, embedding, metadata, algorithm)
+                    VALUES (%s, %s::vector, %s::jsonb, %s)
+                """, (chunk, embedding_json, metadata_json, f"{distance_metric}_{index_algorithm}"))
                 inserted_count += 1
 
             conn.commit()
 
             # Get table stats
-            cur.execute("SELECT COUNT(*) FROM demo_vectors;")
+            cur.execute("SELECT COUNT(*) FROM demo_vectors WHERE algorithm = %s;",
+                        (f"{distance_metric}_{index_algorithm}",))
             total_vectors = cur.fetchone()[0]
 
             cur.close()
             conn.close()
 
             return {
-                "step": "6. Subir a PostgreSQL + pgvector",
-                "description": "Almacenar vectores en PostgreSQL con índice IVFFlat para búsqueda rápida",
+                "step": f"6. Subir a PostgreSQL + pgvector ({distance_metric.upper()} + {index_algorithm.upper()})",
+                "description": f"Almacenar vectores en PostgreSQL con índice {index_algorithm.upper()} para búsqueda rápida usando distancia {distance_metric.upper()}",
                 "database": "PostgreSQL + pgvector",
-                "algorithm": "IVFFlat (Inverted File with Flat compression)",
+                "algorithm": f"{index_algorithm.upper()} (Index) + {distance_metric.upper()} (Distance)",
                 "output": {
                     "table_name": "demo_vectors",
                     "vectors_uploaded": inserted_count,
                     "total_in_table": total_vectors,
                     "vector_size": 768,
-                    "distance_operator": "<=> (cosine distance)",
+                    "distance_metric": distance_metric.upper(),
+                    "index_algorithm": index_algorithm.upper(),
+                    "distance_operator": f"{pgvector_operator} ({distance_metric} distance)",
+                    "index_name": f"demo_vectors_embedding_{distance_metric}_{index_algorithm}_idx",
                     "status": "success"
                 },
                 "ivfflat_params": {
@@ -1669,17 +1933,17 @@ reranked = mmr_rerank(results, lambda_param=0.7)
 """
         }
 
-    def run_complete_demo(self, query: str = "¿Qué es pgvector?", model: str = "phi3:mini") -> List[Dict[str, Any]]:
-        """Run complete educational pipeline with logical workflow order
+    def run_complete_demo_with_storage(self, query: str = "¿Qué es pgvector?", model: str = "phi3:mini", storage_type: str = "both", distance_metric: str = "cosine", index_algorithm: str = "hnsw") -> List[Dict[str, Any]]:
+        """Run complete educational pipeline with integrated database storage demos
 
-        Complete Educational Pipeline - Logical Flow:
+        Complete Educational Pipeline with Storage - Logical Flow:
         FASE 1: PREPARACIÓN DE DOCUMENTOS
         PASO 1: Análisis de Texto
         PASO 2: Limpieza y Fragmentación de Texto  
         PASO 3: Generación de Embeddings
 
         FASE 2: ALMACENAMIENTO EN BASES DE DATOS
-        PASO 4: Almacenamiento en Bases de Datos Vectoriales (concepto)
+        PASO 4: Simulación de Almacenamiento (Qdrant y/o PostgreSQL)
         PASO 5: Subir a Qdrant con HNSW
         PASO 6: Subir a PostgreSQL + pgvector
 
@@ -1713,23 +1977,35 @@ reranked = mmr_rerank(results, lambda_param=0.7)
         demo_steps.append(step3)
 
         # ===== FASE 2: ALMACENAMIENTO EN BASES DE DATOS =====
-        # Paso 4: Almacenamiento en Bases de Datos Vectoriales (concepto)
-        step4 = self.step_4_document_storage_example()
+        # Paso 4: Simulación de Almacenamiento con datos reales
+        step4 = self.step_4_storage_simulation(
+            step2["output"]["chunks"],
+            step3["output"]["full_embeddings"],
+            storage_type,
+            distance_metric,
+            index_algorithm
+        )
         demo_steps.append(step4)
 
-        # Paso 5: Subir a Qdrant con HNSW
-        step5 = self.step_5_upload_to_qdrant(
-            step2["output"]["chunks"],
-            step3["output"]["full_embeddings"]
-        )
-        demo_steps.append(step5)
+        # Paso 5: Subir a Qdrant con HNSW (technical details)
+        if storage_type in ["qdrant", "both"]:
+            step5 = self.step_5_upload_to_qdrant(
+                step2["output"]["chunks"],
+                step3["output"]["full_embeddings"],
+                distance_metric,
+                index_algorithm
+            )
+            demo_steps.append(step5)
 
-        # Paso 6: Subir a PostgreSQL + pgvector
-        step6 = self.step_6_upload_to_pgvector(
-            step2["output"]["chunks"],
-            step3["output"]["full_embeddings"]
-        )
-        demo_steps.append(step6)
+        # Paso 6: Subir a PostgreSQL + pgvector (technical details)
+        if storage_type in ["postgresql", "both"]:
+            step6 = self.step_6_upload_to_pgvector(
+                step2["output"]["chunks"],
+                step3["output"]["full_embeddings"],
+                distance_metric,
+                index_algorithm
+            )
+            demo_steps.append(step6)
 
         # ===== FASE 3: CONSULTAS Y BÚSQUEDAS =====
         # Paso 7: Procesamiento de Consulta
@@ -1737,14 +2013,16 @@ reranked = mmr_rerank(results, lambda_param=0.7)
         demo_steps.append(step7)
 
         # Paso 8: Búsqueda Vectorial (Qdrant)
-        step8 = self.step_8_vector_search_qdrant(
-            step7["output"]["full_embedding"])
-        demo_steps.append(step8)
+        if storage_type in ["qdrant", "both"]:
+            step8 = self.step_8_vector_search_qdrant(
+                step7["output"]["full_embedding"])
+            demo_steps.append(step8)
 
         # Paso 9: Búsqueda Vectorial (PostgreSQL pgvector)
-        step9 = self.step_9_vector_search_pgvector(
-            step7["output"]["full_embedding"])
-        demo_steps.append(step9)
+        if storage_type in ["postgresql", "both"]:
+            step9 = self.step_9_vector_search_pgvector(
+                step7["output"]["full_embedding"])
+            demo_steps.append(step9)
 
         # Paso 10: Matemáticas de Similitud
         step10 = self.step_10_similarity_math(
@@ -1754,18 +2032,33 @@ reranked = mmr_rerank(results, lambda_param=0.7)
         demo_steps.append(step10)
 
         # Paso 11: ANN vs Búsqueda Exacta
-        step11 = self.step_11_ann_vs_exact_search(
-            step7["output"]["full_embedding"])
-        demo_steps.append(step11)
+        if storage_type in ["qdrant", "both"]:
+            step11 = self.step_11_ann_vs_exact_search(
+                step7["output"]["full_embedding"])
+            demo_steps.append(step11)
 
         # ===== FASE 4: PROCESAMIENTO DE RESULTADOS =====
         # Paso 12: Clasificación y Presentación de Resultados
-        step12 = self.step_8_result_ranking(step8["output"])
+        # Use Qdrant results if available, otherwise use PostgreSQL results
+        search_results = None
+        for step in demo_steps:
+            if step.get("step", "").startswith("8.") and "output" in step:
+                search_results = step["output"]
+                break
+            elif step.get("step", "").startswith("9.") and "output" in step:
+                search_results = step["output"]
+
+        if search_results:
+            step12 = self.step_8_result_ranking(search_results)
+        else:
+            # Fallback with mock results
+            step12 = self.step_8_result_ranking(
+                {"error": "No search results available"})
         demo_steps.append(step12)
 
         # Paso 13: Ranking y Re-ranking
-        if isinstance(step8["output"], list) and step8["output"]:
-            step13 = self.step_15_ranking_and_reranking(step8["output"], query)
+        if isinstance(search_results, list) and search_results:
+            step13 = self.step_15_ranking_and_reranking(search_results, query)
         else:
             # Fallback with mock results
             mock_results = [
@@ -1789,7 +2082,8 @@ reranked = mmr_rerank(results, lambda_param=0.7)
 
         # Paso 15: Generación de Respuesta con IA
         if isinstance(step12["output"], list) and step12["output"]:
-            step15 = self.step_9_ai_generation(step12["output"], query, model)
+            step15 = self.step_9_ai_generation(
+                step12["output"], query, model, distance_metric, index_algorithm)
         else:
             # Fallback with mock results for demo
             mock_results = [
@@ -1803,13 +2097,20 @@ reranked = mmr_rerank(results, lambda_param=0.7)
                     }
                 }
             ]
-            step15 = self.step_9_ai_generation(mock_results, query, model)
+            step15 = self.step_9_ai_generation(
+                mock_results, query, model, distance_metric, index_algorithm)
         demo_steps.append(step15)
 
         return demo_steps
 
+    def run_complete_demo(self, query: str = "¿Qué es pgvector?", model: str = "phi3:mini") -> List[Dict[str, Any]]:
+        """Legacy method - redirects to new storage-integrated demo"""
+        return self.run_complete_demo_with_storage(query, model, "both")
 
-def create_demo_html(demo_steps: List[Dict[str, Any]], query: str, model: str = "phi3:mini") -> str:
+
+def create_demo_html(demo_steps: List[Dict[str, Any]], query: str, model: str = "phi3:mini",
+                     storage_type: str = "both", distance_metric: str = "cosine",
+                     index_algorithm: str = "hnsw") -> str:
     """Crear demostración HTML completa mostrando todos los pasos del pipeline"""
 
     html = f"""
@@ -2050,6 +2351,138 @@ def create_demo_html(demo_steps: List[Dict[str, Any]], query: str, model: str = 
                 margin-bottom: 20px;
             }}
         }}
+        
+        /* Form Controls Styles */
+        .demo-controls {{
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 15px;
+            padding: 25px;
+            margin: 20px 0 40px 0;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }}
+        
+        .controls-header {{
+            color: #8b5cf6;
+            font-size: 1.3em;
+            font-weight: bold;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }}
+        
+        .controls-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }}
+        
+        .control-group {{
+            background: rgba(255,255,255,0.03);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }}
+        
+        .control-label {{
+            color: #c7d2fe;
+            font-weight: 600;
+            font-size: 0.9em;
+            margin-bottom: 8px;
+            display: block;
+        }}
+        
+        .control-input, .control-select {{
+            width: 100%;
+            padding: 10px 12px;
+            background: rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            color: #e1e1e1;
+            font-size: 0.9em;
+            transition: border-color 0.3s ease;
+        }}
+        
+        .control-input:focus, .control-select:focus {{
+            outline: none;
+            border-color: #8b5cf6;
+            box-shadow: 0 0 10px rgba(139, 92, 246, 0.3);
+        }}
+        
+        .control-description {{
+            color: #9ca3af;
+            font-size: 0.8em;
+            margin-top: 5px;
+            line-height: 1.4;
+        }}
+        
+        .controls-actions {{
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            justify-content: center;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }}
+        
+        .demo-btn {{
+            background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }}
+        
+        .demo-btn:hover {{
+            background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);
+        }}
+        
+        .demo-btn.secondary {{
+            background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
+        }}
+        
+        .demo-btn.secondary:hover {{
+            background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
+        }}
+        
+        .current-config {{
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid #10b981;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 0;
+            color: #d1fae5;
+        }}
+        
+        .config-title {{
+            color: #10b981;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }}
+        
+        .config-item {{
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+            font-size: 0.9em;
+        }}
+        
+        .config-value {{
+            color: #a7f3d0;
+            font-weight: 600;
+        }}
     </style>
 </head>
 <body>"""
@@ -2060,6 +2493,129 @@ def create_demo_html(demo_steps: List[Dict[str, Any]], query: str, model: str = 
         <h1>{get_svg_icon("experiment", "24", "#8b5cf6")} Demo Completo del Pipeline RAG</h1>
         <p><strong>Consulta:</strong> "{query}"</p>
         <p>Análisis completo paso a paso de texto a búsqueda vectorial</p>
+    </div>
+    
+    <!-- Interactive Demo Controls -->
+    <div class="demo-controls">
+        <div class="controls-header">
+            {get_svg_icon("gear", "20", "#8b5cf6")} Configuración del Pipeline
+        </div>
+        
+        <div class="current-config">
+            <div class="config-title">Configuración Actual</div>
+            <div class="config-item">
+                <span>Consulta:</span>
+                <span class="config-value">"{query}"</span>
+            </div>
+            <div class="config-item">
+                <span>Modelo IA:</span>
+                <span class="config-value">{model}</span>
+            </div>
+            <div class="config-item">
+                <span>Almacenamiento:</span>
+                <span class="config-value">{storage_type.title()}</span>
+            </div>
+            <div class="config-item">
+                <span>Métrica de Distancia:</span>
+                <span class="config-value">{distance_metric.title()}</span>
+            </div>
+            <div class="config-item">
+                <span>Algoritmo de Índice:</span>
+                <span class="config-value">{index_algorithm.upper()}</span>
+            </div>
+        </div>
+        
+        <form id="demoConfigForm" method="get" action="/demo/pipeline">
+            <div class="controls-grid">
+                <div class="control-group">
+                    <label class="control-label">Consulta de Prueba</label>
+                    <input type="text" name="q" value="{query}" class="control-input" 
+                           placeholder="Ingresa tu pregunta...">
+                    <div class="control-description">
+                        La pregunta que se procesará en el pipeline
+                    </div>
+                </div>
+                
+                <div class="control-group">
+                    <label class="control-label">Modelo de IA</label>
+                    <select name="model" class="control-select">
+                        <option value="phi3:mini" {"selected" if model == "phi3:mini" else ""}>Phi-3 Mini (Rápido)</option>
+                        <option value="phi3:medium" {"selected" if model == "phi3:medium" else ""}>Phi-3 Medium (Balanceado)</option>
+                        <option value="llama3.1:8b" {"selected" if model == "llama3.1:8b" else ""}>Llama 3.1 8B</option>
+                        <option value="llama3.1:70b" {"selected" if model == "llama3.1:70b" else ""}>Llama 3.1 70B (Preciso)</option>
+                        <option value="gemma2:9b" {"selected" if model == "gemma2:9b" else ""}>Gemma 2 9B</option>
+                        <option value="mistral:7b" {"selected" if model == "mistral:7b" else ""}>Mistral 7B</option>
+                    </select>
+                    <div class="control-description">
+                        Modelo de lenguaje para generar respuestas
+                    </div>
+                </div>
+                
+                <div class="control-group">
+                    <label class="control-label">Tipo de Almacenamiento</label>
+                    <select name="storage_type" class="control-select">
+                        <option value="both" {"selected" if storage_type == "both" else ""}>Ambos (Qdrant + pgvector)</option>
+                        <option value="qdrant" {"selected" if storage_type == "qdrant" else ""}>Solo Qdrant</option>
+                        <option value="postgresql" {"selected" if storage_type == "postgresql" else ""}>Solo pgvector</option>
+                    </select>
+                    <div class="control-description">
+                        Base de datos vectorial para almacenar embeddings
+                    </div>
+                </div>
+                
+                <div class="control-group">
+                    <label class="control-label">Métrica de Distancia</label>
+                    <select name="distance_metric" class="control-select">
+                        <option value="cosine" {"selected" if distance_metric == "cosine" else ""}>Cosine (Recomendado)</option>
+                        <option value="euclidean" {"selected" if distance_metric == "euclidean" else ""}>Euclidean</option>
+                        <option value="dot_product" {"selected" if distance_metric == "dot_product" else ""}>Dot Product</option>
+                        <option value="manhattan" {"selected" if distance_metric == "manhattan" else ""}>Manhattan</option>
+                    </select>
+                    <div class="control-description">
+                        Método para calcular similitud entre vectores
+                    </div>
+                </div>
+                
+                <div class="control-group">
+                    <label class="control-label">Algoritmo de Índice</label>
+                    <select name="index_algorithm" class="control-select">
+                        <option value="hnsw" {"selected" if index_algorithm == "hnsw" else ""}>HNSW (Rápido)</option>
+                        <option value="ivfflat" {"selected" if index_algorithm == "ivfflat" else ""}>IVFFlat (pgvector)</option>
+                        <option value="scalar_quantization" {"selected" if index_algorithm == "scalar_quantization" else ""}>Scalar Quantization</option>
+                        <option value="exact" {"selected" if index_algorithm == "exact" else ""}>Exact Search (Preciso)</option>
+                    </select>
+                    <div class="control-description">
+                        Algoritmo para acelerar búsquedas vectoriales
+                    </div>
+                </div>
+                
+                <div class="control-group">
+                    <label class="control-label">Formato de Respuesta</label>
+                    <select name="response_format" class="control-select">
+                        <option value="html" selected>HTML (Visual)</option>
+                        <option value="json">JSON (Datos)</option>
+                    </select>
+                    <div class="control-description">
+                        Formato de salida del pipeline
+                    </div>
+                </div>
+            </div>
+            
+            <div class="controls-actions">
+                <button type="submit" class="demo-btn">
+                    {get_svg_icon("refresh", "16", "#ffffff")} Regenerar Demo
+                </button>
+                <a href="/pipeline" class="demo-btn secondary">
+                    {get_svg_icon("gear", "16", "#ffffff")} Gestión Pipeline
+                </a>
+                <a href="/ai?q={query.replace(' ', '+')}&distance_metric={distance_metric}&index_algorithm={index_algorithm}" class="demo-btn secondary">
+                    {get_svg_icon("brain", "16", "#ffffff")} Probar en AI
+                </a>
+                <a href="/" class="demo-btn secondary">
+                    {get_svg_icon("home", "16", "#ffffff")} Inicio
+                </a>
+            </div>
+        </form>
     </div>
     
     <div class="navigation">
@@ -2147,17 +2703,18 @@ def create_demo_html(demo_steps: List[Dict[str, Any]], query: str, model: str = 
         <div class="input-output">
             <div class="input-section">
                 <div class="section-title">{get_svg_icon("input", "16", "#8b5cf6")} Entrada</div>
-                <div class="json-block">{format_json_with_syntax_highlighting(step.get('input', {}))}</div>
+                <div class="json-block">{format_json_with_syntax_highlighting(step.get('input', {"message": "No hay datos de entrada específicos para este paso"}))}</div>
             </div>
             
             <div class="output-section">
                 <div class="section-title">{get_svg_icon("output", "16", "#FF9800")} Salida</div>
-                <div class="json-block">{format_json_with_syntax_highlighting(step.get('output', {}))}</div>
+                <div class="json-block">{format_json_with_syntax_highlighting(step.get('output', {"message": "No hay datos de salida disponibles"}))}</div>
             </div>
         </div>
         
         <div class="explanation">
-            <strong>{get_svg_icon("idea", "16", "#2196F3")} Explicación:</strong> {step.get('explanation', 'Sin explicación disponible')}
+            <strong>{get_svg_icon("idea", "16", "#2196F3")} Explicación:</strong><br><br>
+            <span style="white-space: pre-wrap;">{step.get('explanation', 'Sin explicación disponible')}</span>
         </div>
         
         <div class="section-title">{get_svg_icon("code", "16", "#9C27B0")} Ejemplo de Código</div>

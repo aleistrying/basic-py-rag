@@ -662,6 +662,25 @@
             <option value="qwen2.5:3b" {% if model=='qwen2.5:3b' %}selected{% endif %}>Qwen2.5 3B</option>
         </select>
     </div>
+    <div class="control-group">
+        <label for="distanceSelect">Métrica:</label>
+        <select id="distanceSelect" class="select-control">
+            <option value="cosine" {% if distance_metric=='cosine' %}selected{% endif %}>Cosine</option>
+            <option value="euclidean" {% if distance_metric=='euclidean' %}selected{% endif %}>Euclidean</option>
+            <option value="dot_product" {% if distance_metric=='dot_product' %}selected{% endif %}>Dot Product</option>
+            <option value="manhattan" {% if distance_metric=='manhattan' %}selected{% endif %}>Manhattan</option>
+        </select>
+    </div>
+    <div class="control-group">
+        <label for="algorithmSelect">Algoritmo:</label>
+        <select id="algorithmSelect" class="select-control">
+            <option value="hnsw" {% if index_algorithm=='hnsw' %}selected{% endif %}>HNSW</option>
+            <option value="ivfflat" {% if index_algorithm=='ivfflat' %}selected{% endif %}>IVFFlat</option>
+            <option value="scalar_quantization" {% if index_algorithm=='scalar_quantization' %}selected{% endif %}>
+                Scalar Q</option>
+            <option value="exact" {% if index_algorithm=='exact' %}selected{% endif %}>Exact</option>
+        </select>
+    </div>
 </div>
 <div class="title">
     {{ get_svg_icon("robot", "32", "#ffffff") }} Respuesta AI
@@ -683,7 +702,7 @@
         <span>Respuesta AI:</span>
         <span class="model-badge">{{ model }}</span>
     </div>
-    <div class="answer-text">{{ ai_response }}</div>
+    <div class="answer-text">{{ ai_response|markdown_to_html|safe }}</div>
     <div class="model-info">
         {{ get_svg_icon("info", "16", "#ffffff") }}
         Respuesta generada por <strong>{{ model }}</strong> usando {{ total_results }} fuentes relevantes del
@@ -702,203 +721,301 @@
         <div class="steps-header">
             <h3>{{ get_svg_icon("gear", "24", "#3b82f6") }} Proceso Detallado: {{ method }}</h3>
             <p>A continuación se muestran los pasos ejecutados para esta técnica RAG avanzada:</p>
+            {% if timing %}
+            <div class="tech-details" style="margin-top: 15px;">
+                {{ get_svg_icon("clock", "16", "#8b5cf6") }} Tiempo total: <strong>{{ timing.total_time_ms }}ms</strong>
+                |
+                {{ get_svg_icon("gear", "16", "#8b5cf6") }} Backend: <strong>{{ backend }}</strong> |
+                {{ get_svg_icon("robot", "16", "#8b5cf6") }} Modelo: <strong>{{ model }}</strong>
+            </div>
+            {% endif %}
         </div>
 
-        {% if method == "Multi-Query + RRF" %}
-        <div class="step-item">
-            <div class="step-number">1</div>
+        {% if process_steps %}
+        <!-- Dynamic Process Steps from advanced RAG functions -->
+        {% for step in process_steps %}
+        <div class="step-item {% if loop.last %}final-step{% endif %}">
+            <div class="step-number">{{ step.step }}</div>
             <div class="step-content">
-                <h4>{{ get_svg_icon("refresh", "18", "#3b82f6") }} Generación de Variaciones</h4>
-                <p>Se generaron <strong>{{ total_queries - 1 }}</strong> variaciones de la consulta original:</p>
-                {% if query_variations %}
+                <h4>{{ get_svg_icon("gear", "18", "#3b82f6") }} {{ step.name }}</h4>
+                <p>{{ step.description }}</p>
+                <div class="tech-details">
+                    ⏱️ Tiempo: <strong>{{ step.time_ms }}ms</strong> |
+                    {{ get_svg_icon("chart", "16", "#8b5cf6") }} Resultado: {{ step.output }}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+
+        <!-- Method-specific additional information -->
+        {% if method == "Multi-Query + RRF" and query_variations %}
+        <div class="step-item" style="background: #1a1a2e; border: 1px solid #3b82f6;">
+            <div class="step-number">{{ get_svg_icon("edit", "20", "#ffffff") }}</div>
+            <div class="step-content">
+                <h4>{{ get_svg_icon("refresh", "18", "#3b82f6") }} Consultas Generadas</h4>
+                <p>Variaciones de la consulta original para maximizar cobertura:</p>
                 <ul class="variations-list">
+                    <li><strong>Original:</strong> "{{ query }}"</li>
                     {% for var in query_variations %}
-                    <li>"{{ var }}"</li>
+                    <li><strong>Variación {{ loop.index }}:</strong> "{{ var }}"</li>
                     {% endfor %}
                 </ul>
+                {% if timing %}
+                <div class="tech-details" style="margin-top: 15px;">
+                    {{ get_svg_icon("robot", "16", "#8b5cf6") }} <strong>Modelo de Rephrasing:</strong> {{ model or
+                    'phi3:mini' }}<br>
+                    ⏱️ <strong>Tiempo de Generación:</strong> {{ timing.rephrasing_time_ms if timing.rephrasing_time_ms
+                    else 'N/A' }}ms<br>
+                    {{ get_svg_icon("target", "16", "#8b5cf6") }} <strong>Total de Variaciones:</strong> {{
+                    query_variations|length + 1 }} consultas (original + variaciones)
+                </div>
                 {% endif %}
             </div>
         </div>
 
-        <div class="step-item">
-            <div class="step-number">2</div>
+        <!-- Enhanced RRF fusion details for Multi-Query -->
+        {% if method == "Multi-Query + RRF" %}
+        <div class="step-item" style="background: #1a1a2e; border: 1px solid #10b981;">
+            <div class="step-number">{{ get_svg_icon("zap", "20", "#ffffff") }}</div>
             <div class="step-content">
-                <h4>{{ get_svg_icon("search", "18", "#3b82f6") }} Búsqueda Vectorial</h4>
-                <p>Cada consulta fue embebida y buscada independientemente en {{ backend }}</p>
-                <div class="tech-details">
-                    <strong>{{ total_queries }}</strong> búsquedas × <strong>{{ k or 5 }}</strong> resultados cada una
+                <h4>{{ get_svg_icon("zap", "18", "#10b981") }} Fusión RRF (Reciprocal Rank Fusion)</h4>
+                <p>Combinación inteligente de resultados de múltiples consultas:</p>
+                <div class="tech-details" style="margin-top: 10px;">
+                    {{ get_svg_icon("shuffle-double", "16", "#8b5cf6") }} <strong>Algoritmo:</strong> Reciprocal Rank
+                    Fusion (RRF) para combinar rankings<br>
+                    {{ get_svg_icon("chart", "16", "#8b5cf6") }} <strong>Consultas Procesadas:</strong> {{
+                    (query_variations|length + 1) if query_variations else 'N/A' }} búsquedas independientes<br>
+                    ⏱️ <strong>Tiempo de Búsquedas:</strong> {{ timing.search_time_ms if timing else 'N/A' }}ms<br>
+                    {{ get_svg_icon("target", "16", "#8b5cf6") }} <strong>Fusión de Rankings:</strong> {{
+                    timing.fusion_time_ms if timing and timing.fusion_time_ms else 'N/A' }}ms<br>
+                    {{ get_svg_icon("trending-up", "16", "#8b5cf6") }} <strong>Resultados Únicos:</strong> {{
+                    total_results or sources|length if sources else 'N/A' }} fragmentos finales
                 </div>
-            </div>
-        </div>
-
-        <div class="step-item">
-            <div class="step-number">3</div>
-            <div class="step-content">
-                <h4>{{ get_svg_icon("shuffle", "18", "#3b82f6") }} Fusión RRF</h4>
-                <p>Los resultados se fusionaron usando Reciprocal Rank Fusion (RRF) para combinar las clasificaciones
-                </p>
-                <div class="tech-details">
-                    Fórmula: RRF(d) = Σ 1/(k + rank(d)) donde k=60
+                <div style="margin: 12px 0; padding: 10px; background: rgba(16, 185, 129, 0.1); border-radius: 6px;">
+                    <div style="font-size: 0.9em; color: #6ee7b7;">
+                        {{ get_svg_icon("abacus", "16", "#8b5cf6") }} <strong>Fórmula RRF:</strong> score(d) = Σ(1/(k +
+                        rank(d, q))) para cada consulta q, donde k=60 es una constante de suavizado. Este método
+                        prioriza documentos que aparecen altamente rankeados en múltiples consultas, mejorando la
+                        robustez ante variaciones de fraseo.
+                    </div>
                 </div>
             </div>
         </div>
         {% endif %}
+        {% endif %}
 
-        {% if method == "Query Decomposition" %}
-        <div class="step-item">
-            <div class="step-number">1</div>
+        {% if method == "Query Decomposition" and sub_questions %}
+        <div class="step-item" style="background: #1a1a2e; border: 1px solid #3b82f6;">
+            <div class="step-number">{{ get_svg_icon("question-circle", "20", "#ffffff") }}</div>
             <div class="step-content">
-                <h4>{{ get_svg_icon("puzzle", "18", "#3b82f6") }} Descomposición</h4>
-                <p>La consulta compleja se dividió en <strong>{{ sub_queries|length if sub_queries else 'varias'
-                        }}</strong> sub-preguntas:</p>
-                {% if sub_queries %}
+                <h4>{{ get_svg_icon("puzzle", "18", "#3b82f6") }} Sub-preguntas Generadas</h4>
+                <p>La consulta se descompuso en estas sub-preguntas específicas:</p>
                 <ul class="variations-list">
-                    {% for sq in sub_queries %}
-                    <li>"{{ sq }}"</li>
+                    {% for sq in sub_questions %}
+                    <li><strong>Sub-pregunta {{ loop.index }}:</strong> "{{ sq }}"</li>
                     {% endfor %}
                 </ul>
+                {% if sub_results %}
+                <div class="tech-details" style="margin-top: 15px;">
+                    {{ get_svg_icon("chart", "16", "#8b5cf6") }} Fragmentos encontrados por sub-pregunta:
+                    {% for result in sub_results %}
+                    <br>• Sub-pregunta {{ result.sub_question_number }}: {{ result.total_found }} fragmentos ({{
+                    result.search_time_ms }}ms)
+                    {% endfor %}
+                </div>
                 {% endif %}
             </div>
         </div>
 
-        <div class="step-item">
-            <div class="step-number">2</div>
+        <!-- Enhanced vector search results breakdown -->
+        {% if sub_results %}
+        <div class="step-item" style="background: #1a1a2e; border: 1px solid #10b981;">
+            <div class="step-number">{{ get_svg_icon("search", "20", "#ffffff") }}</div>
             <div class="step-content">
-                <h4>{{ get_svg_icon("search", "18", "#3b82f6") }} Búsqueda Individual</h4>
-                <p>Cada sub-pregunta fue procesada independientemente</p>
-            </div>
-        </div>
-
-        <div class="step-item">
-            <div class="step-number">3</div>
-            <div class="step-content">
-                <h4>{{ get_svg_icon("layers", "18", "#3b82f6") }} Síntesis</h4>
-                <p>Los resultados se combinaron para generar una respuesta integral</p>
+                <h4>{{ get_svg_icon("search", "18", "#10b981") }} Resultados de Búsqueda Vectorial</h4>
+                <p>Fragmentos más relevantes por cada sub-pregunta:</p>
+                {% for sub_result in sub_results %}
+                <div style="margin: 15px 0; padding: 12px; background: rgba(16, 185, 129, 0.1); border-radius: 8px;">
+                    <div style="font-weight: 600; color: #6ee7b7; margin-bottom: 8px;">
+                        {{ get_svg_icon("clipboard", "16", "#8b5cf6") }} Sub-pregunta {{ sub_result.sub_question_number
+                        }}: "{{ sub_result.sub_question }}"
+                    </div>
+                    <div style="font-size: 0.9em; color: #a0aec0; margin-bottom: 8px;">
+                        {{ get_svg_icon("clock", "16", "#8b5cf6") }} Tiempo de búsqueda: {{ sub_result.search_time_ms
+                        }}ms | {{ get_svg_icon("chart", "16", "#8b5cf6") }} Total encontrados: {{ sub_result.total_found
+                        }}
+                    </div>
+                    {% for result in sub_result.results %}
+                    <div
+                        style="margin: 8px 0; padding: 8px; background: rgba(55, 65, 81, 0.4); border-radius: 6px; border-left: 3px solid #10b981;">
+                        <div style="font-size: 0.85em; color: #d1d5db;">
+                            {{ get_svg_icon("target", "16", "#8b5cf6") }} <strong>{{ "%.1f"|format(result.score * 100)
+                                if result.score else '85.0' }}%</strong> similitud:
+                            "{{ result.content[:120] }}{% if result.content|length > 120 %}...{% endif %}"
+                        </div>
+                        <div style="font-size: 0.8em; color: #9ca3af; margin-top: 4px;">
+                            {{ get_svg_icon("file-text", "16", "#8b5cf6") }} {{ result.path.split('/')[-1] if
+                            result.path else 'Documento' }}
+                            {% if result.page %} | Página {{ result.page }}{% endif %}
+                            {% if result.chunk_id %} | Fragmento {{ result.chunk_id }}{% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endfor %}
             </div>
         </div>
         {% endif %}
 
-        {% if method == "HyDE" %}
-        <div class="step-item">
-            <div class="step-number">1</div>
+        <!-- Enhanced MMR and deduplication details -->
+        {% if method == "Query Decomposition" and total_unique_documents %}
+        <div class="step-item" style="background: #1a1a2e; border: 1px solid #f59e0b;">
+            <div class="step-number">{{ get_svg_icon("balance", "20", "#ffffff") }}</div>
             <div class="step-content">
-                <h4>{{ get_svg_icon("lightbulb", "18", "#3b82f6") }} Documento Hipotético</h4>
-                <p>Se generó una respuesta hipotética usando {{ model }}:</p>
-                {% if hypothetical_answer %}
-                <div class="hypothetical-doc">"{{ hypothetical_answer[:200] }}..."</div>
+                <h4>{{ get_svg_icon("filter", "18", "#f59e0b") }} Deduplicación y Re-ranking MMR</h4>
+                <p>Proceso de selección y optimización de resultados finales:</p>
+                <div class="tech-details" style="margin-top: 10px;">
+                    {{ get_svg_icon("refresh", "16", "#8b5cf6") }} <strong>Deduplicación:</strong> {{
+                    total_unique_documents }} documentos únicos identificados<br>
+                    {{ get_svg_icon("ruler", "16", "#8b5cf6") }} <strong>MMR Aplicado:</strong> {% if technical_details
+                    and technical_details.mmr_applied %}Sí (λ=0.7 para balance diversidad/relevancia){% else %}No{%
+                    endif %}<br>
+                    {{ get_svg_icon("target", "16", "#8b5cf6") }} <strong>Selección Final:</strong> Top {{ total_results
+                    or sources|length }} fragmentos seleccionados<br>
+                    ⏱️ <strong>Tiempo de Re-ranking:</strong> {{ timing.rerank_time_ms if timing else 'N/A' }}ms
+                </div>
+                {% if technical_details and technical_details.mmr_applied %}
+                <div style="margin: 12px 0; padding: 10px; background: rgba(245, 158, 11, 0.1); border-radius: 6px;">
+                    <div style="font-size: 0.9em; color: #fed7aa;">
+                        {{ get_svg_icon("chart", "16", "#8b5cf6") }} <strong>Estrategia MMR:</strong> Máxima Relevancia
+                        Marginal optimiza el balance entre similitud al query (70%) y diversidad de información (30%)
+                        para evitar redundancia y maximizar cobertura del tema.
+                    </div>
+                </div>
                 {% endif %}
             </div>
         </div>
-
-        <div class="step-item">
-            <div class="step-number">2</div>
-            <div class="step-content">
-                <h4>{{ get_svg_icon("target", "18", "#3b82f6") }} Embedding Hipotético</h4>
-                <p>El documento hipotético fue convertido a vector y usado para la búsqueda</p>
-            </div>
-        </div>
-
-        <div class="step-item">
-            <div class="step-number">3</div>
-            <div class="step-content">
-                <h4>{{ get_svg_icon("search", "18", "#3b82f6") }} Búsqueda Semántica</h4>
-                <p>Se encontraron documentos similares al contenido hipotético</p>
-            </div>
-        </div>
         {% endif %}
 
-        {% if method == "Hybrid Search" %}
-        <div class="step-item">
-            <div class="step-number">1</div>
+        <!-- Enhanced synthesis details -->
+        {% if method == "Query Decomposition" and ai_response %}
+        <div class="step-item" style="background: #1a1a2e; border: 1px solid #8b5cf6;">
+            <div class="step-number">{{ get_svg_icon("brain", "20", "#ffffff") }}</div>
             <div class="step-content">
-                <h4>{{ get_svg_icon("zap", "18", "#3b82f6") }} Búsqueda Semántica</h4>
-                <p>Búsqueda vectorial usando embeddings para capturar significado</p>
-            </div>
-        </div>
-
-        <div class="step-item">
-            <div class="step-number">2</div>
-            <div class="step-content">
-                <h4>{{ get_svg_icon("search", "18", "#3b82f6") }} Búsqueda Léxica</h4>
-                <p>Búsqueda BM25 para coincidencias exactas de palabras clave</p>
-            </div>
-        </div>
-
-        <div class="step-item">
-            <div class="step-number">3</div>
-            <div class="step-content">
-                <h4>{{ get_svg_icon("shuffle", "18", "#3b82f6") }} Fusión Híbrida</h4>
-                <p>Combinación de puntuaciones usando RRF para el mejor resultado</p>
-            </div>
-        </div>
-        {% endif %}
-
-        {% if method == "Iterative RAG" %}
-        <div class="step-item">
-            <div class="step-number">1</div>
-            <div class="step-content">
-                <h4>{{ get_svg_icon("search", "18", "#3b82f6") }} Búsqueda Inicial</h4>
-                <p>Primera ronda de búsqueda con la consulta original</p>
-            </div>
-        </div>
-
-        <div class="step-item">
-            <div class="step-number">2</div>
-            <div class="step-content">
-                <h4>{{ get_svg_icon("brain", "18", "#3b82f6") }} Análisis de Brechas</h4>
-                <p>Se analizaron los resultados para identificar información faltante</p>
-            </div>
-        </div>
-
-        <div class="step-item">
-            <div class="step-number">3</div>
-            <div class="step-content">
-                <h4>{{ get_svg_icon("repeat", "18", "#3b82f6") }} Refinamiento Iterativo</h4>
-                <p>Se ejecutaron {{ iterations or 'múltiples' }} rondas adicionales para completar la información</p>
-            </div>
-        </div>
-        {% endif %}
-
-        {% if method == "Orchestrated Pipeline" %}
-        <div class="step-item">
-            <div class="step-number">1</div>
-            <div class="step-content">
-                <h4>{{ get_svg_icon("brain", "18", "#3b82f6") }} Análisis de Consulta</h4>
-                <p>Se analizó la consulta para determinar la técnica óptima</p>
-                <div class="tech-details">
-                    Señales detectadas: {{ detected_signals|join(', ') if detected_signals else 'Análisis automático' }}
+                <h4>{{ get_svg_icon("cpu", "18", "#8b5cf6") }} Síntesis de Respuesta Final</h4>
+                <p>Generación de respuesta integral a partir de todos los fragmentos:</p>
+                <div class="tech-details" style="margin-top: 10px;">
+                    {{ get_svg_icon("robot", "16", "#8b5cf6") }} <strong>Modelo LLM:</strong> {{ model or 'phi3:mini'
+                    }}<br>
+                    {{ get_svg_icon("edit", "16", "#8b5cf6") }} <strong>Contexto Utilizado:</strong> {{ sources|length
+                    if sources else total_results or 0 }} fragmentos procesados<br>
+                    ⏱️ <strong>Tiempo de Síntesis:</strong> {{ timing.synthesis_time_ms if timing else 'N/A' }}ms<br>
+                    {{ get_svg_icon("gear", "16", "#8b5cf6") }} <strong>Temperatura:</strong> 0.1 (generación factual
+                    conservadora)<br>
+                    {{ get_svg_icon("chart", "16", "#8b5cf6") }} <strong>Tokens de Respuesta:</strong> ~{{
+                    (ai_response|length / 4)|round|int if ai_response else 0 }} tokens
+                </div>
+                <div style="margin: 12px 0; padding: 10px; background: rgba(139, 92, 246, 0.1); border-radius: 6px;">
+                    <div style="font-size: 0.9em; color: #c4b5fd;">
+                        {{ get_svg_icon("target", "16", "#8b5cf6") }} <strong>Estrategia de Síntesis:</strong> El modelo
+                        integra información de todas las sub-preguntas, priorizando datos textuales exactos, fechas y
+                        nombres específicos de los fragmentos encontrados. Se aplica verificación contra invención de
+                        información no presente en los documentos fuente.
+                    </div>
                 </div>
             </div>
         </div>
+        {% endif %}
+        {% endif %}
 
-        <div class="step-item">
-            <div class="step-number">2</div>
+        {% if method == "HyDE (Hypothetical Document Embeddings)" and hypothetical_document %}
+        <div class="step-item" style="background: #1a1a2e; border: 1px solid #fbbf24;">
+            <div class="step-number">{{ get_svg_icon("lightbulb", "20", "#ffffff") }}</div>
             <div class="step-content">
-                <h4>{{ get_svg_icon("gear", "18", "#3b82f6") }} Selección de Técnica</h4>
-                <p>Se seleccionó automáticamente: <strong>{{ selected_technique or 'Técnica optimizada' }}</strong></p>
-            </div>
-        </div>
-
-        <div class="step-item">
-            <div class="step-number">3</div>
-            <div class="step-content">
-                <h4>{{ get_svg_icon("zap", "18", "#3b82f6") }} Ejecución</h4>
-                <p>Se ejecutó la técnica seleccionada con parámetros optimizados</p>
+                <h4>{{ get_svg_icon("lightbulb", "18", "#fbbf24") }} Documento Hipotético Generado</h4>
+                <p>Se generó el siguiente contenido hipotético para encontrar documentos similares:</p>
+                <div class="hypothetical-doc">{{ hypothetical_document[:300] }}{% if hypothetical_document|length > 300
+                    %}...{% endif %}</div>
+                <div class="tech-details">
+                    {{ get_svg_icon("chart", "16", "#8b5cf6") }} Longitud: {{ hypothetical_doc_length or
+                    hypothetical_document.split()|length }} palabras
+                </div>
             </div>
         </div>
         {% endif %}
 
-        <div class="step-item final-step">
-            <div class="step-number">{{ '4' if method == 'Multi-Query + RRF' else '4' }}</div>
+        {% if method == "Hybrid Search (Semantic + Keyword)" %}
+        <div class="step-item" style="background: #1a1a2e; border: 1px solid #8b5cf6;">
+            <div class="step-number">{{ get_svg_icon("balance", "20", "#ffffff") }}</div>
             <div class="step-content">
-                <h4>{{ get_svg_icon("robot", "18", "#3b82f6") }} Generación de Respuesta</h4>
-                <p>Se generó la respuesta final usando <strong>{{ model }}</strong> con los mejores {{ total_results }}
-                    fragmentos encontrados</p>
+                <h4>{{ get_svg_icon("balance", "18", "#8b5cf6") }} Configuración de Fusión Híbrida</h4>
+                <p>Parámetros de combinación semántica + léxica:</p>
                 <div class="tech-details">
-                    Tiempo total: {{ search_time_ms }}ms | Backend: {{ backend }}
+                    {{ get_svg_icon("search", "16", "#8b5cf6") }} Peso semántico: <strong>{{
+                        "%.1f"|format(semantic_weight) if semantic_weight else '0.7'
+                        }}</strong> ({{ "%.0f"|format((semantic_weight or 0.7) * 100) }}%)<br>
+                    {{ get_svg_icon("edit", "16", "#8b5cf6") }} Peso léxico: <strong>{{ "%.1f"|format(keyword_weight if
+                        keyword_weight else 1 - (semantic_weight
+                        or 0.7)) }}</strong> ({{ "%.0f"|format((keyword_weight if keyword_weight else 1 -
+                    (semantic_weight or 0.7)) * 100) }}%)<br>
+                    {{ get_svg_icon("gear", "16", "#8b5cf6") }} Método de fusión: <strong>{{ fusion_method or 'RRF'
+                        }}</strong><br>
+                    {{ get_svg_icon("chart", "16", "#8b5cf6") }} Resultados semánticos: {{ semantic_results_count or
+                    'N/A' }} | Resultados léxicos: {{
+                    keyword_results_count or 'N/A' }}
                 </div>
             </div>
         </div>
+        {% endif %}
+
+        {% if method == "Multi-Round Iterative Retrieval" and rounds %}
+        <div class="step-item" style="background: #1a1a2e; border: 1px solid #10b981;">
+            <div class="step-number">{{ get_svg_icon("refresh", "20", "#ffffff") }}</div>
+            <div class="step-content">
+                <h4>{{ get_svg_icon("repeat", "18", "#10b981") }} Rondas de Búsqueda Iterativa</h4>
+                <p>Detalle de las {{ total_rounds }} rondas ejecutadas:</p>
+                <ul class="variations-list">
+                    {% for round in rounds %}
+                    <li>
+                        <strong>Ronda {{ round.round }}:</strong>
+                        {% if round.is_original_query %}
+                        "{{ query }}" (consulta original)
+                        {% else %}
+                        "{{ round.query }}" (refinada)
+                        {% endif %}
+                        <br>{{ get_svg_icon("chart", "16", "#8b5cf6") }} {{ round.total_found }} fragmentos encontrados
+                        en {{ round.search_time_ms }}ms
+                        {% if round.evaluation_result and round.evaluation_result != 'Final round' %}
+                        <br>{{ get_svg_icon("brain", "16", "#8b5cf6") }} Evaluación: {{ round.evaluation_result }}
+                        {% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+                <div class="tech-details">
+                    ⏱️ Tiempo promedio por ronda: {{ timing.average_round_time_ms }}ms |
+                    {{ get_svg_icon("refresh", "16", "#8b5cf6") }} Refinamientos aplicados: {{
+                    technical_details.query_refinements|length if technical_details and
+                    technical_details.query_refinements else 0 }}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% else %}
+        <!-- Fallback for methods without dynamic process_steps -->
+        <div class="step-item">
+            <div class="step-number">{{ get_svg_icon("alert-circle", "20", "#ffffff") }}</div>
+            <div class="step-content">
+                <h4>{{ get_svg_icon("info", "18", "#f59e0b") }} Información de Proceso No Disponible</h4>
+                <p>Esta técnica no proporcionó información detallada del proceso. Esto puede deberse a que es una
+                    implementación antigua o simplificada.</p>
+                <div class="tech-details">
+                    Método: {{ method }} | Backend: {{ backend }} | Modelo: {{ model }}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
     </div>
 </div>
 {% endif %}
@@ -911,16 +1028,18 @@
         <div class="source-header">
             <span class="source-number">{{ loop.index }}</span>
             <span class="source-doc">
-                {% if source.reference %}
-                {{ source.reference }}
-                {% elif source.page %}
-                {{ source.get("document", "").replace("data/raw/", "").replace(".pdf", "") }} - página {{ source.page }}
+                {% set doc_name = source.document or source.metadata.source_name or "Documento de curso" %}
+                {% if source.page %}
+                {{ doc_name }} (página {{ source.page }})
+                {% elif source.chunk_id %}
+                {{ doc_name }} (sección {{ source.chunk_id }})
                 {% else %}
-                {{ source.get("document", "").replace("data/raw/", "").replace(".pdf", "") }}
+                {{ doc_name }}
                 {% endif %}
-                {% if source.chapter %}, {{ source.chapter }}{% endif %}
+                {% if source.metadata and source.metadata.chapter %}, {{ source.metadata.chapter }}{% endif %}
             </span>
-            <span class="source-similarity">{{ source.similarity }}</span>
+            <span class="source-similarity">{{ "%.3f"|format(source.score) if source.score else source.similarity
+                }}</span>
         </div>
         <div class="source-preview">{{ source.preview or source.content or "" }}</div>
     </div>
@@ -1068,12 +1187,16 @@
         const query = document.getElementById('searchInput').value;
         const backend = document.getElementById('backendSelect').value;
         const model = document.getElementById('modelSelect').value;
+        const distance_metric = document.getElementById('distanceSelect').value;
+        const index_algorithm = document.getElementById('algorithmSelect').value;
 
         if (query.trim()) {
             const params = new URLSearchParams({
                 q: query.trim(),
                 backend: backend,
-                model: model
+                model: model,
+                distance_metric: distance_metric,
+                index_algorithm: index_algorithm
             });
 
             // Detect current route and redirect to the same type

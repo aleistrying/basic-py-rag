@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pipeline Management - RAG Configuration</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e1e2e 0%, #2d3748 100%);
+            color: #f7fafc;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 2.5rem;
+            font-weight: 700;
+        }
+
+        .header p {
+            margin: 10px 0 0 0;
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .section {
+            background: #2d3748;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 25px;
+            border: 1px solid #4a5568;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .section h2 {
+            color: #63b3ed;
+            font-size: 1.8rem;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .config-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .config-card {
+            background: #4a5568;
+            border-radius: 10px;
+            padding: 20px;
+            border: 1px solid #718096;
+        }
+
+        .config-label {
+            color: #e2e8f0;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .config-description {
+            color: #a0aec0;
+            font-size: 0.9rem;
+            margin-bottom: 15px;
+        }
+
+        .config-select,
+        .config-input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #718096;
+            border-radius: 8px;
+            background: #2d3748;
+            color: #e2e8f0;
+            font-size: 14px;
+        }
+
+        .algorithm-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 15px;
+        }
+
+        .algorithm-option {
+            background: #4a5568;
+            border-radius: 8px;
+            padding: 15px;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .algorithm-option.selected {
+            border-color: #63b3ed;
+            background: #2c5aa0;
+        }
+
+        .algorithm-option.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .algorithm-name {
+            font-weight: 600;
+            color: #e2e8f0;
+            font-size: 16px;
+            margin-bottom: 8px;
+        }
+
+        .algorithm-description {
+            color: #cbd5e1;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+
+        .badges {
+            display: flex;
+            gap: 5px;
+            margin-top: 8px;
+        }
+
+        .badge {
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge.qdrant {
+            background: #48bb78;
+            color: white;
+        }
+
+        .badge.pgvector {
+            background: #ed8936;
+            color: white;
+        }
+
+        .actions {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-top: 25px;
+        }
+
+        .btn {
+            padding: 15px 25px;
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+        }
+
+        .btn.primary {
+            background: linear-gradient(135deg, #4299e1, #3182ce);
+            color: white;
+        }
+
+        .btn.secondary {
+            background: linear-gradient(135deg, #48bb78, #38a169);
+            color: white;
+        }
+
+        .btn.warning {
+            background: linear-gradient(135deg, #ed8936, #dd6b20);
+            color: white;
+        }
+
+        .btn.danger {
+            background: linear-gradient(135deg, #f56565, #e53e3e);
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .status-display {
+            background: #1a202c;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 25px;
+            border: 1px solid #4a5568;
+            min-height: 150px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            color: #e2e8f0;
+            white-space: pre-wrap;
+            overflow-y: auto;
+            max-height: 400px;
+        }
+
+        .upload-area {
+            border: 2px dashed #718096;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .upload-area:hover {
+            border-color: #63b3ed;
+            background: rgba(99, 179, 237, 0.1);
+        }
+
+        .file-list {
+            max-height: 150px;
+            overflow-y: auto;
+            border: 1px solid #4a5568;
+            border-radius: 8px;
+            background: #2d3748;
+        }
+
+        .file-item {
+            padding: 10px 15px;
+            border-bottom: 1px solid #4a5568;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .file-item:last-child {
+            border-bottom: none;
+        }
+
+        .remove-btn {
+            background: #f56565;
+            border: none;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .metric-card {
+            background: #2d3748;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+            border: 1px solid #4a5568;
+        }
+
+        .metric-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #63b3ed;
+        }
+
+        .metric-label {
+            color: #a0aec0;
+            font-size: 12px;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .navigation {
+            text-align: center;
+            margin-top: 30px;
+        }
+
+        .nav-link {
+            display: inline-block;
+            padding: 12px 25px;
+            background: #4a5568;
+            color: #e2e8f0;
+            text-decoration: none;
+            border-radius: 8px;
+            margin: 0 10px;
+            transition: all 0.3s ease;
+        }
+
+        .nav-link:hover {
+            background: #718096;
+            transform: translateY(-2px);
+        }
+
+        .loading {
+            display: none;
+            color: #63b3ed;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>{{ get_svg_icon("gear", "24", "#8b5cf6") }} Pipeline Management</h1>
+            <p>Configure RAG algorithms, process documents, and visualize data</p>
+        </div>
+
+        <!-- Algorithm Configuration -->
+        <div class="section">
+            <h2>{{ get_svg_icon("settings-gear", "20", "#8b5cf6") }} Algorithm Configuration</h2>
+
+            <div class="config-grid">
+                <div class="config-card">
+                    <div class="config-label">{{ get_svg_icon("ruler", "16", "#8b5cf6") }} Distance Metric</div>
+                    <div class="config-description">How similarity between vectors is calculated</div>
+                    <select class="config-select" id="distanceMetric">
+                        <option value="cosine">Cosine - Angular similarity (recommended)</option>
+                        <option value="euclidean">Euclidean - Geometric distance</option>
+                        <option value="dot_product">Dot Product - Magnitude similarity</option>
+                        <option value="manhattan">Manhattan - City block distance</option>
+                    </select>
+                </div>
+
+                <div class="config-card">
+                    <div class="config-label">{{ get_svg_icon("hard-drive", "16", "#8b5cf6") }} Database Backend</div>
+                    <div class="config-description">Vector database to use for storage</div>
+                    <select class="config-select" id="databaseBackend">
+                        <option value="both">Both (Qdrant + pgvector)</option>
+                        <option value="qdrant">Qdrant only</option>
+                        <option value="pgvector">pgvector only</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Algorithm Selection -->
+            <div class="algorithm-grid" id="algorithmGrid">
+                <div class="algorithm-option selected" data-algorithm="hnsw">
+                    <div class="algorithm-name">HNSW</div>
+                    <div class="algorithm-description">
+                        Hierarchical Navigable Small World - Best for high-dimensional vectors with fast query speed
+                    </div>
+                    <div class="badges">
+                        <span class="badge qdrant">Qdrant</span>
+                    </div>
+                </div>
+
+                <div class="algorithm-option" data-algorithm="ivfflat">
+                    <div class="algorithm-name">IVFFlat</div>
+                    <div class="algorithm-description">
+                        Inverted File Flat - Good balance of speed and memory usage for medium datasets
+                    </div>
+                    <div class="badges">
+                        <span class="badge pgvector">pgvector</span>
+                    </div>
+                </div>
+
+                <div class="algorithm-option" data-algorithm="scalar_quantization">
+                    <div class="algorithm-name">Scalar Quantization</div>
+                    <div class="algorithm-description">
+                        Memory-efficient compression using int8 quantization for large datasets
+                    </div>
+                    <div class="badges">
+                        <span class="badge qdrant">Qdrant</span>
+                    </div>
+                </div>
+
+                <div class="algorithm-option" data-algorithm="exact">
+                    <div class="algorithm-name">Exact Search</div>
+                    <div class="algorithm-description">
+                        Brute force exact search - Perfect accuracy for small datasets
+                    </div>
+                    <div class="badges">
+                        <span class="badge qdrant">Qdrant</span>
+                        <span class="badge pgvector">pgvector</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Document Upload -->
+        <div class="section">
+            <h2>{{ get_svg_icon("upload", "20", "#8b5cf6") }} Document Upload</h2>
+
+            <div class="upload-area" id="uploadArea">
+                <div>{{ get_svg_icon("folder", "24", "#8b5cf6") }}</div>
+                <div style="margin-top: 10px;">
+                    <strong>Click to upload files</strong> or drag and drop
+                </div>
+                <div style="color: #a0aec0; font-size: 14px; margin-top: 8px;">
+                    Supports PDF, TXT, MD files (max 100MB each)
+                </div>
+                <input type="file" id="fileInput" multiple accept=".pdf,.txt,.md" style="display: none;">
+            </div>
+
+            <div class="file-list" id="fileList" style="display: none; margin-top: 20px;">
+                <!-- Files will be listed here -->
+            </div>
+        </div>
+
+        <!-- Pipeline Actions -->
+        <div class="section">
+            <h2>▶️ Pipeline Actions</h2>
+
+            <div class="actions">
+                <button class="btn primary" onclick="runPipeline()">
+                    <span class="loading" id="pipelineLoading">⏳</span>
+                    {{ get_svg_icon("zap", "16", "#ffffff") }} Run Complete Pipeline
+                </button>
+
+                <button class="btn secondary" onclick="processDocuments()">
+                    {{ get_svg_icon("document", "16", "#ffffff") }} Process Documents Only
+                </button>
+
+                <button class="btn secondary" onclick="generateEmbeddings()">
+                    {{ get_svg_icon("brain", "16", "#ffffff") }} Generate Embeddings
+                </button>
+
+                <button class="btn warning" onclick="clearData()">
+                    {{ get_svg_icon("trash", "16", "#ffffff") }} Clear All Data
+                </button>
+
+                <button class="btn secondary" onclick="viewStats()">
+                    {{ get_svg_icon("chart", "16", "#ffffff") }} View Statistics
+                </button>
+            </div>
+
+            <!-- Status Display -->
+            <div class="status-display" id="statusDisplay">Ready to process documents...
+
+                Configuration:
+                - Distance Metric: Cosine
+                - Index Algorithm: HNSW
+                - Database: Both (Qdrant + pgvector)
+
+                Upload documents and click "Run Complete Pipeline" to start processing.
+            </div>
+        </div>
+
+        <!-- Statistics -->
+        <div class="section">
+            <h2>{{ get_svg_icon("trending-up", "20", "#8b5cf6") }} Statistics & Visualization</h2>
+
+            <div class="metrics" id="metrics">
+                <div class="metric-card">
+                    <div class="metric-value" id="totalDocs">0</div>
+                    <div class="metric-label">Total Documents</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value" id="totalChunks">0</div>
+                    <div class="metric-label">Text Chunks</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value" id="totalEmbeddings">0</div>
+                    <div class="metric-label">Embeddings</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value" id="processingTime">0s</div>
+                    <div class="metric-label">Processing Time</div>
+                </div>
+            </div>
+
+            <div style="margin-top: 20px; text-align: center; color: #a0aec0;">
+                {{ get_svg_icon("chart", "20", "#8b5cf6") }} Interactive visualizations and charts will be displayed
+                here after processing documents
+            </div>
+        </div>
+
+        <!-- Navigation -->
+        <div class="navigation">
+            <a href="/" class="nav-link">{{ get_svg_icon("home", "16", "#8b5cf6") }} Home</a>
+            <a href="/ai?q=What is vector database?" class="nav-link">{{ get_svg_icon("robot", "16", "#8b5cf6") }} AI
+                Chat</a>
+            <a href="/demo/pipeline" class="nav-link">{{ get_svg_icon("zap", "16", "#8b5cf6") }} Pipeline Demo</a>
+        </div>
+    </div>
+
+    <script>
+        // Global state
+        let currentConfig = {
+            distanceMetric: 'cosine',
+            indexAlgorithm: 'hnsw',
+            databaseBackend: 'both'
+        };
+        let uploadedFiles = [];
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function () {
+            initializeEventListeners();
+            updateAlgorithmAvailability();
+            loadStats();
+        });
+
+        function initializeEventListeners() {
+            // Configuration changes
+            document.getElementById('distanceMetric').addEventListener('change', function () {
+                currentConfig.distanceMetric = this.value;
+                updateStatusDisplay();
+            });
+
+            document.getElementById('databaseBackend').addEventListener('change', function () {
+                currentConfig.databaseBackend = this.value;
+                updateAlgorithmAvailability();
+                updateStatusDisplay();
+            });
+
+            // Algorithm selection
+            document.querySelectorAll('.algorithm-option').forEach(option => {
+                option.addEventListener('click', function () {
+                    if (this.classList.contains('disabled')) return;
+
+                    document.querySelectorAll('.algorithm-option').forEach(o => o.classList.remove('selected'));
+                    this.classList.add('selected');
+                    currentConfig.indexAlgorithm = this.dataset.algorithm;
+                    updateStatusDisplay();
+                });
+            });
+
+            // File upload
+            const uploadArea = document.getElementById('uploadArea');
+            const fileInput = document.getElementById('fileInput');
+
+            uploadArea.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', handleFileSelect);
+        }
+
+        function updateAlgorithmAvailability() {
+            const backend = currentConfig.databaseBackend;
+            const algorithms = document.querySelectorAll('.algorithm-option');
+
+            algorithms.forEach(option => {
+                const algorithm = option.dataset.algorithm;
+                let available = false;
+
+                if (backend === 'both') {
+                    available = true;
+                } else if (backend === 'qdrant') {
+                    available = ['hnsw', 'scalar_quantization', 'exact'].includes(algorithm);
+                } else if (backend === 'pgvector') {
+                    available = ['ivfflat', 'exact'].includes(algorithm);
+                }
+
+                if (available) {
+                    option.classList.remove('disabled');
+                } else {
+                    option.classList.add('disabled');
+                    if (option.classList.contains('selected')) {
+                        option.classList.remove('selected');
+                        const firstAvailable = document.querySelector('.algorithm-option:not(.disabled)');
+                        if (firstAvailable) {
+                            firstAvailable.classList.add('selected');
+                            currentConfig.indexAlgorithm = firstAvailable.dataset.algorithm;
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateStatusDisplay() {
+            const status = document.getElementById('statusDisplay');
+            const config = currentConfig;
+
+            const statusText = `Ready to process documents...
+
+Configuration:
+- Distance Metric: ${config.distanceMetric.toUpperCase()}
+- Index Algorithm: ${config.indexAlgorithm.toUpperCase()}
+- Database: ${config.databaseBackend === 'both' ? 'Both (Qdrant + pgvector)' : config.databaseBackend}
+- Collection Suffix: _${config.distanceMetric}_${config.indexAlgorithm}
+
+${uploadedFiles.length > 0 ? `
+Uploaded Files (${uploadedFiles.length}):
+${uploadedFiles.map(f => `- ${f.name} (${formatFileSize(f.size)})`).join('\n')}
+` : ''}
+${uploadedFiles.length > 0 ? 'Click "Run Complete Pipeline" to start processing.' : 'Upload documents first to begin processing.'}`;
+
+            status.textContent = statusText;
+        }
+
+        function handleFileSelect(e) {
+            const files = Array.from(e.target.files);
+            files.forEach(file => {
+                if (file.size > 100 * 1024 * 1024) {
+                    alert(`File ${file.name} is too large. Maximum size is 100MB.`);
+                    return;
+                }
+
+                if (!file.name.match(/\.(pdf|txt|md)$/i)) {
+                    alert(`File ${file.name} is not supported. Use PDF, TXT, or MD files.`);
+                    return;
+                }
+
+                uploadedFiles.push(file);
+            });
+
+            updateFileList();
+            updateStatusDisplay();
+        }
+
+        function updateFileList() {
+            const fileList = document.getElementById('fileList');
+
+            if (uploadedFiles.length === 0) {
+                fileList.style.display = 'none';
+                return;
+            }
+
+            fileList.style.display = 'block';
+            fileList.innerHTML = uploadedFiles.map((file, index) => `
+                <div class="file-item">
+                    <div>
+                        <div style="font-weight: 500;">${file.name}</div>
+                        <div style="font-size: 12px; color: #a0aec0;">${formatFileSize(file.size)}</div>
+                    </div>
+                    <button class="remove-btn" onclick="removeFile(${index})">Remove</button>
+                </div>
+            `).join('');
+        }
+
+        function removeFile(index) {
+            uploadedFiles.splice(index, 1);
+            updateFileList();
+            updateStatusDisplay();
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        async function runPipeline() {
+            if (uploadedFiles.length === 0) {
+                alert('Please upload documents first.');
+                return;
+            }
+
+            const loading = document.getElementById('pipelineLoading');
+            const status = document.getElementById('statusDisplay');
+            loading.style.display = 'inline';
+
+            try {
+                // First, upload files
+                const formData = new FormData();
+                uploadedFiles.forEach(file => {
+                    formData.append('files', file);
+                });
+
+                status.textContent = 'Uploading files...';
+                const uploadResponse = await fetch('/pipeline/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!uploadResponse.ok) {
+                    throw new Error('Failed to upload files');
+                }
+
+                // Run pipeline
+                const pipelineData = new FormData();
+                pipelineData.append('distance_metric', currentConfig.distanceMetric);
+                pipelineData.append('index_algorithm', currentConfig.indexAlgorithm);
+                pipelineData.append('clear_first', 'true');
+
+                status.textContent = 'Running pipeline processing...';
+
+                const response = await fetch('/pipeline/run', {
+                    method: 'POST',
+                    body: pipelineData
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    status.textContent = `Pipeline completed successfully!
+
+Configuration Used:
+- Distance Metric: ${currentConfig.distanceMetric.toUpperCase()}
+- Index Algorithm: ${currentConfig.indexAlgorithm.toUpperCase()}
+- Database: ${currentConfig.databaseBackend}
+
+Results:
+${JSON.stringify(result, null, 2)}`;
+
+                    await loadStats();
+                } else {
+                    throw new Error(result.error || 'Pipeline failed');
+                }
+
+            } catch (error) {
+                status.textContent = `Pipeline Error: ${error.message}`;
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        async function processDocuments() {
+            alert('Document processing feature coming soon!');
+        }
+
+        async function generateEmbeddings() {
+            alert('Embedding generation feature coming soon!');
+        }
+
+        async function clearData() {
+            if (!confirm('Are you sure you want to clear all data? This action cannot be undone.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/pipeline/clear', { method: 'POST' });
+                const result = await response.json();
+
+                if (response.ok) {
+                    document.getElementById('statusDisplay').textContent = 'All data cleared successfully.';
+                    await loadStats();
+                } else {
+                    throw new Error(result.error || 'Failed to clear data');
+                }
+            } catch (error) {
+                alert(`Error clearing data: ${error.message}`);
+            }
+        }
+
+        async function viewStats() {
+            await loadStats();
+        }
+
+        async function loadStats() {
+            try {
+                const response = await fetch('/pipeline/stats');
+                const stats = await response.json();
+
+                document.getElementById('totalDocs').textContent = stats.total_docs || 0;
+                document.getElementById('totalChunks').textContent = stats.total_chunks || 0;
+                document.getElementById('totalEmbeddings').textContent = stats.total_embeddings || 0;
+                document.getElementById('processingTime').textContent = (stats.processing_time || 0) + 's';
+
+            } catch (error) {
+                console.error('Failed to load stats:', error);
+            }
+        }
+    </script>
+</body>
+
+</html>

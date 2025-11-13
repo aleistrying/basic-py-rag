@@ -296,6 +296,38 @@
     <button class="nav-btn" onclick="window.location.href='/'">{{ get_svg_icon("home", "16", "#ffffff") }} Menu
         Principal</button>
 </div>
+<div class="controls-row" style="display: flex; gap: 15px; justify-content: center; margin: 10px 0; flex-wrap: wrap;">
+    <div class="control-group" style="display: flex; align-items: center; gap: 8px;">
+        <label for="backendSelect" style="color: #cbd5e1; font-weight: 600; font-size: 14px;">Motor:</label>
+        <select id="backendSelect"
+            style="padding: 6px 10px; background: #374151; border: 1px solid #4b5563; border-radius: 6px; color: #e5e7eb;">
+            <option value="qdrant" {% if backend=='qdrant' or backend=='QDRANT' %}selected{% endif %}>Qdrant</option>
+            <option value="pgvector" {% if backend=='pgvector' or backend=='PGVECTOR' %}selected{% endif %}>PostgreSQL
+            </option>
+        </select>
+    </div>
+    <div class="control-group" style="display: flex; align-items: center; gap: 8px;">
+        <label for="distanceSelect" style="color: #cbd5e1; font-weight: 600; font-size: 14px;">Métrica:</label>
+        <select id="distanceSelect"
+            style="padding: 6px 10px; background: #374151; border: 1px solid #4b5563; border-radius: 6px; color: #e5e7eb;">
+            <option value="cosine" {% if distance_metric=='cosine' %}selected{% endif %}>Cosine</option>
+            <option value="euclidean" {% if distance_metric=='euclidean' %}selected{% endif %}>Euclidean</option>
+            <option value="dot_product" {% if distance_metric=='dot_product' %}selected{% endif %}>Dot Product</option>
+            <option value="manhattan" {% if distance_metric=='manhattan' %}selected{% endif %}>Manhattan</option>
+        </select>
+    </div>
+    <div class="control-group" style="display: flex; align-items: center; gap: 8px;">
+        <label for="algorithmSelect" style="color: #cbd5e1; font-weight: 600; font-size: 14px;">Algoritmo:</label>
+        <select id="algorithmSelect"
+            style="padding: 6px 10px; background: #374151; border: 1px solid #4b5563; border-radius: 6px; color: #e5e7eb;">
+            <option value="hnsw" {% if index_algorithm=='hnsw' %}selected{% endif %}>HNSW</option>
+            <option value="ivfflat" {% if index_algorithm=='ivfflat' %}selected{% endif %}>IVFFlat</option>
+            <option value="scalar_quantization" {% if index_algorithm=='scalar_quantization' %}selected{% endif %}>
+                Scalar Q</option>
+            <option value="exact" {% if index_algorithm=='exact' %}selected{% endif %}>Exact</option>
+        </select>
+    </div>
+</div>
 <div class="title">
     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2">
         <circle cx="11" cy="11" r="8"></circle>
@@ -418,8 +450,18 @@
 
     function newSearch() {
         const query = document.getElementById('searchInput').value;
+        const backend = document.getElementById('backendSelect').value;
+        const distance_metric = document.getElementById('distanceSelect').value;
+        const index_algorithm = document.getElementById('algorithmSelect').value;
+
         if (query.trim()) {
-            window.location.href = `/ask?q=${encodeURIComponent(query)}`;
+            const params = new URLSearchParams({
+                q: query.trim(),
+                backend: backend,
+                distance_metric: distance_metric,
+                index_algorithm: index_algorithm
+            });
+            window.location.href = `/ask?${params.toString()}`;
         }
     }
 

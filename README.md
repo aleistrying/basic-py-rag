@@ -1,268 +1,167 @@
-# 🚀 RAG Demo - Qdrant vs pgvector
+# Sistema RAG con Bases de Datos Vectoriales
 
-Sistema RAG para comparar **Qdrant** vs **PostgreSQL+pgvector** en búsqueda vectorial.
+**Sistema RAG en español que compara Qdrant vs PostgreSQL para búsqueda semántica.**
 
-## � **SIMPLE DEMO START HERE** → [SIMPLE_DEMO.md](SIMPLE_DEMO.md)
+Perfecto para cursos académicos o para aprender sobre bases de datos vectoriales. Procesa PDFs en español y proporciona búsqueda semántica con respuestas generadas por IA.
 
-✅ **E5 Multilingual Embeddings** - Spanish queries work great  
-✅ **Cosine Similarity Fixed** - Proper 0-1 scoring  
-✅ **One Command Pipeline** - `python3 scripts/ingest_all.py`  
-✅ **Auto Setup** - PostgreSQL + Qdrant ready in 30 seconds
+## Inicio Rápido (5 minutos)
 
-## ⚡ Quick Start
+### 1. Iniciar el Sistema
 
 ```bash
-# 1. Start databases
+git clone https://github.com/aleistrying/basic-py-rag.git
+cd base-de-datos-avanzadas
+
+# Iniciar bases de datos
 docker compose up -d
 
-# 2. Install dependencies
+# Instalar dependencias
 pip install -r requirements.txt
-
-# 3. Ingest data
-python scripts/ingest_qdrant.py
-python scripts/ingest_pgvector.py
-
-# 4. Start API
-source .venv/bin/activate
-python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8080
-
-# 5. Test API
-curl "http://localhost:8080/ask?q=vectores&backend=qdrant&k=3" | python -m json.tool
-curl "http://localhost:8080/compare?q=vectores&k=3" | python -m json.tool
-curl "http://localhost:8080/ai?q=¿Si hoy es 17 de noviembre, cual es la siguiente tarea para entregar en la clase?&backend=qdrant&k=3" | python -m json.tool
 ```
 
-## 📁 Project Structure
-
-```
-├── app/                    # FastAPI application
-│   ├── main.py            # API endpoints
-│   ├── rag.py             # RAG logic
-│   └── *_backend.py       # Database backends
-├── scripts/               # Data ingestion
-├── data/raw/              # Source documents
-└── requirements.txt
-```
-
-## 🔄 Complete Embedding Process (New Unified Pipeline)
-
-### 1. **Document Processing**
+### 2. Procesar tus Documentos
 
 ```bash
-# Enhanced PDF extraction with multiple libraries
-python scripts/main_pipeline.py --config  # Show configuration
-python scripts/main_pipeline.py           # Process documents
-```
-
-**What happens:**
-
-- 📄 **PDF Extraction:** Multi-library fallback (pdfplumber → unstructured → PyMuPDF → PyPDF2)
-- 📊 **Table Detection:** Advanced table extraction and formatting
-- 🧹 **Text Cleaning:** Watermark removal and normalization
-- 📝 **Text Files:** Markdown and plain text processing
-- 💾 **Output:** Clean JSONL files per document
-
-### 2. **Text Chunking**
-
-```bash
-# Smart chunking with overlap
-python scripts/main_pipeline.py --memory-safe
-```
-
-**What happens:**
-
-- ✂️ **Smart Splitting:** Paragraph → sentence → character fallbacks
-- 📏 **Size Control:** 200-800 character chunks with overlap
-- 📊 **Metadata:** Source, page, chunk_id, extractor info
-- 💾 **Output:** `.chunks.jsonl` files ready for embedding
-
-### 3. **Embedding Generation**
-
-```bash
-# E5 multilingual embeddings with proper prefixes
+# Esto procesa todos los PDFs en data/raw/ y configura ambas bases de datos
 python scripts/main_pipeline.py --clear
 ```
 
-**What happens:**
+**Qué hace esto:** Extrae texto de PDFs → Crea embeddings → Almacena en Qdrant + PostgreSQL
 
-- 🤖 **Model:** `intfloat/multilingual-e5-base` (768 dimensions)
-- 🏷️ **Prefixes:** `passage: ` for documents, `query: ` for searches
-- 📐 **Normalization:** L2 normalization for cosine similarity
-- 🔢 **Batch Processing:** Memory-efficient batch embedding
-- 💾 **Output:** Normalized vector embeddings
-
-### 4. **Database Storage**
+### 4. Probar que Funciona
 
 ```bash
-# Dual database upsert with metadata
-python scripts/main_pipeline.py --clear --memory-safe
+# Búsqueda básica
+curl "http://localhost:8080/ask?q=vectores&backend=qdrant"
+
+# Respuesta generada por IA (requiere Ollama - ver abajo)
+curl "http://localhost:8080/ai?q=¿Qué son las bases de datos vectoriales?"
+
+# Comparar ambas bases de datos
+curl "http://localhost:8080/compare?q=bases de datos vectoriales"
 ```
 
-**What happens:**
+## Demostración para Aulas
 
-- 🗄️ **Qdrant:** Vector storage with payload metadata
-- 🐘 **PostgreSQL:** pgvector with JSON metadata
-- 🔍 **Indexing:** HNSW indices for fast similarity search
-- 📊 **Verification:** Final count verification for both databases
-
-### 5. **Query Processing**
+Perfecto para enseñar bases de datos vectoriales:
 
 ```bash
-# Search with proper query embedding
-curl "http://localhost:8080/ask?q=vectores&backend=qdrant&k=3"
+# Visitar en navegador (excelente para proyección):
+http://localhost:8080/manual/demo?q=bases%20de%20datos%20vectoriales
+
+# Muestra paso a paso cómo el texto se convierte en vectores y cómo funciona la búsqueda
 ```
 
-**What happens:**
+## Lo que Obtienes
 
-- 🏷️ **Query Prefix:** Adds `query: ` prefix for E5 model
-- 🔍 **Vector Search:** Cosine similarity search in database
-- 📊 **Reranking:** MMR algorithm for result diversity
-- 🎯 **Response:** Relevant chunks with metadata and scores
+- **Procesamiento de PDFs:** Extrae texto de documentos académicos en español
+- **Búsqueda Semántica:** Encuentra documentos por significado, no solo palabras clave
+- **Respuestas con IA:** Obtiene respuestas generadas por IA con citas de fuentes
+- **Comparación de Bases de Datos:** Resultados lado a lado de Qdrant vs PostgreSQL
+- **Herramientas de Enseñanza:** Demos basados en navegador perfectos para uso en aulas
 
-## 🔥 API Endpoints
+## Características Avanzadas
 
-### Single Backend Search
+### Filtrado por Metadatos
 
 ```bash
-curl "http://localhost:8080/ask?q=vectores&backend=qdrant&k=3"
+# Buscar solo en documentos PDF
+curl "http://localhost:8080/ask?q=proyecto&document_type=pdf"
+
+# Buscar secciones específicas del curso
+curl "http://localhost:8080/ask?q=evaluacion&section=objetivos"
+
+# Combinar múltiples filtros
+curl "http://localhost:8080/ask?q=vectores&document_type=pdf&section=objetivos"
 ```
 
-### AI-Powered RAG (requires Ollama)
+### Búsqueda con IA (Opcional)
+
+Requiere [Ollama](https://ollama.com/) para modelos de IA locales:
 
 ```bash
-#Que es el hipercubo? PG VS cuadrant
-http://localhost:8080/ai?q=%C2%BFque%20es%20el%20hipercubo?&backend=qdrant&k=3
-
-http://localhost:8080/ai?q=%C2%BFque%20es%20el%20hipercubo?&backend=pgvector&k=3
-
-# Cuales son los objetivos del curso de base de datos avanzados 8b
-http://localhost:8080/ai?q=%C2%BFcuales%20son%20los%20objetivos%20del%20curso%20de%20base%20de%20datos%20avanzados&backend=qdrant&k=3&model=llama3.1:8b
-
-curl "http://localhost:8080/ai?q=¿Qué son las bases de datos vectoriales?&backend=qdrant&k=3&model=phi3:mini"
-```
-
-http://localhost:8080/ai?q=%C2%BFSi%20hoy%20es%2017%20de%20noviembre,%20cual%20es%20la%20siguiente%20tarea%20para%20entregar%20en%20la%20clase?&backend=qdrant&k=3&model=gemma2:2b
-
-### Side-by-Side Comparison
-
-```bash
-curl "http://localhost:8080/compare?q=vectores&k=3"
-```
-
-### Example Responses
-
-#### RAG Search Response
-
-```json
-{
-  "query": "vectores",
-  "backend": "QDRANT",
-  "total_results": 3,
-  "results": [
-    {
-      "document": "introduccion_vectores.md",
-      "similarity": "0.407",
-      "preview": "Las bases de datos vectoriales son sistemas..."
-    }
-  ]
-}
-```
-
-#### AI-Powered Response
-
-```json
-{
-  "query": "¿Qué son las bases de datos vectoriales?",
-  "backend": "QDRANT",
-  "model": "phi3:mini",
-  "ai_response": "Las bases de datos vectoriales son sistemas especializados diseñados para almacenar y consultar vectores de alta dimensión de manera eficiente...",
-  "total_results": 3,
-  "sources": [...],
-  "fallback_mode": false
-}
-```
-
-## ⚖️ Backend Comparison
-
-| Feature                | Qdrant        | PostgreSQL+pgvector |
-| ---------------------- | ------------- | ------------------- |
-| **Specialization**     | Vector-native | SQL + vectors       |
-| **API**                | REST          | SQL queries         |
-| **ACID**               | ❌            | ✅                  |
-| **Metadata filtering** | Advanced      | JSONB               |
-| **Ecosystem**          | ML-focused    | Enterprise SQL      |
-
-## 🤖 Ollama Setup (Optional - for AI endpoints)
-
-### Install Ollama
-
-```bash
-# Linux/macOS
+# Instalar Ollama
 curl -fsSL https://ollama.com/install.sh | sh
 
-# Or download from: https://ollama.com/download
-```
-
-### Pull and Run Models
-
-```bash
-# Pull phi3:mini (recommended, ~2GB)
+# Descargar un modelo
 ollama pull phi3:mini
-curl http://localhost:11434/api/pull -d '{"name":"llama3.1:8b-instruct"}'
 
-# Alternative models
-ollama pull llama2:7b-chat    # ~4GB
-ollama pull mistral:7b        # ~4GB
-
-# List available models
-ollama list
+# Probar endpoint de IA
+curl "http://localhost:8080/ai?q=¿Cuáles son los objetivos del curso?"
 ```
 
-### Start Ollama Service
+## Archivos Principales
 
-```bash
-# Start Ollama (usually auto-starts)
-ollama serve
-
-# Test Ollama is working
-curl http://localhost:11434/api/tags
+```
+├── scripts/main_pipeline.py    # Pipeline principal de procesamiento
+├── app/main.py                 # Servidor API
+├── docker-compose.yml          # Configuración de bases de datos
+├── requirements.txt            # Dependencias
+└── data/raw/                   # Coloca tus PDFs aquí
 ```
 
-### Memory Issues?
+## Características de Rendimiento
 
-If you get "model requires more system memory":
+- **Procesamiento Paralelo:** Optimizado para sistemas multi-núcleo
+- **Seguridad de Memoria:** Maneja documentos grandes eficientemente
+- **Procesamiento por Lotes:** Generación rápida de embeddings
+- **Almacenamiento Dual:** Qdrant para velocidad, PostgreSQL para integración SQL
+
+## Casos de Uso
+
+- **Investigación Académica:** Busca a través de materiales de curso semánticamente
+- **Análisis de Documentos:** Encuentra contenido relevante en grandes colecciones
+- **Búsqueda Semántica:** Va más allá de coincidencias de palabras clave hacia búsqueda por significado
+- **Asistentes de IA:** Construye chatbots conscientes del contexto con respaldo documental
+- **Educación:** Enseña conceptos de bases de datos vectoriales con ejemplos prácticos
+
+## Comparación de Bases de Datos
+
+| Característica            | Qdrant           | PostgreSQL + pgvector |
+| ------------------------- | ---------------- | --------------------- |
+| **Velocidad**             | Rápida           | Buena                 |
+| **Enfoque Vectorial**     | Nativo           | Extensión             |
+| **Integración SQL**       | Solo REST        | SQL completo          |
+| **Filtrado de Metadatos** | Avanzado         | JSONB                 |
+| **Curva de Aprendizaje**  | Conceptos nuevos | SQL familiar          |
+
+## Solución de Problemas
+
+**¿Los documentos no se procesan?**
+
+- Verifica que los PDFs estén en `data/raw/`
+- Ejecuta con la bandera `--force` para reprocesar
+
+**¿La API no inicia?**
+
+- Verifica las bases de datos: `docker compose ps`
+- Verifica que el puerto 8080 esté libre
+
+**¿Ollama no responde?**
+
+- Asegúrate de que Ollama esté instalado y el modelo descargado
+- Reinicia el servicio Ollama si es necesario
+
+**No tengo GPU, ¿funcionará?**
+
+- Sí, todo funciona en CPU, pero mucho más lento y con menos capacidad de modelo
+- Se debe cambiar el docker-compose para no usar CUDA si no hay GPU disponible
+- Modelo recomendado para CPUs Bajo rendimiento: `phi3:mini` o Alto rendimiento: `phi3`
+
+**¿Resultados de búsqueda pobres?**
+
+- Prueba diferentes backends: `&backend=pgvector`
+- Usa filtros: `&document_type=pdf`
+
+**¿Necesitas ayuda?** Revisa los logs detallados:
 
 ```bash
-# Use smaller models
-ollama pull phi3:mini         # Smallest option
-ollama pull qwen2:0.5b       # Even smaller if available
-
-# Or configure Ollama with less GPU memory
-export OLLAMA_NUM_GPU=0      # Use CPU only
-ollama serve
-```
-
-## 🛠️ Useful Commands
-
-```bash
-# Check services
-docker compose ps
-
-# View logs
 docker compose logs -f
-
-# Clean restart
-docker compose down -v && docker compose up -d
-
-# Count documents
-curl -s http://localhost:6333/collections/docs_qdrant | jq '.result.points_count'
-
-# Test Ollama
-curl http://localhost:11434/api/tags
+python scripts/main_pipeline.py --stats
 ```
 
-## � Links
+---
 
-- [Qdrant Docs](https://qdrant.tech/documentation/)
-- [pgvector GitHub](https://github.com/pgvector/pgvector)
-- [FastAPI Docs](https://fastapi.tiangolo.com/)
+**Objetivo:** Llevarte de cero a un sistema de búsqueda semántica funcional en 5 minutos. Todo lo demás son mejoras opcionales.
+
+---

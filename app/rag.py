@@ -162,7 +162,11 @@ def extract_content_metadata(content: str) -> dict:
     return metadata
 
 
-def search_knowledge_base(query: str, backend: str = "qdrant", k: int = 5, filters: dict = None) -> dict:
+def search_knowledge_base(query: str, backend: str = "qdrant", k: int = 5, filters: dict = None,
+                          distance_metric: str = "cosine", index_algorithm: str = "hnsw", collection_suffix: str = None) -> dict:
+    import time
+    start_time = time.time()
+
     # Validate backend name
     if backend not in BACKENDS:
         available_backends = list(BACKENDS.keys())
@@ -182,19 +186,38 @@ def search_knowledge_base(query: str, backend: str = "qdrant", k: int = 5, filte
     else:
         emb = embed_e5([expanded_query], is_query=True)[0]
 
-    # Pass filters to the backend search function
+    # Pass filters and collection_suffix to the backend search function
     if backend == "qdrant":
-        hits = BACKENDS[backend](emb, k=k, where=filters)
+        hits = BACKENDS[backend](
+            emb, k=k, where=filters, collection_suffix=collection_suffix)
     else:  # pgvector
-        hits = BACKENDS[backend](emb, k=k, where=filters)
+        hits = BACKENDS[backend](
+            emb, k=k, where=filters, collection_suffix=collection_suffix)
+
+    # Calculate search time
+    search_time_ms = round((time.time() - start_time) * 1000, 1)
 
     # Create a presentation-friendly response
     results = []
     for hit in hits:
         content = hit.get('content', '') or ''  # Handle None content
 
-        # Enhanced document information
-        doc_name = hit['path'].replace('./data/raw/', '').replace('.pdf', '')
+        # Enhanced document information - safely get path and fallback to metadata
+        path = hit.get('path', hit.get('source_path', ''))
+        metadata = hit.get('metadata', {})
+
+        # Try to get clean document name from multiple sources
+        if metadata.get('source_name'):
+            doc_name = metadata['source_name'].replace('.pdf', '')
+        elif path:
+            doc_name = path.replace(
+                './data/raw/', '').replace('data/raw/', '').replace('.pdf', '')
+        else:
+            doc_name = 'Documento de curso'
+
+        # Clean the document name for the "document" field - just the filename
+        clean_document_name = doc_name.replace(
+            '.pdf', '') if doc_name else 'Documento de curso'
 
         # Build enhanced reference with page/section info
         reference_parts = [doc_name]
@@ -222,13 +245,12 @@ def search_knowledge_base(query: str, backend: str = "qdrant", k: int = 5, filte
 
         reference = " - ".join(reference_parts) + chapter_info + section_info
 
-        # Extract metadata for better context
-        metadata = hit.get('metadata', {})
+        # Extract additional metadata for better context
         quality_score = metadata.get('quality_score', 0)
         extractor_used = metadata.get('extractor', 'unknown')
 
         results.append({
-            "document": hit['path'].replace('./data/raw/', ''),
+            "document": clean_document_name,
             "reference": reference,
             "page": hit.get('page'),
             "chapter": chapter_info.replace(", ", "") if chapter_info else None,
@@ -236,21 +258,35 @@ def search_knowledge_base(query: str, backend: str = "qdrant", k: int = 5, filte
             "similarity": f"{hit['score']:.3f}",
             "quality": f"{quality_score:.2f}" if quality_score > 0 else "N/A",
             "extractor": extractor_used,
-            "preview": content[:120] + "..." if len(content) > 120 else content
+            "preview": content[:120] + "..." if len(content) > 120 else content,
+            # Add the original fields from backend for template compatibility
+            "path": path,
+            "content": content,
+            "score": hit.get('score')
         })
 
     return {
         "query": query,
         "expanded_query": expanded_query if expanded_query != query else None,
         "backend": backend.upper(),
+        "backend_info": {
+            "search_time_ms": search_time_ms,
+            "distance_metric": distance_metric,
+            "index_algorithm": index_algorithm,
+            "collection_suffix": collection_suffix
+        },
         "filters_applied": filters or {},
         "total_results": len(results),
         "results": results
     }
 
 
-def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: str = "gemma2:2b", filters: dict = None):
+def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: str = "gemma2:2b", filters: dict = None,
+                        distance_metric: str = "cosine", index_algorithm: str = "hnsw", collection_suffix: str = None):
     """Generate AI response using RAG + LLM with improved reranking and query expansion"""
+    import time
+    start_time = time.time()
+
     if ollama is None:
         raise ImportError(
             "Ollama package not installed. Install with: pip install ollama")
@@ -276,9 +312,11 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
 
     # Get more results for reranking (12-16 results for better coverage)
     if backend == "qdrant":
-        hits = BACKENDS[backend](emb, k=max(k*3, 12), where=filters)
+        hits = BACKENDS[backend](emb, k=max(
+            k*3, 12), where=filters, collection_suffix=collection_suffix)
     else:  # pgvector
-        hits = BACKENDS[backend](emb, k=max(k*3, 12), where=filters)
+        hits = BACKENDS[backend](emb, k=max(
+            k*3, 12), where=filters, collection_suffix=collection_suffix)
 
     # Prepare candidates for reranking
     candidates = []
@@ -305,11 +343,19 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
 
         # Enhanced document information with rich metadata extraction
         import re
-        doc_path = item['path'].replace('./data/raw/', '').replace('.pdf', '')
+        # Clean document path properly
+        raw_path = item['path']
+        doc_path = raw_path.replace(
+            './data/raw/', '').replace('data/raw/', '').replace('.pdf', '')
         metadata = item.get('metadata', {})
 
+        # Also try to get clean name from metadata if available
+        if metadata.get('source_name'):
+            clean_doc_name = metadata['source_name'].replace('.pdf', '')
+        else:
+            clean_doc_name = doc_path
         # Extract document metadata from filename
-        doc_metadata = extract_document_metadata(doc_path)
+        doc_metadata = extract_document_metadata(clean_doc_name)
 
         # Look for chapter and topic information in content
         content_metadata = extract_content_metadata(content)
@@ -347,7 +393,7 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
             detailed_parts) if detailed_parts else clean_reference
 
         results.append({
-            "document": doc_path,
+            "document": clean_doc_name,
             "reference": clean_reference,  # Clean reference without file path
             "detailed_reference": enhanced_reference,  # Full reference with all metadata
             "page": item.get('page'),
@@ -392,39 +438,79 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
         # Extract the generated text
         generated_text = response.get('response', '').strip()
 
-        # Build enhanced source attribution footer with clean references
+        # Build enhanced source attribution footer with full metadata
         source_references = []
         for i, result in enumerate(results[:3], 1):  # Show top 3 sources
-            # Use the clean reference that doesn't include file path
-            clean_ref = result.get('reference', 'Documento de curso')
-            source_references.append(f"{i}. {clean_ref}")
+            # Build comprehensive reference from available metadata
+            path = result.get('path', result.get('source_path', ''))
+            doc_name = path.replace(
+                'data/raw/', '').replace('.pdf', '').replace('./', '')
 
-        # Add enhanced footer to the response
+            # Add page information if available
+            page_info = ""
+            if result.get('page'):
+                page_info = f" (página {result['page']})"
+            elif result.get('chunk_id'):
+                page_info = f" (sección {result['chunk_id']})"
+
+            # Add any chapter or additional metadata
+            metadata = result.get('metadata', {})
+            chapter_info = ""
+            if metadata.get('chapter'):
+                chapter_info = f", {metadata['chapter']}"
+            elif metadata.get('section'):
+                chapter_info = f", {metadata['section']}"
+
+            # Create full reference
+            full_ref = f"{doc_name}{page_info}{chapter_info}"
+            source_references.append(f"{i}. {full_ref}")
+
+        # Add enhanced footer to the response - using markdown formatting
         if source_references:
             sources_text = "\n".join(source_references)
-            enhanced_response = f"{generated_text}\n\n\n<b>Fuentes consultadas:</b>\n{sources_text}"
+            enhanced_response = f"{generated_text}\n\n\n**Fuentes consultadas:**\n{sources_text}"
         else:
             enhanced_response = generated_text
+
+        # Calculate total processing time
+        total_time_ms = round((time.time() - start_time) * 1000, 1)
 
         return {
             "query": query,
             "expanded_query": expanded_query if expanded_query != query else None,
             "backend": backend.upper(),
+            "backend_info": {
+                "search_time_ms": total_time_ms,
+                "distance_metric": distance_metric,
+                "index_algorithm": index_algorithm,
+                "collection_suffix": collection_suffix
+            },
             "model": model,
             "filters_applied": filters or {},
             "ai_response": enhanced_response,
+            "answer": enhanced_response,  # Add answer field for consistency
             "total_results": len(results),
             "sources": results,
+            "results": results,  # Add results field for consistency
             "prompt_used": prompt
         }
 
     except Exception as e:
         logging.error(f"Ollama API error: {e}")
+        # Calculate time even for error case
+        total_time_ms = round((time.time() - start_time) * 1000, 1)
+
         # Fallback to RAG-only response if LLM fails
         return {
             "query": query,
             "expanded_query": expanded_query if expanded_query != query else None,
             "backend": backend.upper(),
+            "backend_info": {
+                "search_time_ms": total_time_ms,
+                "distance_metric": distance_metric,
+                "index_algorithm": index_algorithm,
+                "collection_suffix": collection_suffix
+            },
             "model": model,
             "filters_applied": filters or {},
             "ai_response": f"❌ LLM Error: {str(e)}. Here are the related documents:",
