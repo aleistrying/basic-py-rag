@@ -38,23 +38,24 @@ logger = logging.getLogger(__name__)
 
 BACKENDS = {"qdrant": search_qdrant, "pgvector": search_pgvector}
 
-# Improved prompt template for AI answer generation
-PROMPT_TEMPLATE = """Eres un asistente académico. Responde de forma directa y concisa usando SOLO la información de los fragmentos.
+# Improved prompt template for AI answer generation - STRICT fact-only version
+PROMPT_TEMPLATE = """Eres un asistente académico especializado. Responde ÚNICAMENTE basándote en los fragmentos proporcionados.
 
-Pregunta: {q}
+Pregunta del usuario: {q}
 
-Fragmentos relevantes:
+Fragmentos de documentos disponibles:
 {sources}
 
-Instrucciones:
-- Da una respuesta clara y directa
-- Usa fechas, números y nombres exactos de los fragmentos
-- Si la información no está en los fragmentos, responde: "No está disponible."
-- Solo menciona el documento si es relevante para entender la respuesta
-- NO incluyas referencias bibliográficas completas ni autores irrelevantes
-- Responde en español, de forma natural y concisa
+INSTRUCCIONES ESTRICTAS:
+- SOLO usa información que aparezca textualmente en los fragmentos
+- Si la información no está en los fragmentos, responde: "La información solicitada no está disponible en los documentos consultados."
+- NO inventes, asumas o extrapoles información
+- USA datos exactos: fechas, números, nombres tal como aparecen en los fragmentos
+- Cita el documento fuente cuando sea relevante para la comprensión
+- Mantén el idioma español académico y profesional
+- Sé específico y preciso con los detalles disponibles
 
-Respuesta:
+Respuesta basada en los fragmentos:
 """
 
 
@@ -63,16 +64,16 @@ def generate_ai_answer_from_results(
     results: List[Dict],
     model: str = "phi3:mini"
 ) -> str:
-    """Generate AI answer from search results using LLM."""
+    """Generate AI answer from search results using LLM with strict fact-only guidelines."""
     if not ollama or not results:
-        return "No se pudo generar una respuesta AI."
+        return "No se pudo generar una respuesta AI. Servicio de IA no disponible o sin resultados."
 
     # Build context from results
     context = build_context(results, max_tokens=1500)
     if not context.strip():
-        return "No se encontró contexto suficiente para generar una respuesta."
+        return "No se encontró contexto suficiente para generar una respuesta basada en los documentos."
 
-    # Generate answer using LLM
+    # Generate answer using LLM with strict guidelines
     prompt = PROMPT_TEMPLATE.format(q=query, sources=context)
 
     try:
@@ -83,16 +84,37 @@ def generate_ai_answer_from_results(
             model=model,
             prompt=prompt,
             options={
-                "temperature": 0.3,
-                "num_predict": 300
+                "temperature": 0.1,  # Lower temperature for more factual responses
+                "num_predict": 400,  # Increased length for detailed responses
+                "top_p": 0.8,        # More focused sampling
+                "repeat_penalty": 1.1
             }
         )
 
-        return response['response'].strip()
+        answer = response['response'].strip()
+
+        # Ensure response is in Spanish if it appears to be in English
+        if len(answer) > 10 and answer.count(' ') > 2:
+            # Simple heuristic to check for English responses
+            english_indicators = ['the', 'and', 'or',
+                                  'is', 'are', 'was', 'were', 'this', 'that']
+            spanish_indicators = ['el', 'la', 'y', 'o', 'es',
+                                  'son', 'fue', 'era', 'esto', 'eso', 'los', 'las']
+
+            words = answer.lower().split()[:20]  # Check first 20 words
+            english_count = sum(
+                1 for word in words if word in english_indicators)
+            spanish_count = sum(
+                1 for word in words if word in spanish_indicators)
+
+            if english_count > spanish_count and english_count > 2:
+                return "La respuesta debe generarse en español. Los documentos contienen información relevante pero la respuesta se generó en inglés. Por favor, reintente la consulta."
+
+        return answer
 
     except Exception as e:
         logger.error(f"Error generating AI answer: {e}")
-        return f"Error generando respuesta: {str(e)}"
+        return f"Error al generar respuesta AI: {str(e)}"
 
 
 # ============================================================================
@@ -223,6 +245,7 @@ def multi_query_search(
 ) -> Dict[str, Any]:
     """
     Perform multi-query search with query rephrasing and RRF fusion.
+    Enhanced with comprehensive timing and debugging information.
 
     Args:
         query: Original user query
@@ -233,14 +256,24 @@ def multi_query_search(
         filters: Optional metadata filters
 
     Returns:
-        Enhanced search results with RRF scores
+        Enhanced search results with RRF scores and detailed timing
     """
-    # Generate query variations
-    queries = generate_query_variations(query, model, num_variations)
+    import time
+    start_time = time.time()
 
-    # Perform search for each query variation
+    # Step 1: Generate query variations (with timing)
+    variation_start = time.time()
+    queries = generate_query_variations(query, model, num_variations)
+    variation_time = round((time.time() - variation_start) * 1000, 1)
+
+    # Step 2: Perform search for each query variation (with timing)
+    search_start = time.time()
     all_results = []
-    for q in queries:
+    individual_search_times = []
+
+    for i, q in enumerate(queries):
+        individual_start = time.time()
+
         # Embed and search
         if embed_query_clean:
             emb = embed_query_clean(q)
@@ -248,26 +281,103 @@ def multi_query_search(
             emb = embed_e5([q], is_query=True)[0]
 
         results = BACKENDS[backend](emb, k=k, where=filters)
-        all_results.append(results)
+        all_results.append({
+            "query": q,
+            "query_number": i + 1,
+            "is_original": i == 0,
+            "results": results,
+            "results_count": len(results)
+        })
 
-    # Apply RRF fusion
-    fused_results = reciprocal_rank_fusion(all_results, k=60)
+        individual_time = round((time.time() - individual_start) * 1000, 1)
+        individual_search_times.append(individual_time)
 
-    # Generate AI answer from fused results
+    search_time = round((time.time() - search_start) * 1000, 1)
+
+    # Step 3: Apply RRF fusion (with timing)
+    fusion_start = time.time()
+    result_lists = [item["results"] for item in all_results]
+    fused_results = reciprocal_rank_fusion(result_lists, k=60)
+    fusion_time = round((time.time() - fusion_start) * 1000, 1)
+
+    # Step 4: Generate AI answer from fused results (with timing)
+    answer_start = time.time()
     ai_answer = generate_ai_answer_from_results(
         query, fused_results[:k], model)
+    answer_time = round((time.time() - answer_start) * 1000, 1)
+
+    # Calculate total time
+    total_time = round((time.time() - start_time) * 1000, 1)
 
     return {
         "query": query,
-        "query_variations": queries[1:],  # Exclude original
-        "backend": backend.upper(),
         "method": "Multi-Query + RRF",
         "model": model,
-        "total_queries": len(queries),
+        "backend": backend.upper(),
+
+        # Core results
         "ai_response": ai_answer,
         "sources": fused_results[:k],
         "results": fused_results[:k],
-        "total_results": len(fused_results[:k])
+        "total_results": len(fused_results[:k]),
+
+        # Query variation details
+        "query_variations": queries[1:],  # Exclude original
+        "total_queries": len(queries),
+        "variation_details": all_results,
+
+        # Comprehensive timing breakdown
+        "timing": {
+            "total_time_ms": total_time,
+            "variation_generation_ms": variation_time,
+            "search_time_ms": search_time,
+            "fusion_time_ms": fusion_time,
+            "answer_generation_ms": answer_time,
+            "individual_search_times_ms": individual_search_times
+        },
+
+        # Process steps for debugging/learning
+        "process_steps": [
+            {
+                "step": 1,
+                "name": "Generación de Variaciones",
+                "description": f"Se generaron {num_variations} reformulaciones de la consulta usando {model}",
+                "time_ms": variation_time,
+                "output": f"Consultas totales: {len(queries)} (1 original + {len(queries)-1} variaciones)"
+            },
+            {
+                "step": 2,
+                "name": "Búsqueda Vectorial Múltiple",
+                "description": f"Cada consulta fue embebida y buscada independientemente en {backend}",
+                "time_ms": search_time,
+                "output": f"{len(queries)} búsquedas × {k} resultados máx. = {sum(item['results_count'] for item in all_results)} fragmentos totales"
+            },
+            {
+                "step": 3,
+                "name": "Fusión RRF",
+                "description": "Los resultados se fusionaron usando Reciprocal Rank Fusion con k=60",
+                "time_ms": fusion_time,
+                "output": f"Fragmentos únicos después de fusión: {len(fused_results)}"
+            },
+            {
+                "step": 4,
+                "name": "Generación de Respuesta",
+                "description": f"Se generó respuesta final usando {model} con los mejores {k} fragmentos",
+                "time_ms": answer_time,
+                "output": f"Respuesta generada basada en {len(fused_results[:k])} fuentes"
+            }
+        ],
+
+        # Technical metadata
+        "technical_details": {
+            "rrf_k_parameter": 60,
+            "fusion_method": "Reciprocal Rank Fusion",
+            "embedding_model": "multilingual-e5-base",
+            "filters_applied": filters or {},
+            "temperature_used": 0.7,
+            "variations_requested": num_variations,
+            "variations_generated": len(queries) - 1
+        }
     }
 
 
@@ -351,7 +461,7 @@ def decomposed_search(
     synthesize: bool = True
 ) -> Dict[str, Any]:
     """
-    Perform search using query decomposition strategy.
+    Perform search using query decomposition strategy with comprehensive debugging info.
 
     Args:
         query: Complex user query
@@ -362,16 +472,24 @@ def decomposed_search(
         synthesize: Whether to synthesize final answer from sub-results
 
     Returns:
-        Comprehensive results with synthesis
+        Comprehensive results with synthesis and detailed timing
     """
-    # Decompose query
-    sub_questions = decompose_query(query, model)
+    import time
+    start_time = time.time()
 
-    # Search for each sub-question
+    # Step 1: Decompose query (with timing)
+    decomposition_start = time.time()
+    sub_questions = decompose_query(query, model)
+    decomposition_time = round((time.time() - decomposition_start) * 1000, 1)
+
+    # Step 2: Search for each sub-question (with timing)
+    search_start = time.time()
     sub_results = []
     all_documents = []
 
-    for sub_q in sub_questions:
+    for i, sub_q in enumerate(sub_questions):
+        sub_search_start = time.time()
+
         # Embed and search
         if embed_query_clean:
             emb = embed_query_clean(sub_q)
@@ -379,13 +497,21 @@ def decomposed_search(
             emb = embed_e5([sub_q], is_query=True)[0]
 
         results = BACKENDS[backend](emb, k=k, where=filters)
+        sub_search_time = round((time.time() - sub_search_start) * 1000, 1)
+
         sub_results.append({
             "sub_question": sub_q,
-            "results": results[:3]  # Top 3 per sub-question
+            "sub_question_number": i + 1,
+            "results": results[:3],  # Top 3 per sub-question for display
+            "total_found": len(results),
+            "search_time_ms": sub_search_time
         })
         all_documents.extend(results)
 
-    # Deduplicate and rerank all documents
+    search_time = round((time.time() - search_start) * 1000, 1)
+
+    # Step 3: Deduplicate and rerank (with timing)
+    rerank_start = time.time()
     unique_docs = {
         f"{doc.get('path', '')}:{doc.get('chunk_id', doc.get('page', ''))}": doc
         for doc in all_documents
@@ -408,29 +534,35 @@ def decomposed_search(
     else:
         final_results = list(unique_docs.values())[:k]
 
-    # Synthesize final answer if requested
+    rerank_time = round((time.time() - rerank_start) * 1000, 1)
+
+    # Step 4: Synthesize final answer if requested (with timing)
+    synthesis_start = time.time()
     synthesized_answer = None
+    synthesis_time = 0
+
     if synthesize and ollama:
         try:
             context = build_context(final_results, max_tokens=1500)
-            synthesis_prompt = f"""Responde la siguiente pregunta compleja usando SOLO la información de los fragmentos proporcionados.
+            synthesis_prompt = f"""Responde la siguiente pregunta compleja usando ÚNICAMENTE la información de los fragmentos proporcionados.
 
 Pregunta original: {query}
 
 Sub-preguntas analizadas:
 {chr(10).join(f"- {sq}" for sq in sub_questions)}
 
-Fragmentos relevantes:
+Fragmentos relevantes encontrados:
 {context}
 
-Instrucciones:
-- Proporciona una respuesta completa y coherente
-- Integra información de todos los sub-temas relevantes
+INSTRUCCIONES ESTRICTAS:
+- SOLO usa información que aparezca textualmente en los fragmentos
+- Integra información de todos los sub-temas relevantes disponibles
 - Usa fechas, números y nombres exactos de los fragmentos
-- Si alguna parte no se puede responder con los fragmentos, indícalo claramente
-- Mantén un tono académico y profesional
+- Si alguna parte no se puede responder con los fragmentos, indica claramente: "Esta información no está disponible en los documentos consultados"
+- Mantén un tono académico y profesional en español
+- NO inventes o asumas información no presente en los fragmentos
 
-Respuesta completa:
+Respuesta integral basada en los fragmentos:
 """
 
             ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
@@ -440,8 +572,10 @@ Respuesta completa:
                 model=model,
                 prompt=synthesis_prompt,
                 options={
-                    "temperature": 0.5,
-                    "num_predict": 400
+                    "temperature": 0.1,  # Lower for factual synthesis
+                    "num_predict": 500,
+                    "top_p": 0.8,
+                    "repeat_penalty": 1.1
                 }
             )
 
@@ -449,23 +583,85 @@ Respuesta completa:
 
         except Exception as e:
             logger.error(f"Synthesis failed: {e}")
+            synthesized_answer = f"Error en la síntesis: {str(e)}"
+
+    synthesis_time = round((time.time() - synthesis_start) * 1000, 1)
 
     # Use synthesized answer or fallback to generated answer
     ai_answer = synthesized_answer or generate_ai_answer_from_results(
         query, final_results, model)
 
+    # Calculate total time
+    total_time = round((time.time() - start_time) * 1000, 1)
+
     return {
         "query": query,
         "method": "Query Decomposition",
         "model": model,
-        "sub_questions": sub_questions,
-        "sub_results": sub_results,
-        "ai_response": ai_answer,
         "backend": backend.upper(),
-        "total_unique_documents": len(unique_docs),
+
+        # Core results
+        "ai_response": ai_answer,
         "sources": final_results,
         "results": final_results,
-        "total_results": len(final_results)
+        "total_results": len(final_results),
+
+        # Detailed debugging information
+        "sub_questions": sub_questions,
+        "sub_results": sub_results,
+        "total_unique_documents": len(unique_docs),
+        "decomposition_method": "LLM-based query analysis" if len(sub_questions) > 1 else "Simple query (no decomposition needed)",
+
+        # Comprehensive timing breakdown
+        "timing": {
+            "total_time_ms": total_time,
+            "decomposition_time_ms": decomposition_time,
+            "search_time_ms": search_time,
+            "rerank_time_ms": rerank_time,
+            "synthesis_time_ms": synthesis_time
+        },
+
+        # Process steps for debugging/learning
+        "process_steps": [
+            {
+                "step": 1,
+                "name": "Descomposición de Consulta",
+                "description": f"Se analizó la consulta y se dividió en {len(sub_questions)} sub-pregunta(s)",
+                "time_ms": decomposition_time,
+                "output": f"Sub-preguntas generadas: {len(sub_questions)}"
+            },
+            {
+                "step": 2,
+                "name": "Búsqueda Individual",
+                "description": f"Se ejecutaron {len(sub_questions)} búsquedas vectoriales independientes",
+                "time_ms": search_time,
+                "output": f"Total de fragmentos encontrados: {len(all_documents)}"
+            },
+            {
+                "step": 3,
+                "name": "Deduplicación y Re-ranking",
+                "description": f"Se aplicó MMR para seleccionar los mejores {k} fragmentos únicos",
+                "time_ms": rerank_time,
+                "output": f"Documentos únicos: {len(unique_docs)} → Seleccionados: {len(final_results)}"
+            },
+            {
+                "step": 4,
+                "name": "Síntesis de Respuesta",
+                "description": f"Se generó respuesta integral usando {model}",
+                "time_ms": synthesis_time,
+                "output": f"Respuesta sintetizada: {'Sí' if synthesized_answer else 'Fallback usado'}"
+            }
+        ],
+
+        # Technical metadata
+        "technical_details": {
+            "query_complexity": "Compleja" if len(sub_questions) > 1 else "Simple",
+            "filters_applied": filters or {},
+            "mmr_applied": bool(mmr),
+            "synthesis_enabled": synthesize,
+            "documents_per_subquery": k,
+            "embedding_model": "multilingual-e5-base"
+        }
     }
 
 
@@ -537,6 +733,7 @@ def hyde_search(
 ) -> Dict[str, Any]:
     """
     Perform search using Hypothetical Document Embeddings (HyDE).
+    Enhanced with comprehensive timing and debugging information.
 
     Args:
         query: User query
@@ -547,40 +744,51 @@ def hyde_search(
         generate_final_answer: Whether to generate final answer with real docs
 
     Returns:
-        Search results using HyDE approach
+        Search results using HyDE approach with detailed timing
     """
-    # Generate hypothetical document
-    hypothetical_doc = generate_hypothetical_document(query, model)
+    import time
+    start_time = time.time()
 
-    # Embed the hypothetical document (not the query!)
+    # Step 1: Generate hypothetical document (with timing)
+    hypothesis_start = time.time()
+    hypothetical_doc = generate_hypothetical_document(query, model)
+    hypothesis_time = round((time.time() - hypothesis_start) * 1000, 1)
+
+    # Step 2: Embed the hypothetical document (with timing)
+    embedding_start = time.time()
     if embed_query_clean:
         # Note: We embed as document, not as query
         hyp_embedding = embed_e5([hypothetical_doc], is_query=False)[0]
     else:
         hyp_embedding = embed_e5([hypothetical_doc], is_query=False)[0]
+    embedding_time = round((time.time() - embedding_start) * 1000, 1)
 
-    # Search using hypothetical document embedding
+    # Step 3: Search using hypothetical document embedding (with timing)
+    search_start = time.time()
     results = BACKENDS[backend](hyp_embedding, k=k, where=filters)
+    search_time = round((time.time() - search_start) * 1000, 1)
 
-    # Generate final answer with real documents if requested
+    # Step 4: Generate final answer with real documents (with timing)
+    answer_start = time.time()
     final_answer = None
     if generate_final_answer and ollama and results:
         try:
             context = build_context(results, max_tokens=1500)
-            answer_prompt = f"""Responde la siguiente pregunta usando SOLO la información de los fragmentos de documentos reales proporcionados.
+            answer_prompt = f"""Responde la siguiente pregunta usando ÚNICAMENTE la información de los fragmentos de documentos reales proporcionados.
 
 Pregunta: {query}
 
-Fragmentos de documentos:
+Fragmentos de documentos encontrados:
 {context}
 
-Instrucciones:
-- Usa solo información de los fragmentos
-- Sé específico con fechas, números y nombres
-- Si la información no está disponible, indícalo
-- Mantén tono académico
+INSTRUCCIONES ESTRICTAS:
+- SOLO usa información que aparezca textualmente en los fragmentos
+- Sé específico con fechas, números y nombres tal como aparecen
+- Si la información no está disponible en los fragmentos, indica: "Esta información no está disponible en los documentos consultados"
+- Mantén un tono académico profesional en español
+- NO inventes o extrapoles información
 
-Respuesta:
+Respuesta basada en fragmentos reales:
 """
 
             ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
@@ -590,8 +798,10 @@ Respuesta:
                 model=model,
                 prompt=answer_prompt,
                 options={
-                    "temperature": 0.5,
-                    "num_predict": 300
+                    "temperature": 0.1,  # Very low for factual responses
+                    "num_predict": 400,
+                    "top_p": 0.8,
+                    "repeat_penalty": 1.1
                 }
             )
 
@@ -599,21 +809,85 @@ Respuesta:
 
         except Exception as e:
             logger.error(f"Final answer generation failed: {e}")
+            final_answer = f"Error al generar respuesta final: {str(e)}"
+
+    answer_time = round((time.time() - answer_start) * 1000, 1)
 
     # Use generated answer or fallback
     ai_answer = final_answer or generate_ai_answer_from_results(
         query, results, model)
 
+    # Calculate total time
+    total_time = round((time.time() - start_time) * 1000, 1)
+
     return {
         "query": query,
         "method": "HyDE (Hypothetical Document Embeddings)",
         "model": model,
-        "hypothetical_document": hypothetical_doc,
         "backend": backend.upper(),
+
+        # Core results
         "ai_response": ai_answer,
         "sources": results,
         "results": results,
-        "total_results": len(results)
+        "total_results": len(results),
+
+        # HyDE-specific details
+        "hypothetical_document": hypothetical_doc,
+        "hypothetical_doc_length": len(hypothetical_doc.split()),
+        "hypothetical_answer": hypothetical_doc,  # For template compatibility
+
+        # Comprehensive timing breakdown
+        "timing": {
+            "total_time_ms": total_time,
+            "hypothesis_generation_ms": hypothesis_time,
+            "embedding_time_ms": embedding_time,
+            "search_time_ms": search_time,
+            "answer_generation_ms": answer_time
+        },
+
+        # Process steps for debugging/learning
+        "process_steps": [
+            {
+                "step": 1,
+                "name": "Generación de Documento Hipotético",
+                "description": f"Se generó una respuesta hipotética detallada usando {model}",
+                "time_ms": hypothesis_time,
+                "output": f"Documento hipotético: {len(hypothetical_doc.split())} palabras"
+            },
+            {
+                "step": 2,
+                "name": "Embedding del Documento Hipotético",
+                "description": "El documento hipotético fue convertido a vector de 768 dimensiones",
+                "time_ms": embedding_time,
+                "output": "Vector generado como documento (no como consulta)"
+            },
+            {
+                "step": 3,
+                "name": "Búsqueda Semántica",
+                "description": f"Se buscaron documentos similares al contenido hipotético en {backend}",
+                "time_ms": search_time,
+                "output": f"Fragmentos encontrados: {len(results)}"
+            },
+            {
+                "step": 4,
+                "name": "Generación de Respuesta Real",
+                "description": f"Se generó respuesta final usando documentos reales con {model}",
+                "time_ms": answer_time,
+                "output": f"Respuesta basada en {len(results)} fragmentos reales"
+            }
+        ],
+
+        # Technical metadata
+        "technical_details": {
+            "hyde_approach": "Document-to-document embedding similarity",
+            "embedding_model": "multilingual-e5-base",
+            "embedding_type": "document_embedding (not query_embedding)",
+            "hypothetical_temperature": 0.7,
+            "answer_temperature": 0.1,
+            "filters_applied": filters or {},
+            "final_answer_generated": bool(final_answer)
+        }
     }
 
 
@@ -698,6 +972,7 @@ def hybrid_search(
 ) -> Dict[str, Any]:
     """
     Perform hybrid search combining semantic (vector) and keyword (BM25) search.
+    Enhanced with comprehensive timing and debugging information.
 
     Args:
         query: User query
@@ -708,31 +983,39 @@ def hybrid_search(
         use_rrf: Whether to use RRF fusion (vs weighted score)
 
     Returns:
-        Hybrid search results
+        Hybrid search results with detailed timing and process information
     """
-    # Perform semantic search
+    import time
+    start_time = time.time()
+
+    # Step 1: Perform semantic search (with timing)
+    semantic_start = time.time()
     if embed_query_clean:
         emb = embed_query_clean(query)
     else:
         emb = embed_e5([query], is_query=True)[0]
 
     semantic_results = BACKENDS[backend](emb, k=k*3, where=filters)
+    semantic_time = round((time.time() - semantic_start) * 1000, 1)
 
-    # Perform keyword search on the same set
+    # Step 2: Perform keyword search on the same set (with timing)
+    keyword_start = time.time()
     keyword_results = bm25_search(query, semantic_results, k=k*3)
     keyword_results_dict = {
         f"{doc.get('path', '')}:{doc.get('chunk_id', doc.get('page', ''))}": score
         for doc, score in keyword_results
     }
+    keyword_time = round((time.time() - keyword_start) * 1000, 1)
+
+    # Step 3: Fusion process (with timing)
+    fusion_start = time.time()
 
     if use_rrf:
         # Use RRF to combine rankings
-        semantic_list = [[r] for r in semantic_results[:k*2]]
-        keyword_list = [[doc] for doc, _ in keyword_results[:k*2]]
-
         fused_results = reciprocal_rank_fusion(
             [semantic_results[:k*2], [doc for doc, _ in keyword_results[:k*2]]])
         final_results = fused_results[:k]
+        fusion_method_used = "Reciprocal Rank Fusion (RRF)"
     else:
         # Use weighted score combination
         combined_scores = {}
@@ -756,22 +1039,94 @@ def hybrid_search(
         sorted_results = sorted(combined_scores.values(),
                                 key=lambda x: x[1], reverse=True)
         final_results = [doc for doc, _ in sorted_results[:k]]
+        fusion_method_used = f"Weighted Combination ({semantic_weight:.1f} semantic + {1-semantic_weight:.1f} keyword)"
 
-    # Generate AI answer from hybrid results
+    fusion_time = round((time.time() - fusion_start) * 1000, 1)
+
+    # Step 4: Generate AI answer from hybrid results (with timing)
+    answer_start = time.time()
     ai_answer = generate_ai_answer_from_results(
         query, final_results, "phi3:mini")
+    answer_time = round((time.time() - answer_start) * 1000, 1)
+
+    # Calculate total time
+    total_time = round((time.time() - start_time) * 1000, 1)
 
     return {
         "query": query,
         "method": "Hybrid Search (Semantic + Keyword)",
         "model": "phi3:mini",
-        "fusion_method": "RRF" if use_rrf else "Weighted Score",
-        "semantic_weight": semantic_weight,
         "backend": backend.upper(),
+
+        # Core results
         "ai_response": ai_answer,
         "sources": final_results,
         "results": final_results,
-        "total_results": len(final_results)
+        "total_results": len(final_results),
+
+        # Hybrid search specific details
+        "fusion_method": fusion_method_used,
+        "semantic_weight": semantic_weight,
+        "keyword_weight": round(1 - semantic_weight, 1),
+        "use_rrf": use_rrf,
+
+        # Search result breakdowns
+        "semantic_results_count": len(semantic_results),
+        "keyword_results_count": len(keyword_results),
+        "semantic_max_score": max([r.get('score', 0) for r in semantic_results]) if semantic_results else 0,
+        "keyword_max_score": max([s for _, s in keyword_results]) if keyword_results else 0,
+
+        # Comprehensive timing breakdown
+        "timing": {
+            "total_time_ms": total_time,
+            "semantic_search_ms": semantic_time,
+            "keyword_search_ms": keyword_time,
+            "fusion_ms": fusion_time,
+            "answer_generation_ms": answer_time
+        },
+
+        # Process steps for debugging/learning
+        "process_steps": [
+            {
+                "step": 1,
+                "name": "Búsqueda Semántica Vectorial",
+                "description": f"Búsqueda vectorial usando embeddings para capturar significado semántico en {backend}",
+                "time_ms": semantic_time,
+                "output": f"Fragmentos encontrados: {len(semantic_results)} (max score: {max([r.get('score', 0) for r in semantic_results]) if semantic_results else 0:.3f})"
+            },
+            {
+                "step": 2,
+                "name": "Búsqueda Léxica BM25",
+                "description": "Búsqueda BM25 para coincidencias exactas de palabras clave y términos específicos",
+                "time_ms": keyword_time,
+                "output": f"Fragmentos re-puntuados: {len(keyword_results)} (max BM25 score: {max([s for _, s in keyword_results]) if keyword_results else 0:.3f})"
+            },
+            {
+                "step": 3,
+                "name": "Fusión Híbrida",
+                "description": f"Combinación de puntuaciones usando {fusion_method_used}",
+                "time_ms": fusion_time,
+                "output": f"Método: {fusion_method_used} → {len(final_results)} resultados finales"
+            },
+            {
+                "step": 4,
+                "name": "Generación de Respuesta",
+                "description": "Se generó respuesta final combinando fortalezas de búsqueda semántica y léxica",
+                "time_ms": answer_time,
+                "output": f"Respuesta basada en {len(final_results)} fragmentos híbridos"
+            }
+        ],
+
+        # Technical metadata
+        "technical_details": {
+            "bm25_parameters": {"k1": 1.5, "b": 0.75},
+            "rrf_k_parameter": 60 if use_rrf else None,
+            "semantic_expansion_factor": 3,  # k*3 for broader semantic search
+            "keyword_expansion_factor": 3,   # k*3 for broader keyword search
+            "embedding_model": "multilingual-e5-base",
+            "filters_applied": filters or {},
+            "normalization_applied": "max-score normalization" if not use_rrf else "rank-based (RRF)"
+        }
     }
 
 
@@ -789,6 +1144,7 @@ def iterative_retrieval(
 ) -> Dict[str, Any]:
     """
     Perform multi-round iterative retrieval with query refinement.
+    Enhanced with comprehensive timing and debugging information.
 
     Args:
         query: Original user query
@@ -799,8 +1155,11 @@ def iterative_retrieval(
         filters: Optional metadata filters
 
     Returns:
-        Results from all rounds with final synthesized answer
+        Results from all rounds with final synthesized answer and detailed timing
     """
+    import time
+    start_time = time.time()
+
     if ollama is None:
         logger.warning(
             "Ollama not available, falling back to single-round search")
@@ -813,18 +1172,22 @@ def iterative_retrieval(
             "query": query,
             "method": "Single-Round (Ollama unavailable)",
             "rounds": [{"round": 1, "query": query, "results": results}],
-            "final_answer": None
+            "final_answer": "Servicio Ollama no disponible para búsqueda iterativa"
         }
 
     all_rounds = []
     accumulated_context = []
     current_query = query
+    round_timings = []
 
     ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
     client = ollama.Client(host=ollama_host)
 
     for round_num in range(1, max_rounds + 1):
+        round_start = time.time()
+
         # Perform search for current query
+        search_start = time.time()
         if embed_query_clean:
             emb = embed_query_clean(current_query)
         else:
@@ -832,62 +1195,89 @@ def iterative_retrieval(
 
         results = BACKENDS[backend](emb, k=k, where=filters)
         accumulated_context.extend(results)
+        search_time = round((time.time() - search_start) * 1000, 1)
 
-        # Store round results
-        all_rounds.append({
-            "round": round_num,
-            "query": current_query,
-            "results": results[:3]  # Top 3 per round
-        })
+        # Evaluate information sufficiency
+        evaluation_time = 0
+        needs_refinement = False
+        refined_query = None
 
-        # Check if we have enough information (stop early if yes)
         if round_num < max_rounds:
+            eval_start = time.time()
             context_snippet = build_context(
                 accumulated_context[-6:], max_tokens=800)
 
-            evaluation_prompt = f"""Analiza si los siguientes fragmentos contienen suficiente información para responder completamente la pregunta original.
+            evaluation_prompt = f"""Analiza si los siguientes fragmentos contienen información suficiente para responder completamente la pregunta original.
 
 Pregunta original: {query}
 
-Fragmentos disponibles:
+Fragmentos disponibles hasta ahora:
 {context_snippet}
 
-Responde SOLO con una de estas opciones:
-- "SUFICIENTE" si hay información completa para responder
-- "INSUFICIENTE: [pregunta más específica]" si falta información, seguido de una pregunta refinada para buscar lo que falta
+INSTRUCCIONES:
+- Responde SOLO con una de estas opciones:
+- "SUFICIENTE" si hay información completa para responder la pregunta
+- "INSUFICIENTE: [pregunta específica]" si falta información, seguido de UNA pregunta refinada muy específica para buscar lo que falta
 
-Tu respuesta:
+Ejemplo de respuesta válida:
+INSUFICIENTE: ¿Cuáles son las ventajas específicas de PostgreSQL sobre otros sistemas?
+
+Tu evaluación:
 """
 
             try:
                 eval_response = client.generate(
                     model=model,
                     prompt=evaluation_prompt,
-                    options={"temperature": 0.3, "num_predict": 100}
+                    options={"temperature": 0.2, "num_predict": 100}
                 )
 
                 evaluation = eval_response.get('response', '').strip()
+                evaluation_time = round((time.time() - eval_start) * 1000, 1)
 
                 if evaluation.startswith("SUFICIENTE"):
                     logger.info(
                         f"Sufficient information found in round {round_num}")
-                    break
                 elif evaluation.startswith("INSUFICIENTE"):
                     # Extract refined query
-                    refined_query = evaluation.split(
-                        ":", 1)[1].strip() if ":" in evaluation else query
-                    current_query = refined_query
-                    logger.info(
-                        f"Refining query for round {round_num + 1}: {refined_query}")
+                    if ":" in evaluation:
+                        refined_query = evaluation.split(":", 1)[1].strip()
+                        current_query = refined_query
+                        needs_refinement = True
+                        logger.info(
+                            f"Refining query for round {round_num + 1}: {refined_query}")
                 else:
-                    # If unclear, continue with original query
-                    break
+                    # If unclear, stop refinement
+                    pass
 
             except Exception as e:
                 logger.error(f"Evaluation failed in round {round_num}: {e}")
-                break
+                evaluation = "Error en evaluación"
+
+        round_time = round((time.time() - round_start) * 1000, 1)
+        round_timings.append(round_time)
+
+        # Store round results with detailed information
+        all_rounds.append({
+            "round": round_num,
+            "query": current_query,
+            "is_original_query": current_query == query,
+            "results": results[:3],  # Top 3 per round for display
+            "total_found": len(results),
+            "search_time_ms": search_time,
+            "evaluation_time_ms": evaluation_time,
+            "total_round_time_ms": round_time,
+            "evaluation_result": evaluation if round_num < max_rounds else "Final round",
+            "needs_refinement": needs_refinement,
+            "refined_query": refined_query
+        })
+
+        # Stop if we have sufficient information or reached max rounds
+        if not needs_refinement or round_num == max_rounds:
+            break
 
     # Deduplicate accumulated context
+    dedup_start = time.time()
     unique_docs = {
         f"{doc.get('path', '')}:{doc.get('chunk_id', doc.get('page', ''))}": doc
         for doc in accumulated_context
@@ -910,34 +1300,40 @@ Tu respuesta:
     else:
         final_results = list(unique_docs.values())[:k]
 
+    dedup_time = round((time.time() - dedup_start) * 1000, 1)
+
     # Generate final synthesized answer
+    synthesis_start = time.time()
     final_answer = None
     try:
         final_context = build_context(final_results, max_tokens=1800)
 
-        synthesis_prompt = f"""Responde la siguiente pregunta usando TODA la información recopilada en múltiples rondas de búsqueda.
+        synthesis_prompt = f"""Responde la siguiente pregunta usando TODA la información recopilada en múltiples rondas de búsqueda iterativa.
 
 Pregunta original: {query}
 
-Información recopilada en {len(all_rounds)} ronda(s):
+Información recopilada en {len(all_rounds)} ronda(s) de búsqueda:
 {final_context}
 
-Instrucciones:
-- Proporciona una respuesta completa y bien estructurada
-- Integra información de todas las fuentes disponibles
-- Usa fechas, números y nombres exactos
-- Si alguna parte de la pregunta no puede responderse, indícalo claramente
-- Mantén un tono académico y profesional
+INSTRUCCIONES ESTRICTAS:
+- SOLO usa información que aparezca textualmente en los fragmentos
+- Integra información de todas las fuentes disponibles de manera coherente
+- Usa fechas, números y nombres exactos tal como aparecen
+- Si alguna parte de la pregunta no puede responderse con los fragmentos, indica claramente: "Esta información no está disponible en los documentos consultados"
+- Mantén un tono académico y profesional en español
+- NO inventes o extrapoles información no presente
 
-Respuesta final:
+Respuesta integral basada en búsqueda iterativa:
 """
 
         response = client.generate(
             model=model,
             prompt=synthesis_prompt,
             options={
-                "temperature": 0.5,
-                "num_predict": 500
+                "temperature": 0.1,  # Very low for factual synthesis
+                "num_predict": 600,
+                "top_p": 0.8,
+                "repeat_penalty": 1.1
             }
         )
 
@@ -945,21 +1341,85 @@ Respuesta final:
 
     except Exception as e:
         logger.error(f"Final synthesis failed: {e}")
+        final_answer = f"Error en la síntesis final: {str(e)}"
+
+    synthesis_time = round((time.time() - synthesis_start) * 1000, 1)
 
     # Use synthesized answer or fallback
     ai_answer = final_answer or generate_ai_answer_from_results(
         query, final_results, model)
+
+    # Calculate total time
+    total_time = round((time.time() - start_time) * 1000, 1)
 
     return {
         "query": query,
         "method": "Multi-Round Iterative Retrieval",
         "model": model,
         "backend": backend.upper(),
-        "total_rounds": len(all_rounds),
-        "rounds": all_rounds,
-        "total_unique_documents": len(unique_docs),
+
+        # Core results
         "ai_response": ai_answer,
         "sources": final_results,
         "results": final_results,
-        "total_results": len(final_results)
+        "total_results": len(final_results),
+
+        # Iterative process details
+        "total_rounds": len(all_rounds),
+        "rounds": all_rounds,
+        "total_unique_documents": len(unique_docs),
+        "iterations": len(all_rounds),  # For template compatibility
+
+        # Comprehensive timing breakdown
+        "timing": {
+            "total_time_ms": total_time,
+            "round_times_ms": round_timings,
+            "deduplication_time_ms": dedup_time,
+            "synthesis_time_ms": synthesis_time,
+            "average_round_time_ms": round(sum(round_timings) / len(round_timings), 1) if round_timings else 0
+        },
+
+        # Process steps for debugging/learning
+        "process_steps": [
+            {
+                "step": 1,
+                "name": "Búsqueda Inicial",
+                "description": f"Primera ronda con la consulta original: '{query}'",
+                "time_ms": round_timings[0] if round_timings else 0,
+                "output": f"Fragmentos encontrados: {all_rounds[0]['total_found'] if all_rounds else 0}"
+            },
+            {
+                "step": 2,
+                "name": "Análisis Iterativo de Brechas",
+                "description": f"Se ejecutaron {len(all_rounds)} rondas evaluando suficiencia de información",
+                "time_ms": sum(round['evaluation_time_ms'] for round in all_rounds),
+                "output": f"Refinamientos necesarios: {sum(1 for round in all_rounds if round.get('needs_refinement'))}"
+            },
+            {
+                "step": 3,
+                "name": "Deduplicación y Re-ranking",
+                "description": f"Se aplicó MMR sobre {len(unique_docs)} documentos únicos",
+                "time_ms": dedup_time,
+                "output": f"Documentos finales seleccionados: {len(final_results)}"
+            },
+            {
+                "step": 4,
+                "name": "Síntesis Final",
+                "description": f"Se generó respuesta integral usando {model} con toda la información recopilada",
+                "time_ms": synthesis_time,
+                "output": f"Respuesta basada en {len(all_rounds)} rondas de búsqueda"
+            }
+        ],
+
+        # Technical metadata
+        "technical_details": {
+            "max_rounds_configured": max_rounds,
+            "rounds_executed": len(all_rounds),
+            "early_termination": len(all_rounds) < max_rounds,
+            "query_refinements": [r.get('refined_query') for r in all_rounds if r.get('refined_query')],
+            "evaluation_strategy": "LLM-based sufficiency analysis",
+            "mmr_applied": bool(mmr),
+            "filters_applied": filters or {},
+            "embedding_model": "multilingual-e5-base"
+        }
     }

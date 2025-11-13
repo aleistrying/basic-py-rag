@@ -1,20 +1,24 @@
-from fastapi import FastAPI, Query, HTTPException
+from fastapi import FastAPI, Query, HTTPException, File, Form, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse
-from typing import Optional
-import json
+from fastapi.templating import Jinja2Templates
+from typing import Optional, List
 import logging
+import pandas as pd
+import subprocess
+import os
+from pathlib import Path
 from app.rag import search_knowledge_base, generate_llm_answer
 
 # Import query utilities from consolidated module
 try:
-    from scripts.query_embed import embed_e5, expand_query
+    from scripts.query_embed import embed_e5
 except ImportError:
     print("Warning: query_embed module not available")
     print("Install: pip install sentence-transformers")
     embed_e5 = None
-    def expand_query(x): return x
 
-from app.qdrant_backend import search_qdrant
+# Note: search_qdrant not used directly in main, only via rag module
+# from app.qdrant_backend import search_qdrant
 from app.pgvector_backend import search_pgvector
 
 # Import advanced RAG techniques
@@ -73,6 +77,10 @@ def ask(
     q: str = Query(..., description="Pregunta"),
     backend: str = "qdrant",
     k: int = 5,
+    distance_metric: str = Query(
+        "cosine", description="Métrica de distancia: 'cosine', 'euclidean', 'dot_product', 'manhattan'"),
+    index_algorithm: str = Query(
+        "hnsw", description="Algoritmo de índice: 'hnsw', 'ivfflat', 'scalar_quantization', 'exact'"),
     response_format: str = Query(
         "html", description="Formato: 'json' o 'html'", alias="format"),
     document_type: Optional[str] = Query(
@@ -100,8 +108,17 @@ def ask(
         if contains:
             filters['contains'] = contains
 
+        # Generate collection name based on algorithm combination
+        collection_suffix = f"{distance_metric}_{index_algorithm}"
+
         result = search_knowledge_base(
-            q, backend=backend, k=k, filters=filters or None)
+            q, backend=backend, k=k, filters=filters or None,
+            distance_metric=distance_metric, index_algorithm=index_algorithm,
+            collection_suffix=collection_suffix)
+
+        # Add algorithm parameters to result for template access
+        result['distance_metric'] = distance_metric
+        result['index_algorithm'] = index_algorithm
 
         if response_format == "json":
             return JSONResponse(content=result)
@@ -111,14 +128,14 @@ def ask(
         error_data = {"error": str(e), "status": 400}
         if response_format == "json":
             raise HTTPException(status_code=400, detail=str(e)) from e
-        return render_general_response(error_data, "❌ Error", "#dc2626")
+        return HTMLResponse(render_general_response(error_data, "Error", "#dc2626"))
     except Exception as e:
         error_data = {
-            "error": f"Internal server error: {str(e)}", "status": 500}
+            "error": f"Error interno del servidor: {str(e)}", "status": 500}
         if response_format == "json":
             raise HTTPException(
-                status_code=500, detail=f"Internal server error: {str(e)}") from e
-        return render_general_response(error_data, "❌ Error", "#dc2626")
+                status_code=500, detail=f"Error interno del servidor: {str(e)}") from e
+        return HTMLResponse(render_general_response(error_data, "Error", "#dc2626"))
 
 
 @app.get("/ai", response_class=HTMLResponse)
@@ -127,6 +144,10 @@ def ai(
     backend: str = "qdrant",
     k: int = 5,
     model: str = "phi3:mini",
+    distance_metric: str = Query(
+        "cosine", description="Métrica de distancia: 'cosine', 'euclidean', 'dot_product', 'manhattan'"),
+    index_algorithm: str = Query(
+        "hnsw", description="Algoritmo de índice: 'hnsw', 'ivfflat', 'scalar_quantization', 'exact'"),
     response_format: str = Query(
         "html", description="Formato: 'json' o 'html'", alias="format"),
     document_type: Optional[str] = Query(
@@ -155,8 +176,17 @@ def ai(
         if contains:
             filters['contains'] = contains
 
+        # Generate collection name based on algorithm combination
+        collection_suffix = f"{distance_metric}_{index_algorithm}"
+
         result = generate_llm_answer(
-            q, backend=backend, k=k, model=model, filters=filters or None)
+            q, backend=backend, k=k, model=model, filters=filters or None,
+            distance_metric=distance_metric, index_algorithm=index_algorithm,
+            collection_suffix=collection_suffix)
+
+        # Add algorithm parameters to result for template access
+        result['distance_metric'] = distance_metric
+        result['index_algorithm'] = index_algorithm
 
         if response_format == "json":
             return JSONResponse(content=result)
@@ -164,17 +194,17 @@ def ai(
             return render_ai_response(result, q)
     except ImportError as e:
         error_data = {
-            "error": f"LLM service not available: {str(e)}", "status": 503}
+            "error": f"Servicio LLM no disponible: {str(e)}", "status": 503}
         if response_format == "json":
             raise HTTPException(
                 status_code=503, detail=f"LLM service not available: {str(e)}") from e
-        return render_general_response(error_data, "❌ Error", "#dc2626")
+        return HTMLResponse(render_general_response(error_data, "Error", "#dc2626"))
     except Exception as e:
-        error_data = {"error": f"AI error: {str(e)}", "status": 500}
+        error_data = {"error": f"Error de IA: {str(e)}", "status": 500}
         if response_format == "json":
             raise HTTPException(
-                status_code=500, detail=f"AI error: {str(e)}") from e
-        return render_general_response(error_data, "❌ Error", "#dc2626")
+                status_code=500, detail=f"Error de IA: {str(e)}") from e
+        return HTMLResponse(render_general_response(error_data, "Error", "#dc2626"))
 
 
 @app.get("/compare", response_class=HTMLResponse)
@@ -199,13 +229,14 @@ def compare(
         if response_format == "json":
             return JSONResponse(content=comparison)
         else:
-            return render_general_response(comparison, "⚖️ Comparación Qdrant vs PostgreSQL", "#8b5cf6")
+            return HTMLResponse(render_general_response(comparison, "Comparación Qdrant vs PostgreSQL", "#8b5cf6"))
     except Exception as e:
-        error_data = {"error": f"Comparison error: {str(e)}", "status": 500}
+        error_data = {
+            "error": f"Error de comparación: {str(e)}", "status": 500}
         if response_format == "json":
             raise HTTPException(
                 status_code=500, detail=f"Comparison error: {str(e)}") from e
-        return render_general_response(error_data, "❌ Error", "#dc2626")
+        return HTMLResponse(render_general_response(error_data, "Error", "#dc2626"))
 
 
 @app.get("/manual/embed", response_class=HTMLResponse)
@@ -246,12 +277,11 @@ def manual_embed(
         # Use template for HTML response
         try:
             return render_manual_embedding(
-                text=text,
-                embedding_vector=default_data.get("embedding_vector", []),
-                stats=default_data.get("stats", {})
+                embedding_result=default_data,
+                text=text
             )
         except Exception:
-            return render_general_response(default_data, "🔧 Demostración de Embedding")
+            return HTMLResponse(render_general_response(default_data, "Demostración de Embedding"))
 
     except Exception as e:
         error_data = {
@@ -259,7 +289,7 @@ def manual_embed(
         if response_format == "json":
             raise HTTPException(
                 status_code=500, detail=f"Error en demostración: {str(e)}") from e
-        return render_general_response(error_data, "❌ Error", "#dc2626")
+        return HTMLResponse(render_general_response(error_data, "Error", "#dc2626"))
 
 
 @app.get("/manual/search", response_class=HTMLResponse)
@@ -291,14 +321,11 @@ def manual_search(
         # Use template for HTML response
         try:
             return render_manual_search(
-                query=q,
-                results=default_data.get("results", []),
-                search_time_ms=float(default_data.get("search_time_ms", 0)),
-                backend=default_data.get("backend", "demo"),
-                embedding_query=default_data.get("embedding_query", [])
+                search_result=default_data,
+                query=q
             )
         except Exception:
-            return render_general_response(default_data, "🔍 Demostración de Búsqueda")
+            return HTMLResponse(render_general_response(default_data, "Demostración de Búsqueda"))
 
     except Exception as e:
         error_data = {
@@ -306,7 +333,7 @@ def manual_search(
         if response_format == "json":
             raise HTTPException(
                 status_code=500, detail=f"Error en búsqueda manual: {str(e)}") from e
-        return render_general_response(error_data, "❌ Error", "#dc2626")
+        return HTMLResponse(render_general_response(error_data, "Error", "#dc2626"))
 
 
 @app.get("/filters/examples", response_class=HTMLResponse)
@@ -334,11 +361,11 @@ def filter_examples(response_format: str = Query("html", description="Formato: '
             return JSONResponse(content=result)
 
         try:
-            return render_general_response(result, "🔍 Ejemplos de Filtros")
+            return HTMLResponse(render_general_response(result, "Ejemplos de Filtros"))
         except Exception:
-            return render_general_response(result, "🔍 Ejemplos de Filtros")
+            return HTMLResponse(render_general_response(result, "Ejemplos de Filtros"))
     except Exception:
-        return render_general_response(result, "🔍 Ejemplos de Filtros", "#059669")
+        return HTMLResponse(render_general_response(result, "Ejemplos de Filtros", "#059669"))
 
 
 @app.get("/gpu-status", response_class=HTMLResponse)
@@ -361,9 +388,9 @@ def gpu_status(response_format: str = Query("html", description="Formato: 'json'
             return JSONResponse(content=default_data)
 
         try:
-            return render_general_response(default_data, "💻 Estado del Sistema")
+            return HTMLResponse(render_general_response(default_data, "Estado del Sistema"))
         except Exception:
-            return render_general_response(default_data, "💻 Estado del Sistema")
+            return HTMLResponse(render_general_response(default_data, "Estado del Sistema"))
 
     except Exception:
         # Fallback with default data
@@ -377,7 +404,7 @@ def gpu_status(response_format: str = Query("html", description="Formato: 'json'
             "pgvector_status": "⚠️",
             "ollama_status": "⚠️"
         }
-        return render_general_response(default_data, "💻 Estado del Sistema")
+        return HTMLResponse(render_general_response(default_data, "Estado del Sistema"))
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -421,22 +448,6 @@ def root(response_format: str = Query("html", description="Formato: 'json' o 'ht
 
     # Import template and generate dynamic data
     try:
-        # Generate dynamic home page data
-        home_data = {
-            "title": "RAG Demo",
-            "subtitle": "Sistema de Búsqueda Inteligente con IA",
-            "version": "3.0",
-            "search_placeholder": "Ej: ¿Cuáles son las bases de datos vectoriales?",
-            "quick_searches": [
-                {"label": "Bases de Datos", "query": "bases+de+datos+vectoriales"},
-                {"label": "PgVector", "query": "pgvector+postgresql"},
-                {"label": "Qdrant", "query": "qdrant+vector+database"},
-                {"label": "Embeddings", "query": "embeddings+vectoriales"},
-                {"label": "RAG Pipeline", "query": "rag+pipeline+demo"},
-                {"label": "Similitud", "query": "similitud+coseno+vectorial"}
-            ]
-        }
-
         # Generate HTML using template
         html = render_home_page()
         return HTMLResponse(content=html)
@@ -446,7 +457,7 @@ def root(response_format: str = Query("html", description="Formato: 'json' o 'ht
         # Fallback to simplified HTML
         return HTMLResponse(content=f"""
         <div style="color: #ff6b6b; padding: 20px; text-align: center; background: #1a1a1a; border-radius: 8px;">
-            <h2>❌ Error en Home Page</h2>
+            <h2>Error en Home Page</h2>
             <p><strong>Error:</strong> {str(e)}</p>
             <div style="margin-top: 20px;">
                 <a href="/docs" style="color: #4CAF50; margin: 0 10px;">📚 API Docs</a>
@@ -464,8 +475,10 @@ def comprehensive_pipeline_demo(
     model: str = Query("phi3:mini", description="Modelo de IA a usar"),
     storage_type: str = Query(
         "both", description="Tipo de almacenamiento: 'qdrant', 'postgresql', 'both'"),
-    algorithm: str = Query(
-        "cosine", description="Algoritmo de distancia: 'cosine', 'euclidean', 'dot_product', 'manhattan'"),
+    distance_metric: str = Query(
+        "cosine", description="Métrica de distancia: 'cosine', 'euclidean', 'dot_product', 'manhattan'"),
+    index_algorithm: str = Query(
+        "hnsw", description="Algoritmo de índice: 'hnsw', 'ivfflat', 'scalar_quantization', 'exact'"),
     response_format: str = Query(
         "html", description="Formato: 'json' o 'html'", alias="format")
 ):
@@ -478,14 +491,16 @@ def comprehensive_pipeline_demo(
         # Execute ALL pipeline steps using the complete demo method
         # This now includes database storage simulation
         all_steps = demo.run_complete_demo_with_storage(
-            query=q, model=model, storage_type=storage_type, algorithm=algorithm)
+            query=q, model=model, storage_type=storage_type,
+            distance_metric=distance_metric, index_algorithm=index_algorithm)
 
         if response_format == "json":
             return JSONResponse(content={
                 "query": q,
                 "model": model,
                 "storage_type": storage_type,
-                "algorithm": algorithm,
+                "distance_metric": distance_metric,
+                "index_algorithm": index_algorithm,
                 "pipeline_steps": all_steps,
                 "total_steps": len(all_steps),
                 "demo_type": "comprehensive_rag_pipeline_with_database_storage",
@@ -498,7 +513,8 @@ def comprehensive_pipeline_demo(
             })
 
         # Generate comprehensive HTML for all steps including storage demos
-        html = create_demo_html(all_steps, q, model)
+        html = create_demo_html(all_steps, q, model,
+                                storage_type, distance_metric, index_algorithm)
         return HTMLResponse(content=html)
 
     except Exception as e:
@@ -563,11 +579,11 @@ def advanced_multi_query(
             return render_ai_response(result, q)
 
     except Exception as e:
-        logger.error(f"Multi-query search error: {e}")
+        logger.error("Multi-query search error: %s", e)
         error_data = {"error": str(e), "query": q}
         if response_format == "json":
             raise HTTPException(status_code=500, detail=str(e)) from e
-        return render_general_response(error_data, "❌ Error", "#dc2626")
+        return HTMLResponse(render_general_response(error_data, "Error", "#dc2626"))
 
 
 @app.get("/advanced/decompose", response_class=HTMLResponse)
@@ -617,11 +633,11 @@ def advanced_decompose(
             return render_ai_response(result, q)
 
     except Exception as e:
-        logger.error(f"Query decomposition error: {e}")
+        logger.error("Query decomposition error: %s", e)
         error_data = {"error": str(e), "query": q}
         if response_format == "json":
             raise HTTPException(status_code=500, detail=str(e)) from e
-        return render_general_response(error_data, "❌ Error", "#dc2626")
+        return HTMLResponse(render_general_response(error_data, "Error", "#dc2626"))
 
 
 @app.get("/advanced/hyde", response_class=HTMLResponse)
@@ -671,11 +687,11 @@ def advanced_hyde(
             return render_ai_response(result, q)
 
     except Exception as e:
-        logger.error(f"HyDE search error: {e}")
+        logger.error("HyDE search error: %s", e)
         error_data = {"error": str(e), "query": q}
         if response_format == "json":
             raise HTTPException(status_code=500, detail=str(e)) from e
-        return render_general_response(error_data, "❌ Error", "#dc2626")
+        return HTMLResponse(render_general_response(error_data, "Error", "#dc2626"))
 
 
 @app.get("/advanced/hybrid", response_class=HTMLResponse)
@@ -725,11 +741,11 @@ def advanced_hybrid(
             return render_ai_response(result, q)
 
     except Exception as e:
-        logger.error(f"Hybrid search error: {e}")
+        logger.error("Hybrid search error: %s", e)
         error_data = {"error": str(e), "query": q}
         if response_format == "json":
             raise HTTPException(status_code=500, detail=str(e)) from e
-        return render_general_response(error_data, "❌ Error", "#dc2626")
+        return HTMLResponse(render_general_response(error_data, "Error", "#dc2626"))
 
 
 @app.get("/advanced/iterative", response_class=HTMLResponse)
@@ -779,17 +795,11 @@ def advanced_iterative(
             return render_ai_response(result, q)
 
     except Exception as e:
-        logger.error(f"Iterative retrieval error: {e}")
+        logger.error("Iterative retrieval error: %s", e)
         error_data = {"error": str(e), "query": q}
         if response_format == "json":
             raise HTTPException(status_code=500, detail=str(e)) from e
-        return render_general_response(error_data, "❌ Error", "#dc2626")
-
-
-@app.get("/demo/test")
-def demo_test():
-    """Test endpoint to verify API is working"""
-    return {"status": "ok", "message": "Demo API is working!"}
+        return HTMLResponse(render_general_response(error_data, "Error", "#dc2626"))
 
 
 @app.get("/orchestrated", response_class=HTMLResponse)
@@ -861,7 +871,7 @@ def orchestrated_search(
         return render_ai_response(result, q)
 
     except Exception as e:
-        logger.error(f"Orchestrated pipeline error: {e}", exc_info=True)
+        logger.error("Orchestrated pipeline error: %s", e, exc_info=True)
         if response_format == "json":
             return JSONResponse(
                 content={"error": str(e), "type": type(e).__name__},
@@ -895,7 +905,7 @@ def demo_embedding(
             ]
         }
 
-        return render_general_response(demo_data, "🔧 Demostración de Embedding", "#8b5cf6")
+        return HTMLResponse(render_general_response(demo_data, "Demostración de Embedding", "#8b5cf6"))
 
     except Exception as e:
         return render_pretty_json({"error": str(e), "text": text})
@@ -933,7 +943,592 @@ def demo_similarity(
             ]
         }
 
-        return render_general_response(similarity_data, "🔗 Demostración de Similitud", "#10b981")
+        return HTMLResponse(render_general_response(similarity_data, "🔗 Demostración de Similitud", "#10b981"))
 
     except Exception as e:
         return render_pretty_json({"error": str(e), "text1": text1, "text2": text2})
+
+
+# ================================
+# PIPELINE MANAGEMENT ENDPOINTS
+# ================================
+
+@app.get("/pipeline", response_class=HTMLResponse)
+def pipeline_management():
+    """Pipeline management interface for configuring algorithms and processing documents"""
+    try:
+        # Use the general response template with pipeline configuration data
+        return HTMLResponse(render_general_response(
+            data={
+                "available_backends": ["qdrant", "pgvector", "both"],
+                "distance_metrics": ["cosine", "dot", "euclidean"],
+                "index_algorithms": ["hnsw", "flat"],
+                "current_config": {
+                    "distanceMetric": "cosine",
+                    "indexAlgorithm": "hnsw",
+                    "databaseBackend": "both"
+                },
+                "message": "Pipeline Management Interface",
+                "description": "Configure algorithms, upload documents, and manage vector database operations"
+            },
+            title="🔧 Pipeline Management"
+        ))
+
+    except Exception as e:
+        return HTMLResponse(render_general_response({
+            "error": str(e),
+            "message": "Pipeline management page is not available. Please check template."
+        }, "🔧 Pipeline Management", "#3b82f6"))
+
+
+@app.post("/pipeline/upload")
+async def upload_documents(files: List[UploadFile] = File(...)):
+    """Upload documents for processing"""
+    try:
+        import os
+        from pathlib import Path
+
+        # Create upload directory if it doesn't exist
+        upload_dir = Path("./data/uploaded")
+        upload_dir.mkdir(parents=True, exist_ok=True)
+
+        uploaded_files = []
+        for file in files:
+            # Save uploaded file
+            file_path = upload_dir / file.filename
+            with open(file_path, "wb") as buffer:
+                content = await file.read()
+                buffer.write(content)
+
+            uploaded_files.append({
+                "filename": file.filename,
+                "size": len(content),
+                "path": str(file_path)
+            })
+
+        return JSONResponse({
+            "success": True,
+            "message": f"Successfully uploaded {len(uploaded_files)} files",
+            "files": uploaded_files
+        })
+
+    except Exception as e:
+        logger.error(f"Error uploading files: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
+@app.post("/pipeline/run")
+async def run_pipeline(
+    distance_metric: str = Form("cosine"),
+    index_algorithm: str = Form("hnsw"),
+    clear_first: bool = Form(True)
+):
+    """Run the complete RAG pipeline with specified algorithms"""
+    try:
+        import subprocess
+        import sys
+        from pathlib import Path
+
+        # Build command for main pipeline
+        script_path = Path("scripts/main_pipeline.py")
+        cmd = [
+            sys.executable, str(script_path),
+            "--distance-metric", distance_metric,
+            "--index-algorithm", index_algorithm
+        ]
+
+        if clear_first:
+            cmd.append("--clear")
+
+        # Run pipeline process
+        process = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=600  # 10 minute timeout
+        )
+
+        if process.returncode == 0:
+            return JSONResponse({
+                "success": True,
+                "message": "Pipeline completed successfully",
+                "output": process.stdout,
+                "config": {
+                    "distance_metric": distance_metric,
+                    "index_algorithm": index_algorithm,
+                    "collection_suffix": f"_{distance_metric}_{index_algorithm}"
+                }
+            })
+        else:
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "error": f"Pipeline failed with return code {process.returncode}",
+                    "stdout": process.stdout,
+                    "stderr": process.stderr
+                }
+            )
+
+    except subprocess.TimeoutExpired:
+        return JSONResponse(
+            status_code=500,
+            content={"error": "Pipeline execution timed out"}
+        )
+    except Exception as e:
+        logger.error(f"Error running pipeline: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
+@app.post("/pipeline/clear")
+async def clear_pipeline_data():
+    """Clear all pipeline data from databases"""
+    try:
+        from app.qdrant_backend import client as qdrant_client
+        from app.pgvector_backend import get_connection
+        import psycopg2
+
+        results = {"qdrant": "Not cleared", "pgvector": "Not cleared"}
+
+        # Clear Qdrant collections
+        try:
+            collections = qdrant_client.get_collections()
+            for collection in collections.collections:
+                if "course_docs" in collection.name or "docs_" in collection.name:
+                    qdrant_client.delete_collection(collection.name)
+            results["qdrant"] = "Cleared successfully"
+        except Exception as e:
+            results["qdrant"] = f"Error: {str(e)}"
+
+        # Clear pgvector tables
+        try:
+            conn = get_connection()
+            if conn:
+                with conn.cursor() as cur:
+                    # Get all tables that match our pattern
+                    cur.execute("""
+                        SELECT tablename FROM pg_tables 
+                        WHERE tablename LIKE 'docs_%' OR tablename LIKE 'course_docs_%'
+                    """)
+                    tables = cur.fetchall()
+
+                    for (table_name,) in tables:
+                        cur.execute(
+                            f"DROP TABLE IF EXISTS {table_name} CASCADE")
+
+                results["pgvector"] = "Cleared successfully"
+                conn.close()
+        except Exception as e:
+            results["pgvector"] = f"Error: {str(e)}"
+
+        return JSONResponse({
+            "success": True,
+            "message": "Data clearing completed",
+            "results": results
+        })
+
+    except Exception as e:
+        logger.error(f"Error clearing data: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
+@app.get("/pipeline/stats")
+async def get_pipeline_stats(format: str = Query("json", description="Response format: json or html")):
+    """Get current pipeline statistics"""
+    try:
+        from app.qdrant_backend import client as qdrant_client
+        from app.pgvector_backend import get_connection
+
+        stats = {
+            "total_docs": 0,
+            "total_chunks": 0,
+            "total_embeddings": 0,
+            "processing_time": 0,
+            "collections": [],
+            "tables": []
+        }
+
+        # Get Qdrant stats
+        try:
+            collections = qdrant_client.get_collections()
+            for collection in collections.collections:
+                if "course_docs" in collection.name or "docs_" in collection.name:
+                    info = qdrant_client.get_collection(collection.name)
+                    stats["collections"].append({
+                        "name": collection.name,
+                        "points": info.points_count,
+                        "vector_size": info.config.params.vectors.size
+                    })
+                    stats["total_embeddings"] += info.points_count
+        except Exception as e:
+            logger.error(f"Error getting Qdrant stats: {e}")
+
+        # Get pgvector stats
+        try:
+            conn = get_connection()
+            if conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT tablename FROM pg_tables 
+                        WHERE tablename LIKE 'docs_%' OR tablename LIKE 'course_docs_%'
+                    """)
+                    tables = cur.fetchall()
+
+                    for (table_name,) in tables:
+                        cur.execute(f"SELECT COUNT(*) FROM {table_name}")
+                        count = cur.fetchone()[0]
+                        stats["tables"].append({
+                            "name": table_name,
+                            "rows": count
+                        })
+                        stats["total_chunks"] += count
+
+                conn.close()
+        except Exception as e:
+            logger.error(f"Error getting pgvector stats: {e}")
+
+        # Estimate total documents (rough estimate)
+        stats["total_docs"] = len(set([col["name"].replace("course_docs_clean_", "").replace("docs_clean_", "")
+                                      for col in stats["collections"]]))
+
+        if format == "html":
+            return HTMLResponse(render_general_response(
+                data=stats,
+                title="Estadísticas del Pipeline"
+            ))
+        else:
+            return JSONResponse(stats)
+
+    except Exception as e:
+        logger.error(f"Error getting stats: {e}")
+        if format == "html":
+            return HTMLResponse(render_general_response({
+                "error": str(e),
+                "message": "Error loading statistics"
+            }, "Estadísticas del Pipeline", "#ef4444"))
+        else:
+            return JSONResponse(
+                status_code=500,
+                content={"error": str(e)}
+            )
+
+
+@app.get("/pipeline/dashboard")
+async def get_pipeline_dashboard():
+    """Unified dashboard showing both statistics and visualizations"""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse("/pipeline/visualization?format=html&include_stats=true")
+
+
+@app.get("/pipeline/visualization")
+async def get_pipeline_visualization(
+    type: str = Query("similarity", description="Visualization type"),
+    distance_metric: str = Query(
+        "cosine", description="Distance metric for filtering"),
+    index_algorithm: str = Query(
+        "hnsw", description="Index algorithm for filtering"),
+    format: str = Query("json", description="Response format: json or html"),
+    include_stats: bool = Query(
+        True, description="Include statistics in HTML format")
+):
+    """Generate visualization data for pipeline results"""
+    try:
+        import plotly.graph_objects as go
+        import plotly.express as px
+        import pandas as pd
+        import numpy as np
+        from app.qdrant_backend import client as qdrant_client
+
+        collection_suffix = f"_{distance_metric}_{index_algorithm}"
+        collection_name = f"course_docs_clean{collection_suffix}"
+
+        plot_data = None
+
+        if type == "similarity":
+            # Create similarity scatter plot
+            try:
+                # Get sample vectors from collection
+                search_result = qdrant_client.scroll(
+                    collection_name=collection_name,
+                    limit=100,
+                    with_payload=True,
+                    with_vectors=True
+                )
+
+                if search_result[0]:
+                    # Extract data for plotting
+                    documents = []
+                    similarities = []
+                    x_coords = []
+                    y_coords = []
+
+                    for point in search_result[0]:
+                        doc_name = point.payload.get(
+                            "source_path", "Unknown").split("/")[-1]
+                        documents.append(doc_name)
+
+                        # Use first two dimensions for 2D plot
+                        vector = point.vector
+                        x_coords.append(vector[0] if len(vector) > 0 else 0)
+                        y_coords.append(vector[1] if len(vector) > 1 else 0)
+
+                        # Calculate similarity to origin as proxy
+                        # Use first 10 dimensions
+                        magnitude = float(np.linalg.norm(vector[:10]))
+                        similarities.append(magnitude)
+
+                    fig = px.scatter(
+                        x=x_coords, y=y_coords,
+                        color=similarities,
+                        hover_name=documents,
+                        title=f"Document Vector Similarity Map ({distance_metric.upper()} + {index_algorithm.upper()})",
+                        labels={"x": "Vector Dimension 1",
+                                "y": "Vector Dimension 2", "color": "Vector Magnitude"},
+                        color_continuous_scale="Viridis"
+                    )
+
+                    fig.update_layout(
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        font_color='white',
+                        height=400
+                    )
+
+                    # Convert to JSON-serializable format
+                    import json
+                    plot_json = fig.to_json()
+                    plot_data = json.loads(plot_json)
+
+            except Exception as e:
+                logger.error(f"Error creating similarity plot: {e}")
+
+        elif type == "topics":
+            # Topic distribution pie chart
+            try:
+                search_result = qdrant_client.scroll(
+                    collection_name=collection_name,
+                    limit=200,
+                    with_payload=True
+                )
+
+                if search_result[0]:
+                    topics = {}
+                    for point in search_result[0]:
+                        doc_path = point.payload.get("source_path", "Unknown")
+
+                        # Extract topic from document name
+                        if "Tema" in doc_path:
+                            topic = "Tema " + \
+                                doc_path.split("Tema")[-1].split()[0]
+                        elif "Introduccion" in doc_path:
+                            topic = "Introducción"
+                        elif "Modelos" in doc_path:
+                            topic = "Modelos"
+                        elif "Guia" in doc_path:
+                            topic = "Guía"
+                        else:
+                            topic = "Otros"
+
+                        topics[topic] = topics.get(topic, 0) + 1
+
+                    fig = px.pie(
+                        values=list(topics.values()),
+                        names=list(topics.keys()),
+                        title=f"Topic Distribution ({distance_metric.upper()} + {index_algorithm.upper()})"
+                    )
+
+                    fig.update_layout(
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        font_color='white',
+                        height=400
+                    )
+
+                    # Convert to JSON-serializable format
+                    import json
+                    plot_json = fig.to_json()
+                    plot_data = json.loads(plot_json)
+
+            except Exception as e:
+                logger.error(f"Error creating topic plot: {e}")
+
+        elif type == "quality":
+            # Quality metrics histogram
+            try:
+                search_result = qdrant_client.scroll(
+                    collection_name=collection_name,
+                    limit=200,
+                    with_payload=True
+                )
+
+                if search_result[0]:
+                    quality_scores = []
+                    for point in search_result[0]:
+                        metadata = point.payload.get("metadata", {})
+                        # Random if not available
+                        quality = float(metadata.get(
+                            "quality_score", np.random.random()))
+                        quality_scores.append(quality)
+
+                    fig = px.histogram(
+                        x=quality_scores,
+                        nbins=20,
+                        title=f"Quality Score Distribution ({distance_metric.upper()} + {index_algorithm.upper()})",
+                        labels={"x": "Quality Score", "y": "Number of Chunks"}
+                    )
+
+                    fig.update_layout(
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        font_color='white',
+                        height=400
+                    )
+
+                    # Convert to JSON-serializable format
+                    import json
+                    plot_json = fig.to_json()
+                    plot_data = json.loads(plot_json)
+
+            except Exception as e:
+                logger.error(f"Error creating quality plot: {e}")
+
+        else:  # temporal
+            # Processing timeline (simulated)
+            dates = pd.date_range(start='2024-01-01', periods=10, freq='D')
+            processed_docs = np.cumsum(np.random.randint(1, 5, 10))
+
+            # Convert numpy arrays to Python lists
+            dates_list = [d.strftime('%Y-%m-%d') for d in dates]
+            processed_list = [int(x) for x in processed_docs]
+
+            fig = px.line(
+                x=dates_list, y=processed_list,
+                title=f"Processing Timeline ({distance_metric.upper()} + {index_algorithm.upper()})",
+                labels={"x": "Date", "y": "Cumulative Documents Processed"}
+            )
+
+            fig.update_layout(
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                font_color='white',
+                height=400
+            )
+
+            # Convert to JSON-serializable format
+            import json
+            plot_json = fig.to_json()
+            plot_data = json.loads(plot_json)
+
+        if format == "html":
+            response_data = {
+                "plot_data": plot_data,
+                "type": type,
+                "config": {
+                    "distance_metric": distance_metric,
+                    "index_algorithm": index_algorithm,
+                    "collection": collection_name
+                },
+                "available_types": ["similarity", "topics", "quality", "temporal"]
+            }
+
+            # Include statistics if requested
+            if include_stats:
+                try:
+                    from app.qdrant_backend import client as qdrant_client
+                    from app.pgvector_backend import get_connection
+
+                    stats = {
+                        "total_docs": 0,
+                        "total_chunks": 0,
+                        "total_embeddings": 0,
+                        "processing_time": 0,
+                        "collections": [],
+                        "tables": []
+                    }
+
+                    # Get Qdrant stats
+                    try:
+                        collections = qdrant_client.get_collections()
+                        for collection in collections.collections:
+                            if "course_docs" in collection.name or "docs_" in collection.name:
+                                info = qdrant_client.get_collection(
+                                    collection.name)
+                                stats["collections"].append({
+                                    "name": collection.name,
+                                    "points": info.points_count,
+                                    "vector_size": info.config.params.vectors.size
+                                })
+                                stats["total_embeddings"] += info.points_count
+                    except Exception as e:
+                        logger.error(f"Error getting Qdrant stats: {e}")
+
+                    # Get pgvector stats
+                    try:
+                        conn = get_connection()
+                        if conn:
+                            with conn.cursor() as cur:
+                                cur.execute("""
+                                    SELECT tablename FROM pg_tables 
+                                    WHERE tablename LIKE 'docs_%' OR tablename LIKE 'course_docs_%'
+                                """)
+                                tables = cur.fetchall()
+
+                                for (table_name,) in tables:
+                                    cur.execute(
+                                        f"SELECT COUNT(*) FROM {table_name}")
+                                    count = cur.fetchone()[0]
+                                    stats["tables"].append({
+                                        "name": table_name,
+                                        "rows": count
+                                    })
+                                    stats["total_chunks"] += count
+
+                            conn.close()
+                    except Exception as e:
+                        logger.error(f"Error getting pgvector stats: {e}")
+
+                    # Estimate total documents
+                    stats["total_docs"] = len(set([col["name"].replace("course_docs_clean_", "").replace("docs_clean_", "")
+                                                  for col in stats["collections"]]))
+
+                    response_data["pipeline_stats"] = stats
+
+                except Exception as e:
+                    logger.error(f"Error getting stats for visualization: {e}")
+
+            return HTMLResponse(render_general_response(
+                data=response_data,
+                title="Dashboard: Estadísticas y Visualizaciones del Pipeline"
+            ))
+
+        return JSONResponse({
+            "success": True,
+            "plot_data": plot_data,
+            "type": type,
+            "config": {
+                "distance_metric": distance_metric,
+                "index_algorithm": index_algorithm,
+                "collection": collection_name
+            }
+        })
+
+    except Exception as e:
+        logger.error(f"Error generating visualization: {e}")
+        if format == "html":
+            return HTMLResponse(render_general_response({
+                "error": str(e),
+                "message": "Error generating visualizations"
+            }, "Visualizaciones del Pipeline", "#ef4444"))
+        else:
+            return JSONResponse(
+                status_code=500,
+                content={"error": str(e), "type": type}
+            )
