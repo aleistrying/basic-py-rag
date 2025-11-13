@@ -17,6 +17,32 @@ except ImportError:
 from app.qdrant_backend import search_qdrant
 from app.pgvector_backend import search_pgvector
 
+# Import advanced RAG techniques
+try:
+    from app.advanced_rag import (
+        multi_query_search,
+        decomposed_search,
+        hyde_search,
+        hybrid_search,
+        iterative_retrieval
+    )
+    print("✅ Advanced RAG techniques loaded successfully")
+except ImportError as e:
+    print(f"⚠️  Advanced RAG import error: {e}")
+    multi_query_search = None
+    decomposed_search = None
+    hyde_search = None
+    hybrid_search = None
+    iterative_retrieval = None
+
+# Import orchestrated RAG pipeline
+try:
+    from app.orchestrated_rag import orchestrated_rag_pipeline
+    print("✅ Orchestrated RAG pipeline loaded successfully")
+except ImportError as e:
+    print(f"⚠️  Orchestrated RAG import error: {e}")
+    orchestrated_rag_pipeline = None
+
 # Import template functions
 try:
     from app.templates.template_renderer import (
@@ -369,14 +395,26 @@ def root(response_format: str = Query("html", description="Formato: 'json' o 'ht
                 "Metadata filtering (document_type, section, topic, page, contains)",
                 "Backend comparison (Qdrant vs PostgreSQL+pgvector)",
                 "Educational demos for classroom demonstrations",
-                "Smart chunking (200 tokens, preserves context)"
+                "Smart chunking (200 tokens, preserves context)",
+                "🆕 Multi-Query search with query rephrasing and RRF",
+                "🆕 Query Decomposition for complex questions",
+                "🆕 HyDE (Hypothetical Document Embeddings)",
+                "🆕 Hybrid Search (Semantic + Keyword BM25)",
+                "🆕 Multi-Round Iterative Retrieval for multi-hop questions",
+                "🧠 Orchestrated Pipeline - Intelligent automatic technique selection"
             ],
             "endpoints": {
                 "/": "Enhanced home with search interface",
                 "/ask": "RAG search with metadata filtering (HTML/JSON)",
                 "/ai": "AI-powered RAG with LLM generation (requires Ollama)",
                 "/compare": "Side-by-side comparison of Qdrant vs pgvector",
-                "/docs": "📚 OpenAPI/Swagger documentation"
+                "/docs": "📚 OpenAPI/Swagger documentation",
+                "/orchestrated": "🧠 Orchestrated Pipeline - Automatic intelligent RAG",
+                "/advanced/multi-query": "🔄 Multi-Query with RRF fusion",
+                "/advanced/decompose": "🧩 Query Decomposition for complex questions",
+                "/advanced/hyde": "📄 HyDE - Hypothetical Document Embeddings",
+                "/advanced/hybrid": "🔀 Hybrid Search (Semantic + Keyword)",
+                "/advanced/iterative": "🔁 Multi-Round Iterative Retrieval"
             }
         }
         return JSONResponse(content=result)
@@ -424,36 +462,42 @@ def comprehensive_pipeline_demo(
     q: str = Query("¿Qué es pgvector?",
                    description="Consulta para demostrar pipeline"),
     model: str = Query("phi3:mini", description="Modelo de IA a usar"),
+    storage_type: str = Query(
+        "both", description="Tipo de almacenamiento: 'qdrant', 'postgresql', 'both'"),
+    algorithm: str = Query(
+        "cosine", description="Algoritmo de distancia: 'cosine', 'euclidean', 'dot_product', 'manhattan'"),
     response_format: str = Query(
         "html", description="Formato: 'json' o 'html'", alias="format")
 ):
-    """Demo paso a paso completo del pipeline RAG con TODOS los 15 pasos"""
+    """Demo paso a paso completo del pipeline RAG con almacenamiento de bases de datos incluido"""
     try:
         from app.demo_pipeline import RAGPipelineDemo, create_demo_html
 
         demo = RAGPipelineDemo()
 
         # Execute ALL pipeline steps using the complete demo method
-        # This runs all 15 steps in the correct order with proper data flow
-        all_steps = demo.run_complete_demo(query=q, model=model)
+        # This now includes database storage simulation
+        all_steps = demo.run_complete_demo_with_storage(
+            query=q, model=model, storage_type=storage_type, algorithm=algorithm)
 
         if response_format == "json":
             return JSONResponse(content={
                 "query": q,
                 "model": model,
+                "storage_type": storage_type,
+                "algorithm": algorithm,
                 "pipeline_steps": all_steps,
                 "total_steps": len(all_steps),
-                "demo_type": "comprehensive_rag_pipeline_15_steps",
+                "demo_type": "comprehensive_rag_pipeline_with_database_storage",
                 "phases": [
-                    "PHASE 1-2: Document Processing",
-                    "PHASE 3: Database Upload & Indexing",
-                    "PHASE 4: Query Processing",
-                    "PHASE 5: Vector Search",
-                    "PHASE 6: LLM Generation"
+                    "FASE 1: Preparación de Documentos",
+                    "FASE 2: Almacenamiento en Bases de Datos",
+                    "FASE 3: Consultas y Búsquedas",
+                    "FASE 4: Procesamiento de Resultados"
                 ]
             })
 
-        # Generate comprehensive HTML for all steps
+        # Generate comprehensive HTML for all steps including storage demos
         html = create_demo_html(all_steps, q, model)
         return HTMLResponse(content=html)
 
@@ -468,6 +512,364 @@ def demo_test():
     return {"status": "ok", "message": "Demo API is working!"}
 
 
+# ================================
+# ADVANCED RAG ENDPOINTS
+# ================================
+
+@app.get("/advanced/multi-query", response_class=HTMLResponse)
+def advanced_multi_query(
+    q: str = Query(..., description="Pregunta"),
+    backend: str = "qdrant",
+    k: int = 5,
+    num_variations: int = 3,
+    model: str = "phi3:mini",
+    response_format: str = Query(
+        "html", description="Formato: 'json' o 'html'", alias="format"),
+    document_type: Optional[str] = Query(
+        None, description="Filtrar por tipo de documento"),
+    section: Optional[str] = Query(None, description="Filtrar por sección"),
+    topic: Optional[str] = Query(None, description="Filtrar por tema")
+):
+    """
+    Multi-Query Search with Query Rephrasing and RRF Fusion
+
+    Generates multiple rephrased versions of the query and combines results using
+    Reciprocal Rank Fusion (RRF) for improved recall.
+    """
+    if multi_query_search is None:
+        return render_pretty_json({"error": "Advanced RAG features not available"})
+
+    try:
+        filters = {}
+        if document_type:
+            filters['document_type'] = document_type
+        if section:
+            filters['section'] = section
+        if topic:
+            filters['topic'] = topic
+
+        result = multi_query_search(
+            query=q,
+            backend=backend,
+            k=k,
+            num_variations=num_variations,
+            model=model,
+            filters=filters or None
+        )
+
+        if response_format == "json":
+            return JSONResponse(content=result)
+        else:
+            return render_ai_response(result, q)
+
+    except Exception as e:
+        logger.error(f"Multi-query search error: {e}")
+        error_data = {"error": str(e), "query": q}
+        if response_format == "json":
+            raise HTTPException(status_code=500, detail=str(e)) from e
+        return render_general_response(error_data, "❌ Error", "#dc2626")
+
+
+@app.get("/advanced/decompose", response_class=HTMLResponse)
+def advanced_decompose(
+    q: str = Query(..., description="Pregunta compleja"),
+    backend: str = "qdrant",
+    k: int = 5,
+    model: str = "phi3:mini",
+    synthesize: bool = True,
+    response_format: str = Query(
+        "html", description="Formato: 'json' o 'html'", alias="format"),
+    document_type: Optional[str] = Query(
+        None, description="Filtrar por tipo de documento"),
+    section: Optional[str] = Query(None, description="Filtrar por sección"),
+    topic: Optional[str] = Query(None, description="Filtrar por tema")
+):
+    """
+    Query Decomposition Search
+
+    Breaks down complex queries into simpler sub-questions, searches for each,
+    and synthesizes a comprehensive answer.
+    """
+    if decomposed_search is None:
+        return render_pretty_json({"error": "Advanced RAG features not available"})
+
+    try:
+        filters = {}
+        if document_type:
+            filters['document_type'] = document_type
+        if section:
+            filters['section'] = section
+        if topic:
+            filters['topic'] = topic
+
+        result = decomposed_search(
+            query=q,
+            backend=backend,
+            k=k,
+            model=model,
+            filters=filters or None,
+            synthesize=synthesize
+        )
+
+        if response_format == "json":
+            return JSONResponse(content=result)
+        else:
+            return render_ai_response(result, q)
+
+    except Exception as e:
+        logger.error(f"Query decomposition error: {e}")
+        error_data = {"error": str(e), "query": q}
+        if response_format == "json":
+            raise HTTPException(status_code=500, detail=str(e)) from e
+        return render_general_response(error_data, "❌ Error", "#dc2626")
+
+
+@app.get("/advanced/hyde", response_class=HTMLResponse)
+def advanced_hyde(
+    q: str = Query(..., description="Pregunta"),
+    backend: str = "qdrant",
+    k: int = 5,
+    model: str = "phi3:mini",
+    generate_answer: bool = True,
+    response_format: str = Query(
+        "html", description="Formato: 'json' o 'html'", alias="format"),
+    document_type: Optional[str] = Query(
+        None, description="Filtrar por tipo de documento"),
+    section: Optional[str] = Query(None, description="Filtrar por sección"),
+    topic: Optional[str] = Query(None, description="Filtrar por tema")
+):
+    """
+    HyDE (Hypothetical Document Embeddings) Search
+
+    Generates a hypothetical answer document and uses its embedding for search,
+    bridging the gap between questions and answer-style documents.
+    """
+    if hyde_search is None:
+        return render_pretty_json({"error": "Advanced RAG features not available"})
+
+    try:
+        filters = {}
+        if document_type:
+            filters['document_type'] = document_type
+        if section:
+            filters['section'] = section
+        if topic:
+            filters['topic'] = topic
+
+        result = hyde_search(
+            query=q,
+            backend=backend,
+            k=k,
+            model=model,
+            filters=filters or None,
+            generate_final_answer=generate_answer
+        )
+
+        if response_format == "json":
+            return JSONResponse(content=result)
+        else:
+            return render_ai_response(result, q)
+
+    except Exception as e:
+        logger.error(f"HyDE search error: {e}")
+        error_data = {"error": str(e), "query": q}
+        if response_format == "json":
+            raise HTTPException(status_code=500, detail=str(e)) from e
+        return render_general_response(error_data, "❌ Error", "#dc2626")
+
+
+@app.get("/advanced/hybrid", response_class=HTMLResponse)
+def advanced_hybrid(
+    q: str = Query(..., description="Pregunta"),
+    backend: str = "qdrant",
+    k: int = 5,
+    semantic_weight: float = Query(0.7, description="Peso semántico (0-1)"),
+    use_rrf: bool = True,
+    response_format: str = Query(
+        "html", description="Formato: 'json' o 'html'", alias="format"),
+    document_type: Optional[str] = Query(
+        None, description="Filtrar por tipo de documento"),
+    section: Optional[str] = Query(None, description="Filtrar por sección"),
+    topic: Optional[str] = Query(None, description="Filtrar por tema")
+):
+    """
+    Hybrid Search (Semantic + Keyword)
+
+    Combines semantic vector search with keyword-based BM25 search using
+    Reciprocal Rank Fusion for optimal results.
+    """
+    if hybrid_search is None:
+        return render_pretty_json({"error": "Advanced RAG features not available"})
+
+    try:
+        filters = {}
+        if document_type:
+            filters['document_type'] = document_type
+        if section:
+            filters['section'] = section
+        if topic:
+            filters['topic'] = topic
+
+        result = hybrid_search(
+            query=q,
+            backend=backend,
+            k=k,
+            semantic_weight=semantic_weight,
+            filters=filters or None,
+            use_rrf=use_rrf
+        )
+
+        if response_format == "json":
+            return JSONResponse(content=result)
+        else:
+            return render_ai_response(result, q)
+
+    except Exception as e:
+        logger.error(f"Hybrid search error: {e}")
+        error_data = {"error": str(e), "query": q}
+        if response_format == "json":
+            raise HTTPException(status_code=500, detail=str(e)) from e
+        return render_general_response(error_data, "❌ Error", "#dc2626")
+
+
+@app.get("/advanced/iterative", response_class=HTMLResponse)
+def advanced_iterative(
+    q: str = Query(..., description="Pregunta compleja o multi-hop"),
+    backend: str = "qdrant",
+    k: int = 5,
+    max_rounds: int = Query(3, description="Máximo de rondas de búsqueda"),
+    model: str = "phi3:mini",
+    response_format: str = Query(
+        "html", description="Formato: 'json' o 'html'", alias="format"),
+    document_type: Optional[str] = Query(
+        None, description="Filtrar por tipo de documento"),
+    section: Optional[str] = Query(None, description="Filtrar por sección"),
+    topic: Optional[str] = Query(None, description="Filtrar por tema")
+):
+    """
+    Multi-Round Iterative Retrieval
+
+    Performs multiple rounds of retrieval with query refinement based on previously
+    retrieved information, ideal for complex multi-hop questions.
+    """
+    if iterative_retrieval is None:
+        return render_pretty_json({"error": "Advanced RAG features not available"})
+
+    try:
+        filters = {}
+        if document_type:
+            filters['document_type'] = document_type
+        if section:
+            filters['section'] = section
+        if topic:
+            filters['topic'] = topic
+
+        result = iterative_retrieval(
+            query=q,
+            backend=backend,
+            k=k,
+            max_rounds=max_rounds,
+            model=model,
+            filters=filters or None
+        )
+
+        if response_format == "json":
+            return JSONResponse(content=result)
+        else:
+            return render_ai_response(result, q)
+
+    except Exception as e:
+        logger.error(f"Iterative retrieval error: {e}")
+        error_data = {"error": str(e), "query": q}
+        if response_format == "json":
+            raise HTTPException(status_code=500, detail=str(e)) from e
+        return render_general_response(error_data, "❌ Error", "#dc2626")
+
+
+@app.get("/demo/test")
+def demo_test():
+    """Test endpoint to verify API is working"""
+    return {"status": "ok", "message": "Demo API is working!"}
+
+
+@app.get("/orchestrated", response_class=HTMLResponse)
+def orchestrated_search(
+    q: str = Query(..., description="Your query - the system will automatically optimize retrieval"),
+    backend: str = Query(
+        "qdrant", description="Vector database (qdrant or pgvector)"),
+    k: int = Query(10, description="Number of final results"),
+    model: str = Query(
+        "phi3:mini", description="LLM model for checks and generation"),
+    response_format: str = Query(
+        "html", description="Response format: 'json' or 'html'", alias="format"),
+    max_calls: int = Query(
+        8, description="Budget: max retrieval calls allowed"),
+    max_rounds: int = Query(2, description="Max iterative rounds"),
+    early_exit: bool = Query(
+        True, description="Stop early if query answerable"),
+    document_type: Optional[str] = Query(
+        None, description="Filter by document type"),
+    section: Optional[str] = Query(None, description="Filter by section"),
+    topic: Optional[str] = Query(None, description="Filter by topic")
+):
+    """
+    🧠 Orchestrated RAG Pipeline - Intelligent Multi-Technique System
+
+    This endpoint automatically:
+    1. Runs baseline hybrid search (always)
+    2. Checks if the query is answerable
+    3. Conditionally applies advanced techniques based on query characteristics:
+       - Multi-Query if query is short/ambiguous
+       - HyDE if query is abstract
+       - Query Decomposition if compound/multi-part
+    4. Iteratively refines if information is still insufficient
+    5. Uses RRF fusion throughout
+    6. Stops early when sufficient information is found
+
+    Perfect for: Complex queries where you want the system to figure out the best approach.
+    """
+    if orchestrated_rag_pipeline is None:
+        return JSONResponse(
+            content={"error": "Orchestrated RAG pipeline not available"},
+            status_code=501
+        )
+
+    try:
+        filters = {}
+        if document_type:
+            filters["document_type"] = document_type
+        if section:
+            filters["section"] = section
+        if topic:
+            filters["topic"] = topic
+
+        result = orchestrated_rag_pipeline(
+            query=q,
+            backend=backend,
+            k=k,
+            model=model,
+            filters=filters if filters else None,
+            max_retrieval_calls=max_calls,
+            max_rounds=max_rounds,
+            early_exit=early_exit
+        )
+
+        if response_format == "json":
+            return JSONResponse(content=result)
+
+        # Render with the same beautiful template as /ai
+        return render_ai_response(result, q)
+
+    except Exception as e:
+        logger.error(f"Orchestrated pipeline error: {e}", exc_info=True)
+        if response_format == "json":
+            return JSONResponse(
+                content={"error": str(e), "type": type(e).__name__},
+                status_code=500
+            )
+        return HTMLResponse(f"<h1>Error</h1><p>{str(e)}</p><pre>{type(e).__name__}</pre>")
+
+
 @app.get("/demo/embedding")
 def demo_embedding(
     text: str = Query("PostgreSQL es una base de datos vectorial",
@@ -475,8 +877,6 @@ def demo_embedding(
 ):
     """Mostrar cómo se convierte texto a vector con modelo E5"""
     try:
-        from app.templates.embedding_template import render_embedding_demo_html
-
         # Generar datos de demostración
         demo_data = {
             "original_text": text,
@@ -495,16 +895,8 @@ def demo_embedding(
             ]
         }
 
-        return render_embedding_demo_html(demo_data)
+        return render_general_response(demo_data, "🔧 Demostración de Embedding", "#8b5cf6")
 
-    except ImportError:
-        # Fallback to simple JSON if template not available
-        return {
-            "text": text,
-            "embedding_preview": [0.123, -0.456, 0.789],
-            "dimensions": 768,
-            "model": "intfloat/multilingual-e5-large"
-        }
     except Exception as e:
         return render_pretty_json({"error": str(e), "text": text})
 
@@ -517,8 +909,6 @@ def demo_similarity(
 ):
     """Demostrar cálculo de similitud entre dos textos"""
     try:
-        from app.templates.similarity_template import render_similarity_demo_html
-
         # Simular cálculo de similitud
         similarity_data = {
             "text1": text1,
@@ -543,15 +933,7 @@ def demo_similarity(
             ]
         }
 
-        return render_similarity_demo_html(similarity_data)
+        return render_general_response(similarity_data, "🔗 Demostración de Similitud", "#10b981")
 
-    except ImportError:
-        # Fallback to JSON
-        return {
-            "text1": text1,
-            "text2": text2,
-            "cosine_similarity": 0.876,
-            "similarity_percentage": "87.6%"
-        }
     except Exception as e:
         return render_pretty_json({"error": str(e), "text1": text1, "text2": text2})

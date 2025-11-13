@@ -3,387 +3,646 @@
 {% block title %}AI Response: {{ query }}{% endblock %}
 
 {% block extra_css %}
-/* Question Section */
-.question-section {
-background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-padding: 25px;
-border-radius: 12px;
-margin-bottom: 25px;
-border: 1px solid #6366f1;
-box-shadow: 0 4px 15px rgba(99, 102, 241, 0.2);
-}
-.question-label {
-font-weight: 700;
-color: #ffffff;
-font-size: 18px;
-margin-bottom: 12px;
-display: flex;
-align-items: center;
-gap: 8px;
-}
-.question-text {
-font-size: 18px;
-color: #f1f5f9;
-line-height: 1.6;
-font-weight: 500;
-}
+<style>
+    /* Question Section */
+    .question-section {
+        background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+        padding: 25px;
+        border-radius: 12px;
+        margin-bottom: 25px;
+        border: 1px solid #6366f1;
+        box-shadow: 0 4px 15px rgba(99, 102, 241, 0.2);
+    }
 
-/* Answer Section */
-.answer-section {
-background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
-padding: 30px;
-border-radius: 12px;
-margin-bottom: 25px;
-border: 1px solid #8b5cf6;
-box-shadow: 0 4px 15px rgba(139, 92, 246, 0.2);
-}
-.answer-label {
-font-weight: 700;
-color: #ffffff;
-font-size: 20px;
-margin-bottom: 20px;
-display: flex;
-align-items: center;
-gap: 10px;
-}
-.answer-label .model-badge {
-font-size: 12px;
-background: rgba(255,255,255,0.2);
-padding: 4px 8px;
-border-radius: 6px;
-font-weight: 600;
-backdrop-filter: blur(10px);
-}
-.answer-text {
-font-size: 18px;
-line-height: 1.8;
-color: #f8fafc;
-white-space: pre-wrap;
-word-wrap: break-word;
-text-shadow: 0 1px 2px rgba(0,0,0,0.1);
-}
-.model-info {
-font-size: 14px;
-color: rgba(255,255,255,0.8);
-margin-top: 15px;
-padding: 10px 15px;
-background: rgba(255,255,255,0.1);
-border-radius: 6px;
-backdrop-filter: blur(10px);
-}
+    .question-label {
+        font-weight: 700;
+        color: #ffffff;
+        font-size: 18px;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
 
-/* Sources Section */
-.sources-section {
-margin-top: 30px;
-background: #252525;
-padding: 25px;
-border-radius: 12px;
-border: 1px solid #3a3a3a;
-box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-}
-.sources-section h3 {
-margin: 0 0 25px 0;
-color: #f59e0b;
-font-size: 22px;
-display: flex;
-align-items: center;
-gap: 10px;
-font-weight: 700;
-}
-.source-item {
-background: #333;
-padding: 20px;
-border-radius: 10px;
-margin-bottom: 20px;
-border: 1px solid #444;
-transition: all 0.3s ease;
-position: relative;
-overflow: hidden;
-}
-.source-item:hover {
-background: #3a3a3a;
-border-color: #a78bfa;
-transform: translateY(-2px);
-box-shadow: 0 6px 20px rgba(167, 139, 250, 0.15);
-}
-.source-item::before {
-content: '';
-position: absolute;
-top: 0;
-left: 0;
-width: 4px;
-height: 100%;
-background: linear-gradient(to bottom, #a78bfa, #8b5cf6);
-}
-.source-header {
-display: flex;
-align-items: center;
-gap: 15px;
-margin-bottom: 15px;
-flex-wrap: wrap;
-}
-.source-number {
-background: linear-gradient(135deg, #a78bfa, #8b5cf6);
-color: white;
-padding: 6px 10px;
-border-radius: 50%;
-font-weight: bold;
-font-size: 14px;
-min-width: 28px;
-text-align: center;
-box-shadow: 0 2px 8px rgba(167, 139, 250, 0.3);
-}
-.source-doc {
-font-weight: 600;
-color: #c7d2fe;
-flex: 1;
-min-width: 200px;
-font-size: 15px;
-}
-.source-similarity {
-background: linear-gradient(135deg, #4c1d95, #6d28d9);
-color: #c4b5fd;
-padding: 6px 10px;
-border-radius: 6px;
-font-size: 12px;
-font-weight: 600;
-border: 1px solid #8b5cf6;
-}
-.source-preview {
-color: #d1d5db;
-font-style: italic;
-border-left: 3px solid #a78bfa;
-padding-left: 15px;
-margin-left: 15px;
-line-height: 1.6;
-background: rgba(167, 139, 250, 0.05);
-padding: 12px 15px;
-border-radius: 6px;
-font-size: 14px;
-}
+    .question-text {
+        font-size: 18px;
+        color: #f1f5f9;
+        line-height: 1.6;
+        font-weight: 500;
+    }
 
-/* Controls Row */
-.controls-row {
-display: flex;
-gap: 25px;
-margin-bottom: 20px;
-flex-wrap: wrap;
-background: #1f2937;
-padding: 20px;
-border-radius: 10px;
-border: 1px solid #374151;
-}
-.control-group {
-display: flex;
-align-items: center;
-gap: 10px;
-}
-.control-group label {
-font-weight: 600;
-min-width: 60px;
-color: #f3f4f6;
-font-size: 14px;
-}
-.select-control {
-padding: 10px 15px;
-border: 1px solid #4b5563;
-border-radius: 8px;
-background: #374151;
-color: #f3f4f6;
-cursor: pointer;
-min-width: 140px;
-font-weight: 500;
-transition: all 0.3s ease;
-}
-.select-control:hover {
-border-color: #6b7280;
-background: #4b5563;
-}
-.select-control:focus {
-outline: none;
-border-color: #3b82f6;
-box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
-}
-.select-control option {
-background: #374151;
-color: #f3f4f6;
-padding: 8px;
-}
+    /* Answer Section */
+    .answer-section {
+        background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+        padding: 30px;
+        border-radius: 12px;
+        margin-bottom: 25px;
+        border: 1px solid #8b5cf6;
+        box-shadow: 0 4px 15px rgba(139, 92, 246, 0.2);
+    }
 
-/* Enhanced Toggle Button */
-.toggle-btn {
-background: linear-gradient(135deg, #4b5563, #374151);
-color: #e5e7eb;
-border: none;
-padding: 15px 30px;
-border-radius: 10px;
-cursor: pointer;
-font-size: 16px;
-font-weight: 600;
-transition: all 0.3s ease;
-display: inline-flex;
-align-items: center;
-gap: 10px;
-border: 1px solid #6b7280;
-box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-}
-.toggle-btn:hover {
-background: linear-gradient(135deg, #6b7280, #4b5563);
-transform: translateY(-2px);
-box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-}
-.toggle-btn:active {
-transform: translateY(0);
-}
+    .answer-label {
+        font-weight: 700;
+        color: #ffffff;
+        font-size: 20px;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
 
-/* Enhanced JSON Details */
-.json-details {
-display: none;
-margin-top: 25px;
-background: #111827;
-padding: 25px;
-border-radius: 10px;
-border: 1px solid #374151;
-box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-transition: all 0.3s ease;
-}
-.json-details.show {
-display: block;
-animation: slideDown 0.3s ease-out;
-}
-.json-content {
-background: #0f172a;
-padding: 25px;
-border-radius: 8px;
-overflow-x: auto;
-font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
-font-size: 13px;
-line-height: 1.6;
-text-align: left;
-white-space: pre-wrap;
-word-wrap: break-word;
-border: 1px solid #1f2937;
-}
+    .answer-label .model-badge {
+        font-size: 12px;
+        background: rgba(255, 255, 255, 0.2);
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-weight: 600;
+        backdrop-filter: blur(10px);
+    }
 
-/* Enhanced Navigation */
-.navigation {
-display: flex;
-gap: 20px;
-justify-content: space-between;
-margin-top: 40px;
-flex-wrap: wrap;
-}
-.nav-group {
-display: flex;
-gap: 12px;
-flex-wrap: wrap;
-}
-.nav-link {
-display: inline-flex;
-align-items: center;
-gap: 8px;
-padding: 14px 24px;
-background: #374151;
-color: #e5e7eb;
-text-decoration: none;
-border-radius: 10px;
-font-weight: 600;
-transition: all 0.3s ease;
-border: 1px solid #4b5563;
-font-size: 14px;
-}
-.nav-link:hover {
-background: #4b5563;
-transform: translateY(-2px);
-box-shadow: 0 6px 20px rgba(0,0,0,0.3);
-}
-.nav-link.primary {
-background: linear-gradient(135deg, #2563eb, #1d4ed8);
-border-color: #3b82f6;
-}
-.nav-link.primary:hover {
-background: linear-gradient(135deg, #3b82f6, #2563eb);
-}
+    .answer-text {
+        font-size: 18px;
+        line-height: 1.8;
+        color: #f8fafc;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    }
 
-/* JSON Syntax Highlighting - Enhanced */
-.json-string { color: #fbbf24; font-weight: 500; }
-.json-number { color: #34d399; font-weight: 600; }
-.json-boolean { color: #60a5fa; font-weight: 600; }
-.json-null { color: #f87171; font-weight: 600; }
-.json-key { color: #a78bfa; font-weight: 600; }
-.json-bracket { color: #ffd700; font-weight: bold; }
-.json-brace { color: #da70d6; font-weight: bold; }
-.json-comma { color: #ffffff; }
-.json-colon { color: #ffffff; }
+    .model-info {
+        font-size: 14px;
+        color: rgba(255, 255, 255, 0.8);
+        margin-top: 15px;
+        padding: 10px 15px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 6px;
+        backdrop-filter: blur(10px);
+    }
 
-/* Animations */
-@keyframes slideDown {
-from {
-opacity: 0;
-transform: translateY(-20px);
-}
-to {
-opacity: 1;
-transform: translateY(0);
-}
-}
+    /* Sources Section */
+    .sources-section {
+        margin-top: 30px;
+        background: #252525;
+        padding: 25px;
+        border-radius: 12px;
+        border: 1px solid #3a3a3a;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    }
 
-@keyframes fadeInUp {
-from {
-opacity: 0;
-transform: translateY(20px);
-}
-to {
-opacity: 1;
-transform: translateY(0);
-}
-}
+    .sources-section h3 {
+        margin: 0 0 25px 0;
+        color: #f59e0b;
+        font-size: 22px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 700;
+    }
 
-.fade-in {
-animation: fadeInUp 0.6s ease-out forwards;
-}
+    .source-item {
+        background: #333;
+        padding: 20px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        border: 1px solid #444;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
 
-/* Details Toggle Section */
-.details-toggle {
-margin-top: 40px;
-text-align: center;
-padding: 30px;
-background: #1f2937;
-border-radius: 12px;
-border: 1px solid #374151;
-}
+    .source-item:hover {
+        background: #3a3a3a;
+        border-color: #a78bfa;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(167, 139, 250, 0.15);
+    }
 
-/* Responsive Design */
-@media (max-width: 768px) {
-.controls-row {
-flex-direction: column;
-gap: 15px;
-}
-.navigation {
-flex-direction: column;
-align-items: center;
-}
-.source-header {
-flex-direction: column;
-align-items: flex-start;
-gap: 10px;
-}
-.answer-text {
-font-size: 16px;
-}
-.question-text {
-font-size: 16px;
-}
-}
+    .source-item::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 4px;
+        height: 100%;
+        background: linear-gradient(to bottom, #a78bfa, #8b5cf6);
+    }
+
+    .source-header {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        margin-bottom: 15px;
+        flex-wrap: wrap;
+    }
+
+    .source-number {
+        background: linear-gradient(135deg, #a78bfa, #8b5cf6);
+        color: white;
+        padding: 6px 10px;
+        border-radius: 50%;
+        font-weight: bold;
+        font-size: 14px;
+        min-width: 28px;
+        text-align: center;
+        box-shadow: 0 2px 8px rgba(167, 139, 250, 0.3);
+    }
+
+    .source-doc {
+        font-weight: 600;
+        color: #c7d2fe;
+        flex: 1;
+        min-width: 200px;
+        font-size: 15px;
+    }
+
+    .source-similarity {
+        background: linear-gradient(135deg, #4c1d95, #6d28d9);
+        color: #c4b5fd;
+        padding: 6px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        border: 1px solid #8b5cf6;
+    }
+
+    .source-preview {
+        color: #d1d5db;
+        font-style: italic;
+        border-left: 3px solid #a78bfa;
+        padding-left: 15px;
+        margin-left: 15px;
+        line-height: 1.6;
+        background: rgba(167, 139, 250, 0.05);
+        padding: 12px 15px;
+        border-radius: 6px;
+        font-size: 14px;
+    }
+
+    /* Controls Row */
+    .controls-row {
+        display: flex;
+        gap: 25px;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+        background: #1f2937;
+        padding: 20px;
+        border-radius: 10px;
+        border: 1px solid #374151;
+    }
+
+    .control-group {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .control-group label {
+        font-weight: 600;
+        min-width: 60px;
+        color: #f3f4f6;
+        font-size: 14px;
+    }
+
+    .select-control {
+        padding: 10px 15px;
+        border: 1px solid #4b5563;
+        border-radius: 8px;
+        background: #374151;
+        color: #f3f4f6;
+        cursor: pointer;
+        min-width: 140px;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+
+    .select-control:hover {
+        border-color: #6b7280;
+        background: #4b5563;
+    }
+
+    .select-control:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+    }
+
+    .select-control option {
+        background: #374151;
+        color: #f3f4f6;
+        padding: 8px;
+    }
+
+    /* Enhanced Toggle Button */
+    .toggle-btn {
+        background: linear-gradient(135deg, #4b5563, #374151);
+        color: #e5e7eb;
+        border: none;
+        padding: 15px 30px;
+        border-radius: 10px;
+        cursor: pointer;
+        font-size: 16px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        border: 1px solid #6b7280;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .toggle-btn:hover {
+        background: linear-gradient(135deg, #6b7280, #4b5563);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    }
+
+    .toggle-btn:active {
+        transform: translateY(0);
+    }
+
+    /* Enhanced JSON Details */
+    .json-details {
+        display: none;
+        margin-top: 25px;
+        background: #111827;
+        padding: 25px;
+        border-radius: 10px;
+        border: 1px solid #374151;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        transition: all 0.3s ease;
+    }
+
+    .json-details.show {
+        display: block;
+        animation: slideDown 0.3s ease-out;
+    }
+
+    .json-content {
+        background: #0f172a;
+        padding: 25px;
+        border-radius: 8px;
+        overflow-x: auto;
+        font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+        font-size: 13px;
+        line-height: 1.6;
+        text-align: left;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        border: 1px solid #1f2937;
+    }
+
+    /* Enhanced Navigation */
+    .navigation {
+        display: flex;
+        gap: 20px;
+        justify-content: space-between;
+        margin-top: 40px;
+        flex-wrap: wrap;
+    }
+
+    .nav-group {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .nav-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 14px 24px;
+        background: #374151;
+        color: #e5e7eb;
+        text-decoration: none;
+        border-radius: 10px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        border: 1px solid #4b5563;
+        font-size: 14px;
+    }
+
+    .nav-link:hover {
+        background: #4b5563;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .nav-link.primary {
+        background: linear-gradient(135deg, #2563eb, #1d4ed8);
+        border-color: #3b82f6;
+    }
+
+    .nav-link.primary:hover {
+        background: linear-gradient(135deg, #3b82f6, #2563eb);
+    }
+
+    /* JSON Syntax Highlighting - Enhanced */
+    .json-string {
+        color: #fbbf24;
+        font-weight: 500;
+    }
+
+    .json-number {
+        color: #34d399;
+        font-weight: 600;
+    }
+
+    .json-boolean {
+        color: #60a5fa;
+        font-weight: 600;
+    }
+
+    .json-null {
+        color: #f87171;
+        font-weight: 600;
+    }
+
+    .json-key {
+        color: #a78bfa;
+        font-weight: 600;
+    }
+
+    .json-bracket {
+        color: #ffd700;
+        font-weight: bold;
+    }
+
+    .json-brace {
+        color: #da70d6;
+        font-weight: bold;
+    }
+
+    .json-comma {
+        color: #ffffff;
+    }
+
+    .json-colon {
+        color: #ffffff;
+    }
+
+    /* Animations */
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateY(-20px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .fade-in {
+        animation: fadeInUp 0.6s ease-out forwards;
+    }
+
+    /* Details Toggle Section */
+    .details-toggle {
+        margin-top: 40px;
+        text-align: center;
+        padding: 30px;
+        background: #1f2937;
+        border-radius: 12px;
+        border: 1px solid #374151;
+    }
+
+    /* Advanced RAG Steps Section */
+    .steps-section {
+        margin: 30px 0;
+        background: linear-gradient(135deg, #065f46 0%, #047857 100%);
+        border-radius: 12px;
+        border: 1px solid #10b981;
+        overflow: hidden;
+        box-shadow: 0 4px 15px rgba(16, 185, 129, 0.2);
+    }
+
+    .steps-toggle {
+        width: 100%;
+        background: none;
+        border: none;
+        color: white;
+        padding: 20px 30px;
+        font-size: 18px;
+        font-weight: 700;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        transition: all 0.3s ease;
+        position: relative;
+    }
+
+    .steps-toggle:hover {
+        background: rgba(255, 255, 255, 0.1);
+    }
+
+    .steps-badge {
+        background: rgba(255, 255, 255, 0.2);
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+        backdrop-filter: blur(10px);
+    }
+
+    .steps-content {
+        display: none;
+        background: #1f2937;
+        padding: 0;
+        animation: slideDown 0.3s ease-out;
+    }
+
+    .steps-content.show {
+        display: block;
+    }
+
+    .steps-header {
+        padding: 30px;
+        background: #111827;
+        border-bottom: 1px solid #374151;
+    }
+
+    .steps-header h3 {
+        margin: 0 0 10px 0;
+        color: #3b82f6;
+        font-size: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .steps-header p {
+        color: #d1d5db;
+        margin: 0;
+        opacity: 0.9;
+    }
+
+    .step-item {
+        padding: 25px 30px;
+        border-bottom: 1px solid #374151;
+        display: flex;
+        gap: 20px;
+        transition: all 0.3s ease;
+        position: relative;
+    }
+
+    .step-item:hover {
+        background: #252a35;
+    }
+
+    .step-item.final-step {
+        border-bottom: none;
+        background: linear-gradient(135deg, #1e40af 0%, #1d4ed8 100%);
+        color: white;
+    }
+
+    .step-number {
+        width: 40px;
+        height: 40px;
+        background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 16px;
+        flex-shrink: 0;
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    }
+
+    .step-content {
+        flex: 1;
+    }
+
+    .step-content h4 {
+        margin: 0 0 10px 0;
+        color: #e5e7eb;
+        font-size: 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .step-content p {
+        margin: 0 0 15px 0;
+        color: #d1d5db;
+        line-height: 1.6;
+    }
+
+    .variations-list {
+        background: #111827;
+        border-radius: 8px;
+        padding: 15px;
+        margin: 10px 0;
+        border-left: 3px solid #3b82f6;
+    }
+
+    .variations-list li {
+        color: #c7d2fe;
+        margin: 5px 0;
+        font-style: italic;
+        padding-left: 5px;
+    }
+
+    .tech-details {
+        background: rgba(59, 130, 246, 0.1);
+        border: 1px solid #3b82f6;
+        border-radius: 6px;
+        padding: 10px 15px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 13px;
+        color: #93c5fd;
+        font-weight: 600;
+        margin-top: 10px;
+    }
+
+    .hypothetical-doc {
+        background: #111827;
+        border: 1px solid #374151;
+        border-radius: 8px;
+        padding: 15px;
+        font-style: italic;
+        color: #fbbf24;
+        line-height: 1.5;
+        margin: 10px 0;
+        border-left: 3px solid #fbbf24;
+    }
+
+    /* Active Technique Highlighting */
+    .technique-card.active-technique {
+        border: 2px solid #10b981 !important;
+        box-shadow: 0 0 20px rgba(16, 185, 129, 0.4) !important;
+        position: relative;
+    }
+
+    .technique-card.active-technique::before {
+        content: "ACTIVA";
+        position: absolute;
+        top: -8px;
+        right: 15px;
+        background: linear-gradient(135deg, #10b981, #059669);
+        color: white;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 10px;
+        font-weight: 700;
+        box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+    }
+
+    /* Responsive Design */
+    @media (max-width: 768px) {
+        .controls-row {
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .navigation {
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .source-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 10px;
+        }
+
+        .answer-text {
+            font-size: 16px;
+        }
+
+        .question-text {
+            font-size: 16px;
+        }
+    }
+</style>
 {% endblock %}
 
 {% block header_content %}
 <div class="search-bar">
     <input type="text" class="search-input" placeholder="Nueva búsqueda..." value="{{ query }}" id="searchInput">
     <button class="search-btn" onclick="newSearch()">{{ get_svg_icon("search", "16", "#ffffff") }} Buscar</button>
-    <button class="nav-btn" onclick="window.location.href='/ask?q={{ query|urlencode }}'">{{ get_svg_icon("target",
+    <button class="nav-btn"
+        onclick="navigateWithLoading('/ask?q={{ query|urlencode }}', 'Navegando a búsqueda simple...')">{{
+        get_svg_icon("target",
         "16", "#ffffff") }} Solo /ask</button>
-    <button class="nav-btn" onclick="window.location.href='/'">{{ get_svg_icon("home", "16", "#ffffff") }} Menu
+    <button class="nav-btn" onclick="navigateWithLoading('/', 'Volviendo al inicio...')">{{ get_svg_icon("home", "16",
+        "#ffffff") }} Menu
         Principal</button>
 </div>
 <div class="controls-row">
@@ -432,6 +691,218 @@ font-size: 16px;
     </div>
 </div>
 
+{% if method and method != "Standard RAG" %}
+<!-- Advanced RAG Steps Section -->
+<div class="steps-section">
+    <button class="steps-toggle" onclick="toggleSteps()">
+        {{ get_svg_icon("eye", "20", "#ffffff") }} Ver Pasos del Proceso RAG
+        <span class="steps-badge">{{ method }}</span>
+    </button>
+    <div class="steps-content" id="stepsContent">
+        <div class="steps-header">
+            <h3>{{ get_svg_icon("gear", "24", "#3b82f6") }} Proceso Detallado: {{ method }}</h3>
+            <p>A continuación se muestran los pasos ejecutados para esta técnica RAG avanzada:</p>
+        </div>
+
+        {% if method == "Multi-Query + RRF" %}
+        <div class="step-item">
+            <div class="step-number">1</div>
+            <div class="step-content">
+                <h4>{{ get_svg_icon("refresh", "18", "#3b82f6") }} Generación de Variaciones</h4>
+                <p>Se generaron <strong>{{ total_queries - 1 }}</strong> variaciones de la consulta original:</p>
+                {% if query_variations %}
+                <ul class="variations-list">
+                    {% for var in query_variations %}
+                    <li>"{{ var }}"</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="step-item">
+            <div class="step-number">2</div>
+            <div class="step-content">
+                <h4>{{ get_svg_icon("search", "18", "#3b82f6") }} Búsqueda Vectorial</h4>
+                <p>Cada consulta fue embebida y buscada independientemente en {{ backend }}</p>
+                <div class="tech-details">
+                    <strong>{{ total_queries }}</strong> búsquedas × <strong>{{ k or 5 }}</strong> resultados cada una
+                </div>
+            </div>
+        </div>
+
+        <div class="step-item">
+            <div class="step-number">3</div>
+            <div class="step-content">
+                <h4>{{ get_svg_icon("shuffle", "18", "#3b82f6") }} Fusión RRF</h4>
+                <p>Los resultados se fusionaron usando Reciprocal Rank Fusion (RRF) para combinar las clasificaciones
+                </p>
+                <div class="tech-details">
+                    Fórmula: RRF(d) = Σ 1/(k + rank(d)) donde k=60
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if method == "Query Decomposition" %}
+        <div class="step-item">
+            <div class="step-number">1</div>
+            <div class="step-content">
+                <h4>{{ get_svg_icon("puzzle", "18", "#3b82f6") }} Descomposición</h4>
+                <p>La consulta compleja se dividió en <strong>{{ sub_queries|length if sub_queries else 'varias'
+                        }}</strong> sub-preguntas:</p>
+                {% if sub_queries %}
+                <ul class="variations-list">
+                    {% for sq in sub_queries %}
+                    <li>"{{ sq }}"</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="step-item">
+            <div class="step-number">2</div>
+            <div class="step-content">
+                <h4>{{ get_svg_icon("search", "18", "#3b82f6") }} Búsqueda Individual</h4>
+                <p>Cada sub-pregunta fue procesada independientemente</p>
+            </div>
+        </div>
+
+        <div class="step-item">
+            <div class="step-number">3</div>
+            <div class="step-content">
+                <h4>{{ get_svg_icon("layers", "18", "#3b82f6") }} Síntesis</h4>
+                <p>Los resultados se combinaron para generar una respuesta integral</p>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if method == "HyDE" %}
+        <div class="step-item">
+            <div class="step-number">1</div>
+            <div class="step-content">
+                <h4>{{ get_svg_icon("lightbulb", "18", "#3b82f6") }} Documento Hipotético</h4>
+                <p>Se generó una respuesta hipotética usando {{ model }}:</p>
+                {% if hypothetical_answer %}
+                <div class="hypothetical-doc">"{{ hypothetical_answer[:200] }}..."</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="step-item">
+            <div class="step-number">2</div>
+            <div class="step-content">
+                <h4>{{ get_svg_icon("target", "18", "#3b82f6") }} Embedding Hipotético</h4>
+                <p>El documento hipotético fue convertido a vector y usado para la búsqueda</p>
+            </div>
+        </div>
+
+        <div class="step-item">
+            <div class="step-number">3</div>
+            <div class="step-content">
+                <h4>{{ get_svg_icon("search", "18", "#3b82f6") }} Búsqueda Semántica</h4>
+                <p>Se encontraron documentos similares al contenido hipotético</p>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if method == "Hybrid Search" %}
+        <div class="step-item">
+            <div class="step-number">1</div>
+            <div class="step-content">
+                <h4>{{ get_svg_icon("zap", "18", "#3b82f6") }} Búsqueda Semántica</h4>
+                <p>Búsqueda vectorial usando embeddings para capturar significado</p>
+            </div>
+        </div>
+
+        <div class="step-item">
+            <div class="step-number">2</div>
+            <div class="step-content">
+                <h4>{{ get_svg_icon("search", "18", "#3b82f6") }} Búsqueda Léxica</h4>
+                <p>Búsqueda BM25 para coincidencias exactas de palabras clave</p>
+            </div>
+        </div>
+
+        <div class="step-item">
+            <div class="step-number">3</div>
+            <div class="step-content">
+                <h4>{{ get_svg_icon("shuffle", "18", "#3b82f6") }} Fusión Híbrida</h4>
+                <p>Combinación de puntuaciones usando RRF para el mejor resultado</p>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if method == "Iterative RAG" %}
+        <div class="step-item">
+            <div class="step-number">1</div>
+            <div class="step-content">
+                <h4>{{ get_svg_icon("search", "18", "#3b82f6") }} Búsqueda Inicial</h4>
+                <p>Primera ronda de búsqueda con la consulta original</p>
+            </div>
+        </div>
+
+        <div class="step-item">
+            <div class="step-number">2</div>
+            <div class="step-content">
+                <h4>{{ get_svg_icon("brain", "18", "#3b82f6") }} Análisis de Brechas</h4>
+                <p>Se analizaron los resultados para identificar información faltante</p>
+            </div>
+        </div>
+
+        <div class="step-item">
+            <div class="step-number">3</div>
+            <div class="step-content">
+                <h4>{{ get_svg_icon("repeat", "18", "#3b82f6") }} Refinamiento Iterativo</h4>
+                <p>Se ejecutaron {{ iterations or 'múltiples' }} rondas adicionales para completar la información</p>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if method == "Orchestrated Pipeline" %}
+        <div class="step-item">
+            <div class="step-number">1</div>
+            <div class="step-content">
+                <h4>{{ get_svg_icon("brain", "18", "#3b82f6") }} Análisis de Consulta</h4>
+                <p>Se analizó la consulta para determinar la técnica óptima</p>
+                <div class="tech-details">
+                    Señales detectadas: {{ detected_signals|join(', ') if detected_signals else 'Análisis automático' }}
+                </div>
+            </div>
+        </div>
+
+        <div class="step-item">
+            <div class="step-number">2</div>
+            <div class="step-content">
+                <h4>{{ get_svg_icon("gear", "18", "#3b82f6") }} Selección de Técnica</h4>
+                <p>Se seleccionó automáticamente: <strong>{{ selected_technique or 'Técnica optimizada' }}</strong></p>
+            </div>
+        </div>
+
+        <div class="step-item">
+            <div class="step-number">3</div>
+            <div class="step-content">
+                <h4>{{ get_svg_icon("zap", "18", "#3b82f6") }} Ejecución</h4>
+                <p>Se ejecutó la técnica seleccionada con parámetros optimizados</p>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="step-item final-step">
+            <div class="step-number">{{ '4' if method == 'Multi-Query + RRF' else '4' }}</div>
+            <div class="step-content">
+                <h4>{{ get_svg_icon("robot", "18", "#3b82f6") }} Generación de Respuesta</h4>
+                <p>Se generó la respuesta final usando <strong>{{ model }}</strong> con los mejores {{ total_results }}
+                    fragmentos encontrados</p>
+                <div class="tech-details">
+                    Tiempo total: {{ search_time_ms }}ms | Backend: {{ backend }}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 {% if sources %}
 <div class="sources-section">
     <h3>{{ get_svg_icon("book-open", "24", "#f59e0b") }} Fuentes de Conocimiento:</h3>
@@ -457,6 +928,67 @@ font-size: 16px;
 </div>
 {% endif %}
 
+<div class="sources-section" style="margin-top: 30px; background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);">
+    <h3>{{ get_svg_icon("zap", "24", "#3b82f6") }} Probar con otras técnicas RAG:</h3>
+    <div
+        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-top: 20px;">
+        <a href="/orchestrated?q={{ query|urlencode }}&backend={{ backend.lower() }}&model={{ model }}"
+            class="nav-link technique-card {% if method == 'Orchestrated Pipeline' %}active-technique{% endif %}"
+            onclick="navigateWithLoading(this.href, 'Ejecutando Pipeline Orquestado...'); return false;"
+            style="justify-content: flex-start; background: linear-gradient(135deg, #6366f1, #4f46e5); border-color: #4f46e5; text-align: left; flex-direction: column; padding: 20px; min-height: 90px;">
+            <div style="font-weight: 700; font-size: 15px; margin-bottom: 8px;">{{ get_svg_icon("brain", "16",
+                "#ffffff") }} Orchestrated Pipeline</div>
+            <div style="font-size: 11px; opacity: 0.9; line-height: 1.3;">Selección automática inteligente de técnicas
+                según señales de la consulta (corta, abstracta, compuesta)</div>
+        </a>
+        <a href="/advanced/multi-query?q={{ query|urlencode }}&backend={{ backend.lower() }}&model={{ model }}"
+            class="nav-link technique-card {% if method == 'Multi-Query + RRF' %}active-technique{% endif %}"
+            onclick="navigateWithLoading(this.href, 'Generando consultas múltiples...'); return false;"
+            style="justify-content: flex-start; text-align: left; flex-direction: column; padding: 20px; min-height: 90px;">
+            <div style="font-weight: 700; font-size: 15px; margin-bottom: 8px;">{{ get_svg_icon("refresh", "16",
+                "#ffffff") }} Multi-Query</div>
+            <div style="font-size: 11px; opacity: 0.9; line-height: 1.3;">Genera 3-5 reformulaciones de tu consulta y
+                fusiona resultados con RRF para mayor cobertura</div>
+        </a>
+        <a href="/advanced/decompose?q={{ query|urlencode }}&backend={{ backend.lower() }}&model={{ model }}"
+            class="nav-link technique-card {% if method == 'Query Decomposition' %}active-technique{% endif %}"
+            onclick="navigateWithLoading(this.href, 'Descomponiendo consulta...'); return false;"
+            style="justify-content: flex-start; text-align: left; flex-direction: column; padding: 20px; min-height: 90px;">
+            <div style="font-weight: 700; font-size: 15px; margin-bottom: 8px;">{{ get_svg_icon("puzzle", "16",
+                "#ffffff") }} Decomposition</div>
+            <div style="font-size: 11px; opacity: 0.9; line-height: 1.3;">Divide consultas complejas en sub-preguntas
+                específicas y las responde paso a paso</div>
+        </a>
+        <a href="/advanced/hyde?q={{ query|urlencode }}&backend={{ backend.lower() }}&model={{ model }}"
+            class="nav-link technique-card {% if method == 'HyDE' %}active-technique{% endif %}"
+            onclick="navigateWithLoading(this.href, 'Generando documento hipotético...'); return false;"
+            style="justify-content: flex-start; text-align: left; flex-direction: column; padding: 20px; min-height: 90px;">
+            <div style="font-weight: 700; font-size: 15px; margin-bottom: 8px;">{{ get_svg_icon("document", "16",
+                "#ffffff") }} HyDE</div>
+            <div style="font-size: 11px; opacity: 0.9; line-height: 1.3;">Genera una respuesta hipotética y busca
+                documentos similares a ella (mejor para preguntas conceptuales)</div>
+        </a>
+        <a href="/advanced/hybrid?q={{ query|urlencode }}&backend={{ backend.lower() }}&model={{ model }}"
+            class="nav-link technique-card {% if method == 'Hybrid Search' %}active-technique{% endif %}"
+            onclick="navigateWithLoading(this.href, 'Ejecutando búsqueda híbrida...'); return false;"
+            style="justify-content: flex-start; text-align: left; flex-direction: column; padding: 20px; min-height: 90px;">
+            <div style="font-weight: 700; font-size: 15px; margin-bottom: 8px;">{{ get_svg_icon("shuffle", "16",
+                "#ffffff") }} Hybrid</div>
+            <div style="font-size: 11px; opacity: 0.9; line-height: 1.3;">Combina búsqueda semántica (vectores) + léxica
+                (BM25) para mejores coincidencias exactas</div>
+        </a>
+        <a href="/advanced/iterative?q={{ query|urlencode }}&backend={{ backend.lower() }}&model={{ model }}"
+            class="nav-link technique-card {% if method == 'Iterative RAG' %}active-technique{% endif %}"
+            onclick="navigateWithLoading(this.href, 'Iniciando búsqueda iterativa...'); return false;"
+            style="justify-content: flex-start; text-align: left; flex-direction: column; padding: 20px; min-height: 90px;">
+            <div style="font-weight: 700; font-size: 15px; margin-bottom: 8px;">{{ get_svg_icon("repeat", "16",
+                "#ffffff") }} Iterative</div>
+            <div style="font-size: 11px; opacity: 0.9; line-height: 1.3;">Múltiples rondas de búsqueda refinando la
+                consulta según las brechas encontradas</div>
+        </a>
+    </div>
+</div>
+
 <div class="details-toggle" style="margin-top: 30px; text-align: center;">
     <button class="toggle-btn" onclick="toggleDetails()">
         {{ get_svg_icon("settings", "16", "#ffffff") }} Ver detalles técnicos JSON
@@ -480,6 +1012,19 @@ font-size: 16px;
             details.classList.add('show');
             btn.innerHTML = `{{ get_svg_icon("eye-off", "16", "#ffffff")|safe }} Ocultar detalles JSON`;
             highlightJSON();
+        }
+    }
+
+    function toggleSteps() {
+        const content = document.getElementById('stepsContent');
+        const btn = document.querySelector('.steps-toggle');
+
+        if (content.classList.contains('show')) {
+            content.classList.remove('show');
+            btn.innerHTML = `{{ get_svg_icon("eye", "20", "#ffffff")|safe }} Ver Pasos del Proceso RAG <span class="steps-badge">{{ method }}</span>`;
+        } else {
+            content.classList.add('show');
+            btn.innerHTML = `{{ get_svg_icon("eye-off", "20", "#ffffff")|safe }} Ocultar Pasos del Proceso <span class="steps-badge">{{ method }}</span>`;
         }
     }
 
@@ -530,7 +1075,39 @@ font-size: 16px;
                 backend: backend,
                 model: model
             });
-            window.location.href = `/ai?${params.toString()}`;
+
+            // Detect current route and redirect to the same type
+            const currentPath = window.location.pathname;
+            let targetRoute = '/ai'; // default
+            let loadingMessage = 'Procesando búsqueda AI...';
+
+            if (currentPath.startsWith('/orchestrated')) {
+                targetRoute = '/orchestrated';
+                loadingMessage = 'Ejecutando Pipeline Orquestado...';
+            } else if (currentPath.startsWith('/advanced/multi-query')) {
+                targetRoute = '/advanced/multi-query';
+                loadingMessage = 'Generando consultas múltiples...';
+            } else if (currentPath.startsWith('/advanced/decompose')) {
+                targetRoute = '/advanced/decompose';
+                loadingMessage = 'Descomponiendo consulta...';
+            } else if (currentPath.startsWith('/advanced/hyde')) {
+                targetRoute = '/advanced/hyde';
+                loadingMessage = 'Generando documento hipotético...';
+            } else if (currentPath.startsWith('/advanced/hybrid')) {
+                targetRoute = '/advanced/hybrid';
+                loadingMessage = 'Ejecutando búsqueda híbrida...';
+            } else if (currentPath.startsWith('/advanced/iterative')) {
+                targetRoute = '/advanced/iterative';
+                loadingMessage = 'Iniciando búsqueda iterativa...';
+            } else if (currentPath.startsWith('/ask')) {
+                targetRoute = '/ask';
+                loadingMessage = 'Procesando búsqueda...';
+            }
+
+            showLoading(loadingMessage);
+            setTimeout(() => {
+                window.location.href = `${targetRoute}?${params.toString()}`;
+            }, 100);
         }
     }
 

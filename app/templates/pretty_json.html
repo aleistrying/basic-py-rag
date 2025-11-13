@@ -3,93 +3,132 @@
 {% block title %}{{ title }}{% endblock %}
 
 {% block extra_css %}
-.json-container {
-background: #252526;
-border-radius: 12px;
-box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-overflow: hidden;
-margin: 20px 0;
-}
-.json-title {
-background: linear-gradient(135deg, #569cd6 0%, #2563eb 100%);
-color: white;
-padding: 20px 30px;
-font-size: 24px;
-font-weight: 600;
-display: flex;
-align-items: center;
-gap: 10px;
-}
-.json-content {
-background: #1e1e1e;
-padding: 20px;
-overflow-x: auto;
-font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
-font-size: 14px;
-line-height: 1.6;
-color: #d4d4d4;
-border-top: 1px solid #3e3e42;
-}
-.json-pre {
-margin: 0;
-white-space: pre-wrap;
-word-wrap: break-word;
-}
-/* Enhanced JSON Syntax Highlighting */
-.json-string { color: #ce9178; }
-.json-number { color: #b5cea8; }
-.json-boolean { color: #569cd6; }
-.json-null { color: #569cd6; }
-.json-key { color: #9cdcfe; }
-.json-bracket { color: #ffd700; }
-.json-brace { color: #da70d6; }
-.json-comma { color: #ffffff; }
-.json-colon { color: #ffffff; }
-.action-buttons {
-background: #2d2d30;
-padding: 15px 20px;
-border-top: 1px solid #3e3e42;
-display: flex;
-gap: 10px;
-flex-wrap: wrap;
-}
-.json-btn {
-display: inline-flex;
-align-items: center;
-gap: 8px;
-padding: 10px 16px;
-background: #0e639c;
-color: white;
-text-decoration: none;
-border-radius: 6px;
-font-weight: 500;
-transition: all 0.3s;
-border: none;
-cursor: pointer;
-font-size: 14px;
-}
-.json-btn:hover {
-background: #1177bb;
-transform: translateY(-1px);
-}
-.json-btn.secondary {
-background: #5a5a5a;
-}
-.json-btn.secondary:hover {
-background: #6a6a6a;
-}
-.copy-status {
-display: none;
-background: #107c10;
-color: white;
-padding: 8px 12px;
-border-radius: 4px;
-font-size: 12px;
-margin-left: 10px;
-}
-.copy-status.show {
-display: inline-block;
-}
+<style>
+    .json-container {
+        background: #252526;
+        border-radius: 12px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        overflow: hidden;
+        margin: 20px 0;
+    }
+
+    .json-title {
+        background: linear-gradient(135deg, #569cd6 0%, #2563eb 100%);
+        color: white;
+        padding: 20px 30px;
+        font-size: 24px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .json-content {
+        background: #1e1e1e;
+        padding: 20px;
+        overflow-x: auto;
+        font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+        font-size: 14px;
+        line-height: 1.6;
+        color: #d4d4d4;
+        border-top: 1px solid #3e3e42;
+    }
+
+    .json-pre {
+        margin: 0;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+    }
+
+    /* Enhanced JSON Syntax Highlighting */
+    .json-string {
+        color: #ce9178;
+    }
+
+    .json-number {
+        color: #b5cea8;
+    }
+
+    .json-boolean {
+        color: #569cd6;
+    }
+
+    .json-null {
+        color: #569cd6;
+    }
+
+    .json-key {
+        color: #9cdcfe;
+    }
+
+    .json-bracket {
+        color: #ffd700;
+    }
+
+    .json-brace {
+        color: #da70d6;
+    }
+
+    .json-comma {
+        color: #ffffff;
+    }
+
+    .json-colon {
+        color: #ffffff;
+    }
+
+    .action-buttons {
+        background: #2d2d30;
+        padding: 15px 20px;
+        border-top: 1px solid #3e3e42;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .json-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 16px;
+        background: #0e639c;
+        color: white;
+        text-decoration: none;
+        border-radius: 6px;
+        font-weight: 500;
+        transition: all 0.3s;
+        border: none;
+        cursor: pointer;
+        font-size: 14px;
+    }
+
+    .json-btn:hover {
+        background: #1177bb;
+        transform: translateY(-1px);
+    }
+
+    .json-btn.secondary {
+        background: #5a5a5a;
+    }
+
+    .json-btn.secondary:hover {
+        background: #6a6a6a;
+    }
+
+    .copy-status {
+        display: none;
+        background: #107c10;
+        color: white;
+        padding: 8px 12px;
+        border-radius: 4px;
+        font-size: 12px;
+        margin-left: 10px;
+    }
+
+    .copy-status.show {
+        display: inline-block;
+    }
+</style>
 {% endblock %}
 
 {% block header_content %}

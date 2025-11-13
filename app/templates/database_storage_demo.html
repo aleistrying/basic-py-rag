@@ -1,0 +1,595 @@
+{% extends "base.html" %}
+
+{% block title %}{{ storage_data.phase }} - {{ db_type.title() }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Database Storage Demo Styles */
+    .phase-header {
+        background: linear-gradient(135deg, #065f46 0%, #047857 100%);
+        padding: 30px;
+        border-radius: 12px;
+        margin-bottom: 30px;
+        text-align: center;
+        color: white;
+        box-shadow: 0 8px 25px rgba(5, 150, 105, 0.3);
+    }
+
+    .phase-title {
+        font-size: 24px;
+        font-weight: 700;
+        margin-bottom: 10px;
+        letter-spacing: 1px;
+    }
+
+    .phase-subtitle {
+        font-size: 18px;
+        opacity: 0.9;
+        margin: 0;
+    }
+
+    .demo-section {
+        background: #1f2937;
+        border-radius: 12px;
+        padding: 30px;
+        margin: 20px 0;
+        border: 1px solid #374151;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    }
+
+    .demo-title {
+        font-size: 20px;
+        font-weight: 700;
+        color: #3b82f6;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    /* Input/Output Sections */
+    .io-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 30px;
+        margin: 20px 0;
+    }
+
+    .input-section, .output-section {
+        background: #111827;
+        border-radius: 10px;
+        padding: 20px;
+        border: 1px solid #374151;
+    }
+
+    .input-section {
+        border-left: 4px solid #fbbf24;
+    }
+
+    .output-section {
+        border-left: 4px solid #10b981;
+    }
+
+    .io-header {
+        font-weight: 600;
+        font-size: 16px;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .input-header {
+        color: #fbbf24;
+    }
+
+    .output-header {
+        color: #10b981;
+    }
+
+    .io-content {
+        color: #d1d5db;
+        line-height: 1.6;
+    }
+
+    .param-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin: 15px 0;
+    }
+
+    .param-item {
+        background: #0f172a;
+        padding: 10px 15px;
+        border-radius: 6px;
+        border: 1px solid #374151;
+    }
+
+    .param-label {
+        font-size: 12px;
+        color: #9ca3af;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .param-value {
+        font-weight: 600;
+        color: #e5e7eb;
+        margin-top: 2px;
+    }
+
+    /* Process Steps */
+    .process-steps {
+        background: #111827;
+        border-radius: 10px;
+        padding: 25px;
+        margin: 20px 0;
+        border: 1px solid #374151;
+    }
+
+    .process-header {
+        color: #8b5cf6;
+        font-weight: 700;
+        font-size: 18px;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .step-flow {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+    }
+
+    .step-box {
+        background: linear-gradient(135deg, #1e40af 0%, #1d4ed8 100%);
+        padding: 15px;
+        border-radius: 8px;
+        text-align: center;
+        color: white;
+        position: relative;
+    }
+
+    .step-number {
+        background: rgba(255, 255, 255, 0.2);
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        margin: 0 auto 10px;
+    }
+
+    .step-text {
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+    /* Code Section */
+    .code-section {
+        background: #0f172a;
+        border-radius: 10px;
+        padding: 25px;
+        margin: 20px 0;
+        border: 1px solid #374151;
+    }
+
+    .code-header {
+        color: #f59e0b;
+        font-weight: 700;
+        font-size: 18px;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .code-block {
+        background: #000;
+        border: 1px solid #374151;
+        border-radius: 8px;
+        padding: 20px;
+        overflow-x: auto;
+        font-family: 'JetBrains Mono', 'Fira Code', monospace;
+        font-size: 13px;
+        line-height: 1.5;
+        color: #e5e7eb;
+    }
+
+    .code-block pre {
+        margin: 0;
+        white-space: pre-wrap;
+    }
+
+    /* Embedding Preview */
+    .embedding-section {
+        background: #111827;
+        border-radius: 10px;
+        padding: 20px;
+        margin: 20px 0;
+        border: 1px solid #374151;
+    }
+
+    .embedding-preview {
+        background: #0f172a;
+        border: 1px solid #6366f1;
+        border-radius: 8px;
+        padding: 15px;
+        font-family: monospace;
+        font-size: 12px;
+        color: #c7d2fe;
+        margin: 10px 0;
+        overflow-x: auto;
+    }
+
+    .vector-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 10px;
+        margin: 15px 0;
+    }
+
+    .stat-box {
+        background: #6366f1;
+        padding: 10px 15px;
+        border-radius: 6px;
+        text-align: center;
+        color: white;
+    }
+
+    .stat-label {
+        font-size: 11px;
+        opacity: 0.8;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .stat-value {
+        font-weight: 700;
+        font-size: 14px;
+        margin-top: 2px;
+    }
+
+    /* Query Example */
+    .query-section {
+        background: #1f2937;
+        border-radius: 10px;
+        padding: 25px;
+        margin: 20px 0;
+        border: 1px solid #374151;
+        border-left: 4px solid #ef4444;
+    }
+
+    .query-header {
+        color: #ef4444;
+        font-weight: 700;
+        font-size: 18px;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .query-example {
+        background: #111827;
+        border: 1px solid #374151;
+        border-radius: 8px;
+        padding: 15px;
+        font-family: monospace;
+        font-size: 13px;
+        color: #fbbf24;
+        margin: 10px 0;
+    }
+
+    .result-item {
+        background: #0f172a;
+        border: 1px solid #374151;
+        border-radius: 6px;
+        padding: 15px;
+        margin: 10px 0;
+        border-left: 3px solid #10b981;
+    }
+
+    .result-score {
+        color: #10b981;
+        font-weight: 700;
+        font-size: 14px;
+    }
+
+    .result-content {
+        color: #d1d5db;
+        margin: 8px 0;
+        font-style: italic;
+    }
+
+    .result-meta {
+        font-size: 12px;
+        color: #9ca3af;
+    }
+
+    /* Database Comparison */
+    .db-badge {
+        display: inline-block;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-weight: 700;
+        font-size: 14px;
+        margin: 0 0 20px 0;
+    }
+
+    .db-badge.qdrant {
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+        color: white;
+    }
+
+    .db-badge.postgresql {
+        background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+        color: white;
+    }
+
+    /* Responsive Design */
+    @media (max-width: 768px) {
+        .io-grid {
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+        
+        .step-flow {
+            grid-template-columns: 1fr;
+        }
+        
+        .param-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block header_content %}
+<div class="search-bar">
+    <input type="text" class="search-input" placeholder="Nuevo texto para almacenar..." value="{{ storage_data.input.text }}" id="textInput">
+    <button class="search-btn" onclick="updateDemo()">{{ get_svg_icon("database", "16", "#ffffff") }} Almacenar</button>
+    <button class="nav-btn" onclick="window.location.href='/'">{{ get_svg_icon("home", "16", "#ffffff") }} Inicio</button>
+</div>
+<div class="title">
+    {{ get_svg_icon("database", "32", "#ffffff") }} Demo: {{ db_type.title() }} Storage
+</div>
+<div class="subtitle">{{ storage_data.title }}</div>
+{% endblock %}
+
+{% block content %}
+<div class="phase-header">
+    <div class="phase-title">{{ storage_data.phase }}</div>
+    <div class="phase-subtitle">{{ storage_data.title }}</div>
+    <div class="db-badge {{ db_type }}">{{ db_type.upper() }}</div>
+</div>
+
+<!-- Input/Output Section -->
+<div class="demo-section">
+    <div class="demo-title">
+        {{ get_svg_icon("zap", "20", "#3b82f6") }} Input → Storage → Output
+    </div>
+    <div class="io-grid">
+        <div class="input-section">
+            <div class="io-header input-header">
+                {{ get_svg_icon("edit", "16", "#fbbf24") }} ENTRADA
+            </div>
+            <div class="io-content">
+                <div class="param-grid">
+                    <div class="param-item">
+                        <div class="param-label">Texto</div>
+                        <div class="param-value">"{{ storage_data.input.text[:50] }}..."</div>
+                    </div>
+                    <div class="param-item">
+                        <div class="param-label">Documento</div>
+                        <div class="param-value">{{ storage_data.input.doc_path }}</div>
+                    </div>
+                    <div class="param-item">
+                        <div class="param-label">Página</div>
+                        <div class="param-value">{{ storage_data.input.page }}</div>
+                    </div>
+                    <div class="param-item">
+                        <div class="param-label">Método</div>
+                        <div class="param-value">{{ storage_data.input.method }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="output-section">
+            <div class="io-header output-header">
+                {{ get_svg_icon("check-circle", "16", "#10b981") }} SALIDA
+            </div>
+            <div class="io-content">
+                <div class="param-grid">
+                    {% if db_type == 'qdrant' %}
+                    <div class="param-item">
+                        <div class="param-label">Collection</div>
+                        <div class="param-value">{{ storage_data.output.collection_name }}</div>
+                    </div>
+                    <div class="param-item">
+                        <div class="param-label">Point ID</div>
+                        <div class="param-value">{{ storage_data.output.point_id }}</div>
+                    </div>
+                    {% else %}
+                    <div class="param-item">
+                        <div class="param-label">Tabla</div>
+                        <div class="param-value">{{ storage_data.output.table_name }}</div>
+                    </div>
+                    <div class="param-item">
+                        <div class="param-label">Row ID</div>
+                        <div class="param-value">{{ storage_data.output.row_id }}</div>
+                    </div>
+                    {% endif %}
+                    <div class="param-item">
+                        <div class="param-label">Vector Size</div>
+                        <div class="param-value">{{ storage_data.output.vector_size }}</div>
+                    </div>
+                    <div class="param-item">
+                        <div class="param-label">Estado</div>
+                        <div class="param-value">✅ {{ storage_data.output.status.title() }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Process Steps -->
+<div class="demo-section">
+    <div class="process-steps">
+        <div class="process-header">
+            {{ get_svg_icon("gear", "20", "#8b5cf6") }} Proceso de Almacenamiento
+        </div>
+        <div class="step-flow">
+            {% for key, step in storage_data.process.items() %}
+            <div class="step-box">
+                <div class="step-number">{{ loop.index }}</div>
+                <div class="step-text">{{ step }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Embedding Visualization -->
+<div class="demo-section">
+    <div class="demo-title">
+        {{ get_svg_icon("layers", "20", "#3b82f6") }} Vector Embedding
+    </div>
+    <div class="embedding-section">
+        <div class="vector-stats">
+            <div class="stat-box">
+                <div class="stat-label">Dimensiones</div>
+                <div class="stat-value">{{ storage_data.output.vector_size }}</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Distancia</div>
+                <div class="stat-value">Coseno</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Modelo</div>
+                <div class="stat-value">E5</div>
+            </div>
+        </div>
+        
+        <div class="embedding-preview">
+            Vector (primeras 10 dimensiones): {{ storage_data.embedding_preview }}...
+        </div>
+    </div>
+</div>
+
+<!-- Code Example -->
+<div class="demo-section">
+    <div class="code-section">
+        <div class="code-header">
+            {{ get_svg_icon("code", "20", "#f59e0b") }} Código de Implementación
+        </div>
+        <div class="code-block">
+            <pre>{{ storage_data.storage_code[db_type + '_insert']['code'] if storage_data.storage_code else 'Código no disponible' }}</pre>
+        </div>
+    </div>
+</div>
+
+<!-- Query Example -->
+<div class="demo-section">
+    <div class="query-section">
+        <div class="query-header">
+            {{ get_svg_icon("search", "20", "#ef4444") }} Ejemplo de Consulta
+        </div>
+        
+        {% if db_type == 'qdrant' %}
+        <div class="query-example">
+client.search(
+    collection_name="course_docs_clean",
+    query_vector=query_embedding,
+    limit=3
+)
+        </div>
+        {% else %}
+        <div class="query-example">
+{{ storage_data.query_example.query }}
+        </div>
+        {% endif %}
+        
+        <h4 style="color: #10b981; margin: 20px 0 10px 0;">Resultados:</h4>
+        {% for result in storage_data.query_example.results %}
+        <div class="result-item">
+            <div class="result-score">
+                {% if db_type == 'qdrant' %}
+                Score: {{ result.score }}
+                {% else %}
+                Distance: {{ result.distance }}
+                {% endif %}
+            </div>
+            <div class="result-content">{{ result.content[:100] }}...</div>
+            <div class="result-meta">{{ result.metadata.path }} (página {{ result.metadata.page }})</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="details-toggle" style="margin-top: 30px; text-align: center;">
+    <button class="toggle-btn" onclick="toggleDetails()">
+        {{ get_svg_icon("settings", "16", "#ffffff") }} Ver Datos Técnicos Completos
+    </button>
+    <div class="json-details" id="jsonDetails">
+        <div class="json-content" id="jsonContent">{{ storage_data | tojson(indent=2) }}</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function toggleDetails() {
+        const details = document.getElementById('jsonDetails');
+        const btn = document.querySelector('.toggle-btn');
+
+        if (details.classList.contains('show')) {
+            details.classList.remove('show');
+            btn.innerHTML = `{{ get_svg_icon("eye", "16", "#ffffff")|safe }} Ver Datos Técnicos Completos`;
+        } else {
+            details.classList.add('show');
+            btn.innerHTML = `{{ get_svg_icon("eye-off", "16", "#ffffff")|safe }} Ocultar Datos Técnicos`;
+        }
+    }
+
+    function updateDemo() {
+        const text = document.getElementById('textInput').value;
+        if (text.trim()) {
+            showLoading('Generando embedding y almacenando en {{ db_type.title() }}...');
+            const params = new URLSearchParams({
+                text: text.trim()
+            });
+            setTimeout(() => {
+                window.location.href = `{{ request.url.path }}?${params.toString()}`;
+            }, 100);
+        }
+    }
+
+    // Allow Enter key to trigger demo update
+    document.getElementById('textInput').addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') updateDemo();
+    });
+
+    // Add animation on load
+    document.addEventListener('DOMContentLoaded', function () {
+        const sections = document.querySelectorAll('.demo-section');
+        sections.forEach((section, index) => {
+            section.style.opacity = '0';
+            section.style.transform = 'translateY(20px)';
+            
+            setTimeout(() => {
+                section.style.transition = 'all 0.6s ease';
+                section.style.opacity = '1';
+                section.style.transform = 'translateY(0)';
+            }, index * 200);
+        });
+    });
+</script>
+{% endblock %}

@@ -3,159 +3,188 @@
 {% block title %}Demostración de Embedding - {{ query }}{% endblock %}
 
 {% block extra_css %}
-.demo-section {
-background: #262626;
-border-radius: 15px;
-padding: 25px;
-margin: 20px 0;
-border-left: 4px solid #059669;
-}
-.demo-title {
-font-size: 1.4rem;
-font-weight: 600;
-color: #059669;
-margin-bottom: 20px;
-display: flex;
-align-items: center;
-gap: 10px;
-}
-.step-container {
-background: #333;
-border-radius: 10px;
-padding: 20px;
-margin: 15px 0;
-border: 1px solid #444;
-}
-.step-header {
-font-weight: 600;
-color: #60a5fa;
-margin-bottom: 10px;
-display: flex;
-align-items: center;
-gap: 8px;
-}
-.step-content {
-color: #d1d5db;
-line-height: 1.6;
-font-family: 'Monaco', 'Menlo', monospace;
-background: #1f1f1f;
-padding: 15px;
-border-radius: 8px;
-overflow-x: auto;
-}
-.embedding-preview {
-background: #1a1a1a;
-border-radius: 8px;
-padding: 15px;
-margin: 15px 0;
-font-family: 'Monaco', 'Menlo', monospace;
-font-size: 13px;
-overflow-x: auto;
-border: 1px solid #404040;
-}
-.stats-grid {
-display: grid;
-grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-gap: 15px;
-margin: 20px 0;
-}
-.stat-card {
-background: #1f2937;
-padding: 15px;
-border-radius: 8px;
-text-align: center;
-border: 1px solid #374151;
-}
-.stat-value {
-font-size: 1.5rem;
-font-weight: 700;
-color: #10b981;
-display: block;
-}
-.stat-label {
-font-size: 0.85rem;
-color: #9ca3af;
-margin-top: 5px;
-}
-.model-info {
-background: #1e40af;
-color: white;
-padding: 20px;
-border-radius: 10px;
-margin: 20px 0;
-}
-.model-name {
-font-size: 1.2rem;
-font-weight: 600;
-margin-bottom: 10px;
-}
-.process-flow {
-display: flex;
-justify-content: space-between;
-align-items: center;
-margin: 20px 0;
-flex-wrap: wrap;
-gap: 10px;
-}
-.flow-step {
-flex: 1;
-text-align: center;
-min-width: 120px;
-}
-.flow-icon {
-width: 50px;
-height: 50px;
-background: #059669;
-border-radius: 50%;
-display: flex;
-align-items: center;
-justify-content: center;
-margin: 0 auto 10px;
-font-size: 1.5rem;
-}
-.flow-arrow {
-font-size: 1.5rem;
-color: #6b7280;
-margin: 0 10px;
-}
-.vector-visualization {
-background: #1f1f1f;
-border-radius: 10px;
-padding: 20px;
-margin: 20px 0;
-border: 1px solid #404040;
-}
-.vector-bar {
-display: flex;
-align-items: center;
-margin: 5px 0;
-font-size: 12px;
-}
-.vector-index {
-width: 30px;
-color: #6b7280;
-}
-.vector-value {
-width: 80px;
-color: #d1d5db;
-font-family: monospace;
-}
-.vector-visual {
-flex: 1;
-height: 15px;
-background: #333;
-border-radius: 7px;
-margin-left: 10px;
-position: relative;
-overflow: hidden;
-}
-.vector-fill {
-height: 100%;
-border-radius: 7px;
-transition: width 0.3s ease;
-}
-.positive { background: linear-gradient(90deg, #10b981, #059669); }
-.negative { background: linear-gradient(90deg, #ef4444, #dc2626); }
+<style>
+    .demo-section {
+        background: #262626;
+        border-radius: 15px;
+        padding: 25px;
+        margin: 20px 0;
+        border-left: 4px solid #059669;
+    }
+
+    .demo-title {
+        font-size: 1.4rem;
+        font-weight: 600;
+        color: #059669;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .step-container {
+        background: #333;
+        border-radius: 10px;
+        padding: 20px;
+        margin: 15px 0;
+        border: 1px solid #444;
+    }
+
+    .step-header {
+        font-weight: 600;
+        color: #60a5fa;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .step-content {
+        color: #d1d5db;
+        line-height: 1.6;
+        font-family: 'Monaco', 'Menlo', monospace;
+        background: #1f1f1f;
+        padding: 15px;
+        border-radius: 8px;
+        overflow-x: auto;
+    }
+
+    .embedding-preview {
+        background: #1a1a1a;
+        border-radius: 8px;
+        padding: 15px;
+        margin: 15px 0;
+        font-family: 'Monaco', 'Menlo', monospace;
+        font-size: 13px;
+        overflow-x: auto;
+        border: 1px solid #404040;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 15px;
+        margin: 20px 0;
+    }
+
+    .stat-card {
+        background: #1f2937;
+        padding: 15px;
+        border-radius: 8px;
+        text-align: center;
+        border: 1px solid #374151;
+    }
+
+    .stat-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #10b981;
+        display: block;
+    }
+
+    .stat-label {
+        font-size: 0.85rem;
+        color: #9ca3af;
+        margin-top: 5px;
+    }
+
+    .model-info {
+        background: #1e40af;
+        color: white;
+        padding: 20px;
+        border-radius: 10px;
+        margin: 20px 0;
+    }
+
+    .model-name {
+        font-size: 1.2rem;
+        font-weight: 600;
+        margin-bottom: 10px;
+    }
+
+    .process-flow {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin: 20px 0;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .flow-step {
+        flex: 1;
+        text-align: center;
+        min-width: 120px;
+    }
+
+    .flow-icon {
+        width: 50px;
+        height: 50px;
+        background: #059669;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 10px;
+        font-size: 1.5rem;
+    }
+
+    .flow-arrow {
+        font-size: 1.5rem;
+        color: #6b7280;
+        margin: 0 10px;
+    }
+
+    .vector-visualization {
+        background: #1f1f1f;
+        border-radius: 10px;
+        padding: 20px;
+        margin: 20px 0;
+        border: 1px solid #404040;
+    }
+
+    .vector-bar {
+        display: flex;
+        align-items: center;
+        margin: 5px 0;
+        font-size: 12px;
+    }
+
+    .vector-index {
+        width: 30px;
+        color: #6b7280;
+    }
+
+    .vector-value {
+        width: 80px;
+        color: #d1d5db;
+        font-family: monospace;
+    }
+
+    .vector-visual {
+        flex: 1;
+        height: 15px;
+        background: #333;
+        border-radius: 7px;
+        margin-left: 10px;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .vector-fill {
+        height: 100%;
+        border-radius: 7px;
+        transition: width 0.3s ease;
+    }
+
+    .positive {
+        background: linear-gradient(90deg, #10b981, #059669);
+    }
+
+    .negative {
+        background: linear-gradient(90deg, #ef4444, #dc2626);
+    }
+</style>
 {% endblock %}
 
 {% block header_content %}
@@ -173,34 +202,34 @@ transition: width 0.3s ease;
 {% block content %}
 <div class="demo-section">
     <div class="demo-title">
-        <span>📝</span> Texto Original
+        {{ get_svg_icon("edit", "20", "#059669") }} Texto Original
     </div>
     <div class="step-content">{{ raw_text }}</div>
 </div>
 
 <div class="process-flow">
     <div class="flow-step">
-        <div class="flow-icon">📝</div>
+        <div class="flow-icon">{{ get_svg_icon("edit", "20", "#ffffff") }}</div>
         <div>Texto Crudo</div>
     </div>
     <div class="flow-arrow">→</div>
     <div class="flow-step">
-        <div class="flow-icon">🧹</div>
+        <div class="flow-icon">{{ get_svg_icon("clean", "20", "#ffffff") }}</div>
         <div>Limpieza</div>
     </div>
     <div class="flow-arrow">→</div>
     <div class="flow-step">
-        <div class="flow-icon">✂️</div>
+        <div class="flow-icon">{{ get_svg_icon("scissors", "20", "#ffffff") }}</div>
         <div>Tokenización</div>
     </div>
     <div class="flow-arrow">→</div>
     <div class="flow-step">
-        <div class="flow-icon">🧠</div>
+        <div class="flow-icon">{{ get_svg_icon("brain", "20", "#ffffff") }}</div>
         <div>Embedding</div>
     </div>
     <div class="flow-arrow">→</div>
     <div class="flow-step">
-        <div class="flow-icon">📊</div>
+        <div class="flow-icon">{{ get_svg_icon("chart", "20", "#ffffff") }}</div>
         <div>Vector</div>
     </div>
 </div>
@@ -208,7 +237,7 @@ transition: width 0.3s ease;
 {% if processing_steps %}
 <div class="demo-section">
     <div class="demo-title">
-        <span>⚙️</span> Pasos de Procesamiento
+        {{ get_svg_icon("gear", "20", "#059669") }} Pasos de Procesamiento
     </div>
     {% for step in processing_steps %}
     <div class="step-container">
@@ -224,7 +253,7 @@ transition: width 0.3s ease;
 
 {% if model_info %}
 <div class="model-info">
-    <div class="model-name">🤖 {{ model_info.name }}</div>
+    <div class="model-name">{{ get_svg_icon("robot", "20", "#ffffff") }} {{ model_info.name }}</div>
     <div>Modelo {{ model_info.type }} con {{ model_info.dimensions }} dimensiones</div>
 </div>
 {% endif %}
@@ -232,7 +261,7 @@ transition: width 0.3s ease;
 {% if embedding_stats %}
 <div class="demo-section">
     <div class="demo-title">
-        <span>📊</span> Estadísticas del Vector
+        {{ get_svg_icon("chart", "20", "#059669") }} Estadísticas del Vector
     </div>
     <div class="stats-grid">
         <div class="stat-card">
@@ -290,7 +319,7 @@ transition: width 0.3s ease;
 
 <div class="demo-section">
     <div class="demo-title">
-        <span>💡</span> ¿Cómo funciona?
+        {{ get_svg_icon("lightbulb", "20", "#059669") }} ¿Cómo funciona?
     </div>
     <div style="color: #d1d5db; line-height: 1.7;">
         <p><strong>1. Tokenización:</strong> El texto se divide en tokens (palabras o subpalabras).</p>

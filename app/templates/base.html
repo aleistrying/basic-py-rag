@@ -249,23 +249,45 @@
             border: 1px solid rgba(31, 41, 55, 0.6);
         }
 
-        /* Loading States */
+        /* Loading States - Floating Design */
         .loading-overlay {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.8);
-            display: none;
-            justify-content: center;
-            align-items: center;
+            top: 20px;
+            right: 20px;
+            width: 320px;
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            border: 1px solid rgba(139, 92, 246, 0.5);
+            border-radius: 12px;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
             z-index: 10000;
-            backdrop-filter: blur(5px);
+            display: none;
+            padding: 20px;
+            transform: translateX(100%);
+            transition: all 0.3s ease-in-out;
         }
 
         .loading-overlay.active {
-            display: flex;
+            display: block;
+            transform: translateX(0);
+        }
+
+        .loading-content {
+            text-align: center;
+            color: white;
+        }
+
+        .loading-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #a78bfa;
+        }
+
+        .loading-message {
+            font-size: 14px;
+            opacity: 0.8;
+            margin-bottom: 15px;
         }
 
         .spinner {
@@ -369,23 +391,19 @@
         ::-webkit-scrollbar-thumb:hover {
             background: rgba(156, 163, 175, 0.7);
         }
-
-            {
-            % block extra_css %
-        }
-
-            {
-            % endblock %
-        }
     </style>
+
+    {% block extra_css %}
+    {% endblock %}
 </head>
 
 <body>
-    <!-- Loading Overlay -->
+    <!-- Floating Loading Overlay -->
     <div class="loading-overlay" id="loadingOverlay">
-        <div style="text-align: center; color: white;">
+        <div class="loading-content">
+            <div class="loading-title">Procesando...</div>
+            <div class="loading-message" id="loadingMessage">Cargando página...</div>
             <div class="spinner"></div>
-            <div style="margin-top: 16px; font-size: 16px; font-weight: 500;">Cargando...</div>
         </div>
     </div>
 
@@ -472,9 +490,17 @@
             }
         });
 
-        // Global loading functions
-        function showLoading() {
-            document.getElementById('loadingOverlay').classList.add('active');
+        // Global loading functions - Enhanced for floating design
+        function showLoading(message = 'Cargando página...') {
+            const overlay = document.getElementById('loadingOverlay');
+            const messageEl = document.getElementById('loadingMessage');
+            if (messageEl) messageEl.textContent = message;
+            overlay.classList.add('active');
+
+            // Auto-hide after 10 seconds as failsafe
+            setTimeout(() => {
+                hideLoading();
+            }, 10000);
         }
 
         function hideLoading() {
@@ -492,14 +518,13 @@
             }
         }
 
-        // Navigation with loading
-        function navigateWithLoading(url, message = 'Cargando...') {
-            showLoading();
-            const loadingText = document.querySelector('.loading-overlay .spinner').nextElementSibling;
-            if (loadingText) {
-                loadingText.textContent = message;
-            }
-            window.location.href = url;
+        // Navigation with loading - Enhanced with custom messages
+        function navigateWithLoading(url, message = 'Navegando...') {
+            showLoading(message);
+            // Small delay to show the loading indicator before navigation
+            setTimeout(() => {
+                window.location.href = url;
+            }, 100);
         }
     </script>
     {% endblock %}
