@@ -11,10 +11,10 @@
 3. [Búsqueda de Vecinos Más Cercanos (ANN)](#3-búsqueda-de-vecinos-más-cercanos-ann)
 4. [Inteligencia Artificial Generativa y LLMs](#4-inteligencia-artificial-generativa-y-llms)
 5. [Retrieval-Augmented Generation (RAG)](#5-retrieval-augmented-generation-rag)
-6. [Comparativa de Bases de Datos Vectoriales](#6-comparativa-de-bases-de-datos-vectoriales)
-7. [Arquitectura del Proyecto](#7-arquitectura-del-proyecto)
-8. [Pipeline de Procesamiento](#8-pipeline-de-procesamiento)
-9. [Técnicas Avanzadas de RAG](#9-técnicas-avanzadas-de-rag)
+6. [Estrategias Avanzadas de RAG](#6-estrategias-avanzadas-de-rag)
+7. [Comparativa de Bases de Datos Vectoriales](#7-comparativa-de-bases-de-datos-vectoriales)
+8. [Arquitectura del Proyecto](#8-arquitectura-del-proyecto)
+9. [Pipeline de Procesamiento](#9-pipeline-de-procesamiento)
 10. [Optimización y Métricas](#10-optimización-y-métricas)
 11. [Despliegue en la Nube](#11-despliegue-en-la-nube)
 12. [Aplicaciones Empresariales](#12-aplicaciones-empresariales)
@@ -909,9 +909,22 @@ El RAG básico (búsqueda vectorial simple + LLM) tiene limitaciones conocidas:
 
 Las estrategias avanzadas surgieron de investigación académica y práctica industrial para abordar estas limitaciones específicas.
 
+**Referencias sobre limitaciones del RAG básico:**
+
+- Lewis et al. (2020) - "Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks" ([arXiv:2005.11401](https://arxiv.org/abs/2005.11401)) - Paper fundacional de RAG que identifica limitaciones iniciales
+- Izacard & Grave (2021) - "Leveraging Passage Retrieval with Generative Models for Open Domain Question Answering" ([arXiv:2007.01282](https://arxiv.org/abs/2007.01282)) - Documenta problemas de cobertura y recall
+- Shi et al. (2023) - "REPLUG: Retrieval-Augmented Black-Box Language Models" ([arXiv:2301.12652](https://arxiv.org/abs/2301.12652)) - Análisis de vocabulary mismatch y query ambiguity
+
 ---
 
 ### 6.2 Multi-Query Rephrasing (Reformulación Multi-Consulta)
+
+#### 6.2.0 Resumen intuitivo
+
+- **Idea en una frase**: en lugar de hacer **una** búsqueda con tu pregunta original, el sistema le pide al LLM que invente **varias formas distintas de preguntar lo mismo**, busca con cada una y luego **combina** todos los resultados.
+- **Intuición**: si una formulación “falla” porque usa otras palabras, otra de las reformulaciones puede acertar y encontrar los documentos correctos.
+- **Ventaja clave**: aumenta el **recall** (probabilidad de encontrar todos los documentos relevantes) porque explora diferentes formas de expresar la misma intención.
+- **Desventaja clave**: aumenta la **latencia** y el **costo**, ya que se realizan varias búsquedas en lugar de una.
 
 #### 6.2.1 Fundamento Teórico
 
@@ -920,6 +933,17 @@ Las estrategias avanzadas surgieron de investigación académica y práctica ind
 **Hipótesis**: Si generamos múltiples reformulaciones del query y fusionamos sus resultados, aumentamos la probabilidad de recuperar todos los documentos relevantes (mejor **recall**).
 
 **Origen**: Inspirado en técnicas de Query Expansion clásicas de Information Retrieval, adaptadas para la era de LLMs.
+
+**Vista probabilística sencilla**
+
+- Supongamos que cada reformulación \(q_i\) tiene una probabilidad \(p_i\) de recuperar un documento relevante que otra reformulación no encontró.
+- Si asumimos (de forma simplificada) que estas reformulaciones son independientes, el **recall combinado** se puede aproximar como:
+
+$$
+	ext{Recall}_{\text{multi}} \approx 1 - \prod_{i=1}^m (1 - p_i)
+$$
+
+- Cuantas más reformulaciones útiles añadimos (es decir, cuanto mayor es \(m\)), más pequeño es el producto \(\prod (1 - p_i)\) y mayor es la probabilidad de que al menos una de ellas “cace” el documento relevante.
 
 **Referencias académicas:**
 
@@ -1011,6 +1035,14 @@ Retornar Top-K (típicamente 5-10)
 2. **Recompensa consistencia**: Documentos que aparecen en múltiples listas suman más
 3. **Suaviza errores**: Un ranking malo no domina el resultado final
 
+**Esquema de implementación (alto nivel)**
+
+1. LLM: generar \(m\) reformulaciones del query original.
+2. Para cada reformulación: calcular su embedding y hacer una búsqueda vectorial (por ejemplo, Top-50 documentos).
+3. Unir todas las listas de resultados en un solo conjunto de documentos candidatos.
+4. Calcular el score RRF para cada documento, utilizando sus posiciones en las distintas listas.
+5. Ordenar por score descendente y quedarse con los Top-K documentos para el contexto del LLM.
+
 #### 6.2.4 Resultados Empíricos
 
 **Benchmarks publicados** (Ma et al., 2023):
@@ -1039,9 +1071,24 @@ Retornar Top-K (típicamente 5-10)
 - **Latencia crítica**: Sistema de tiempo real (<200ms)
 - **Presupuesto limitado**: Cada query consume 3-5x API calls
 
+**En resumen (para recordar):**
+
+- **Qué hace**: genera 3-5 variaciones del query original, las busca independientemente y fusiona resultados con RRF.
+- **Cuándo usarlo**: queries ambiguos, vocabulario diverso, cuando Top-10 tiene scores muy similares (score gap <0.05).
+- **Mejora esperada**: +15-25% Recall según Ma et al. (2023), especialmente efectivo en NQ y HotpotQA.
+- **Trade-off**: 3-5x latencia y costos de API, pero significativamente mejor cobertura de documentos relevantes.
+- **Tip práctico**: usar 3 variaciones para balance velocidad/calidad; 5+ variaciones solo si recall es crítico.
+
 ---
 
 ### 6.3 Query Decomposition (Descomposición de Consultas)
+
+#### 6.3.0 Resumen intuitivo
+
+- **Idea en una frase**: si la pregunta es compleja, la divides en varias **sub‑preguntas más simples**, buscas evidencia para cada una y luego el LLM construye una respuesta final combinando todas las piezas.
+- **Analogía**: es como responder un examen donde una pregunta tiene incisos (a), (b), (c). Primero respondes cada inciso por separado y al final escribes una conclusión general.
+- **Ventaja clave**: mejora la **claridad** y la **cobertura** en preguntas con varias partes o que requieren razonamiento en varios pasos (multi‑hop).
+- **Desventaja clave**: requiere más llamadas a la base de vectores y más pasos de LLM (planificar + sintetizar), por lo que es más lenta.
 
 #### 6.3.1 Fundamento Teórico
 
@@ -1055,6 +1102,18 @@ Retornar Top-K (típicamente 5-10)
 
 - Press et al. (2023) - "Measuring and Narrowing the Compositionality Gap in Language Models" ([arXiv:2210.03350](https://arxiv.org/abs/2210.03350))
 - Khot et al. (2023) - "Decomposed Prompting: A Modular Approach for Solving Complex Tasks" ([arXiv:2210.02406](https://arxiv.org/abs/2210.02406))
+
+**Vista de respuestas parciales**
+
+- Dada una pregunta compleja \(Q\), la descomponemos en sub‑preguntas \(\{q_1, q_2, \dots, q_n\}\).
+- Para cada sub‑pregunta, el sistema realiza retrieval + LLM para obtener una respuesta parcial \(a_i\).
+- La respuesta final se construye como:
+
+$$
+	ext{Respuesta}(Q) = \text{LLM\_síntesis}\big(Q, a_1, a_2, \dots, a_n\big)
+$$
+
+- De esta forma, el modelo resuelve varios problemas simples en lugar de un gran problema complejo de una sola vez.
 
 #### 6.3.2 Flujo de Ejecución
 
@@ -1217,9 +1276,28 @@ Sub-Q3: "¿Qué papers recientes destacan?"
 - **Latencia crítica**: Múltiples búsquedas + síntesis añade latencia significativa
 - **Preguntas atómicas**: Ya son indivisibles
 
+**Checklist práctico: ¿Uso Query Decomposition?**
+
+- ¿La pregunta tiene varias partes unidas por "y", "además", "vs", "comparar"? → Probablemente **sí**.
+- ¿Esperas una respuesta con secciones claras (por ejemplo: Ventajas, Desventajas, Recomendación)? → **Sí**.
+- ¿La pregunta es muy corta y directa ("¿Qué es HNSW?")? → **No**, normalmente basta con RAG básico o HyDE.
+
+**En resumen (para recordar):**
+
+- **Qué hace**: descompone pregunta compleja en sub-preguntas atómicas, busca cada una y sintetiza respuesta final.
+- **Cuándo usarlo**: queries con "vs", "comparar", "ventajas y desventajas", o preguntas multi-parte/multi-hop.
+- **Mejora esperada**: +20-40% en datasets multi-hop (StrategyQA, 2WikiMultihopQA) según Khot et al. (2023).
+- **Trade-off**: 2-3x costos LLM y múltiples búsquedas, pero respuestas mucho más estructuradas y completas.
+- **Tip práctico**: funciona mejor con síntesis LLM final; sin síntesis, retornar sub-respuestas organizadas por tema.
+
 ---
 
 ### 6.4 HyDE (Hypothetical Document Embeddings)
+
+#### 6.4.0 Resumen intuitivo
+
+- **Idea en una frase**: en lugar de buscar directamente con la pregunta del usuario, primero el LLM **imagina un documento ideal** que respondería perfectamente a esa pregunta, y luego usamos ese documento imaginado para buscar en la base de datos.
+- **Intuición**: los documentos del corpus suelen parecerse más entre sí que a las preguntas de los usuarios. Si convertimos la pregunta en “un documento más”, la búsqueda vectorial puede encontrar mejores coincidencias.
 
 #### 6.4.1 Fundamento Teórico
 
@@ -1234,6 +1312,24 @@ Sub-Q3: "¿Qué papers recientes destacan?"
 - Gao et al. (2023) - "Precise Zero-Shot Dense Retrieval without Relevance Labels" ([arXiv:2212.10496](https://arxiv.org/abs/2212.10496))
   - Paper original que introduce HyDE
   - Demuestran mejoras del 5-10% en MS MARCO y Natural Questions
+
+**Formalización corta con embeddings**
+
+- En dense retrieval clásico, se calcula un score entre **query** y **documento** usando embeddings diferentes:
+
+$$
+	ext{score}(q, d) = \langle f_{\text{query}}(q), f_{\text{doc}}(d) \rangle
+$$
+
+- En HyDE:
+  1. Generamos un documento hipotético \(d_h = \text{LLM}(q)\).
+  2. Lo codificamos como si fuera un documento:
+
+$$
+	ext{score}_{\text{HyDE}}(q, d) = \langle f_{\text{doc}}(d_h), f_{\text{doc}}(d) \rangle
+$$
+
+- Es decir, **convertimos la pregunta en un pseudo‑documento** y comparamos documentos entre sí en lugar de comparar pregunta contra documento.
 
 #### 6.4.2 Flujo de Ejecución
 
@@ -1411,9 +1507,22 @@ Incluso si el LLM "alucina" en el documento hipotético, **solo se usa para bús
 - **Latencia crítica**: Generación de documento hipotético añade 1-3 segundos
 - **Presupuesto limitado**: Requiere llamada adicional a LLM
 
+**En resumen (para recordar):**
+
+- **Qué hace**: LLM genera documento hipotético que responde la pregunta; usa su embedding como consulta vectorial.
+- **Cuándo usarlo**: queries muy cortos ("HNSW", "pgvector"), domain gap usuario↔documentos, o búsqueda directa falla.
+- **Mejora esperada**: +5-10% MRR/Recall (Gao et al. 2023), más efectivo en dominios técnicos o especializados.
+- **Trade-off**: 1 llamada extra LLM (+1-3s latencia), pero cierra brecha semántica entre query casual y docs formales.
+- **Tip práctico**: documento hipotético se usa SOLO para búsqueda; respuesta final debe basarse en docs reales recuperados.
+
 ---
 
 ### 6.5 Hybrid Search (Búsqueda Híbrida: BM25 + Vectorial)
+
+#### 6.5.0 Resumen intuitivo
+
+- **Idea en una frase**: combina un buscador "clásico" basado en palabras (BM25) con uno "semántico" basado en vectores, para no perder ni las coincidencias exactas ni las coincidencias por significado.
+- **Ejemplo rápido**: si el usuario escribe "error ORA-12154 en Oracle 19c", BM25 es muy bueno encontrando textos que contienen exactamente "ORA-12154", mientras que la búsqueda vectorial ayuda a encontrar explicaciones relacionadas aunque usen otra redacción.
 
 #### 6.5.1 Fundamento Teórico
 
@@ -1450,6 +1559,17 @@ IDF(qi) = log[ (N - n(qi) + 0.5) / (n(qi) + 0.5) + 1 ]
 - N: Número total de documentos
 - n(qi): Número de documentos que contienen qi
 ```
+
+**Conexión con probabilidad (intuición)**
+
+- BM25 se deriva de un modelo probabilístico clásico llamado **Probabilistic Relevance Framework (PRF)**.
+- En ese modelo, la puntuación de un documento \(D\) frente a un query \(Q\) es proporcional a:
+
+$$
+	ext{score}_{\text{BM25}}(D, Q) \propto \log \frac{P(R=1 \mid D, Q)}{P(R=0 \mid D, Q)}
+$$
+
+- Es decir, intenta aproximar **qué tan probable es que el documento sea relevante** (\(R=1\)) frente a irrelevante (\(R=0\)), dado el query.
 
 **Intuición de cada componente:**
 
@@ -1660,9 +1780,32 @@ for α in alphas:
 - **Corpus muy pequeño** (<1000 docs): Overhead no justificado
 - **Todos los queries son largos y descriptivos**: Semántica pura funciona bien
 
+**Regla práctica: Hybrid como default**
+
+- Si no tienes claro qué método de búsqueda usar, es razonable empezar con **Hybrid Search**:
+  - Activa BM25 o un buscador textual equivalente en tu base de datos.
+  - Activa búsqueda vectorial con embeddings.
+  - Usa un esquema de fusión como RRF para combinar las dos listas.
+- Solo tiene sentido desactivar BM25 si:
+  - Tu corpus es muy pequeño.
+  - O tus queries son siempre párrafos largos muy detallados, donde las coincidencias exactas de palabras no aportan tanto.
+
+**En resumen (para recordar):**
+
+- **Qué hace**: mezcla resultados de búsqueda lexical (BM25) y búsqueda vectorial con fusión RRF o ponderación α.
+- **Cuándo usarlo**: queries con IDs/códigos ("ORA-12154"), nombres propios, o mezcla keywords + semántica.
+- **Mejora esperada**: +5-15% recall (Lin et al. 2021), especialmente cuando hay exactitud lexical importante.
+- **Trade-off**: mantener 2 índices (texto + vectores), pero es el mejor default general para producción.
+- **Tip práctico**: tunear α dinámicamente (α=0.3-0.5 para queries cortos con keywords, α=0.6-0.8 para semántica).
+
 ---
 
 ### 6.6 Iterative Retrieval (Recuperación Iterativa Multi-Ronda)
+
+#### 6.6.0 Resumen intuitivo
+
+- **Idea en una frase**: en vez de hacer una sola búsqueda y ya está, el sistema entra en un bucle de **buscar → leer → detectar qué falta → volver a buscar**, hasta que tenga suficiente información para responder bien.
+- **Analogía**: es como investigar un tema en internet. No te quedas con la primera búsqueda: lees, detectas dudas nuevas y vuelves a buscar con preguntas más específicas.
 
 #### 6.6.1 Fundamento Teórico
 
@@ -1680,6 +1823,20 @@ for α in alphas:
 - Asai et al. (2023) - "Self-RAG: Learning to Retrieve, Generate, and Critique through Self-Reflection" ([arXiv:2310.11511](https://arxiv.org/abs/2310.11511))
 - Yao et al. (2023) - "ReAct: Synergizing Reasoning and Acting in Language Models" ([arXiv:2210.03629](https://arxiv.org/abs/2210.03629))
 - Shao et al. (2023) - "Enhancing Retrieval-Augmented LMs with Iterative Retrieval-Generation Synergy" ([arXiv:2305.15294](https://arxiv.org/abs/2305.15294))
+
+**Vista como política de decisiones**
+
+- Podemos ver el sistema como un **agente** que, en cada ronda, está en un estado \(s_t\) que incluye:
+  - La pregunta original.
+  - El contexto acumulado (documentos ya recuperados).
+  - Una evaluación de si con ese contexto ya se puede responder bien.
+- Una política \(\pi\) decide la acción a tomar:
+
+$$
+a_t = \pi(s_t) \in \{\text{buscar\_más},\ \text{parar\_y\_responder}\}
+$$
+
+- Self‑RAG entrena precisamente esta política: aprender **cuándo** vale la pena seguir buscando y cuándo es mejor parar y generar la respuesta final.
 
 #### 6.6.2 Flujo de Ejecución
 
@@ -1951,9 +2108,33 @@ Desventaja: Complejo de implementar
 - **Presupuesto limitado**: 3-5x costo vs. RAG básico
 - **Queries bien scoped**: Ya son específicos y dirigidos
 
+**Checklist: ¿vale la pena iterar?**
+
+- ¿La pregunta requiere combinar información de varias fuentes (multi‑hop, análisis exhaustivo)? → **Sí**.
+- ¿La primera respuesta suele ser incompleta o superficial con una sola ronda de búsqueda? → **Sí**.
+- ¿Tu aplicación tolera 1–2 segundos extra de latencia y algo más de costo de cómputo? → **Sí**.
+- Si respondes "sí" a estas tres preguntas, Iterative Retrieval es una buena candidata.
+
+**En resumen (para recordar):**
+
+- **Qué hace**: ejecuta múltiples rondas de búsqueda y LLM hasta que el sistema decide que tiene suficiente contexto.
+- **Cuándo usarlo**: queries multi-hop ("¿qué universidad fundó el autor de X?"), necesitas verificar "answerability".
+- **Mejora esperada**: +30-40% en multi-hop QA (Asai et al. 2023), pero irrelevante si queries son simples o directos.
+- **Trade-off**: multiplica latencia (×N rondas) y costos LLM; solo para queries complejos donde vale la pena.
+- **Tip práctico**: limitar máximo 3 rondas y usar stopping criteria ("confidence > 0.8" o "no new info").
+
 ---
 
 ### 6.7 Comparativa de las 5 Estrategias
+
+**Resumen intuitivo:**
+
+Esta tabla resume las características clave de cada estrategia avanzada para ayudarte a decidir cuál usar según tu caso. En general:
+
+- **Hybrid Search** es el mejor punto de partida (bajo costo, buena mejora).
+- **Multi-Query** y **Decomposition** son excelentes para queries complejos o ambiguos.
+- **HyDE** funciona bien cuando hay diferencia de vocabulario entre usuario y documentos.
+- **Iterative** es la opción más poderosa pero también la más costosa.
 
 | Estrategia        | Complejidad | Latencia Típica | Mejora Recall | Mejora Precision | Costo LLM | Mejor Para                                |
 | ----------------- | ----------- | --------------- | ------------- | ---------------- | --------- | ----------------------------------------- |
@@ -1982,6 +2163,22 @@ Alto Performance:
 Investigación/Academia:
   └─ Implementar todas, benchmarking exhaustivo
 ```
+
+**Referencias para comparativas:**
+
+Los datos de mejora de Recall y Precision provienen de múltiples estudios:
+
+- **Multi-Query**: Ma et al. (2023) reportan +15-26% Recall en NQ, HotpotQA y MS MARCO
+- **Query Decomposition**: Khot et al. (2023) muestran +26-40% mejora en StrategyQA y 2WikiMultihopQA
+- **HyDE**: Gao et al. (2023) demuestran +7-10% MRR en MS MARCO y Natural Questions
+- **Hybrid Search**: Lin et al. (2021) reportan +5-10% mejora consistente vs. métodos individuales
+- **Iterative Retrieval**: Asai et al. (2023) con Self-RAG alcanzan +14-38% en múltiples benchmarks
+
+**Nota metodológica**: Las mejoras son aproximadas y dependen fuertemente del:
+
+- Dataset específico (dominio, calidad de documentos)
+- Implementación (calidad de prompts, parámetros)
+- Baseline usado (RAG básico puede variar mucho)
 
 ### 6.8 Implementación en Este Proyecto
 
@@ -2418,6 +2615,14 @@ GET  /demo/similarity            # Cálculo de similitud
 }
 ```
 
+**Referencia teórica:** para el fundamento, fórmulas, flujos detallados y "cuándo usar" cada técnica avanzada, ver la **[Sección 6: Estrategias Avanzadas de RAG](#6-estrategias-avanzadas-de-rag)**:
+
+- Multi-Query Rephrasing → **[Sección 6.2](#62-multi-query-rephrasing-reformulación-multi-consulta)**
+- Query Decomposition → **[Sección 6.3](#63-query-decomposition-descomposición-de-consultas)**
+- HyDE → **[Sección 6.4](#64-hyde-hypothetical-document-embeddings)**
+- Hybrid Search → **[Sección 6.5](#65-hybrid-search-búsqueda-híbrida-bm25--vectorial)**
+- Iterative Retrieval → **[Sección 6.6](#66-iterative-retrieval-recuperación-iterativa-multi-ronda)**
+
 #### 8.3.4 Orchestrated RAG (app/orchestrated_rag.py)
 
 **Sistema inteligente** que automáticamente:
@@ -2455,6 +2660,8 @@ Final: Reranking & Generation
   - MMR reranking para diversidad
   - LLM generation con contexto completo
 ```
+
+**Referencia teórica:** la lógica de este orquestador se apoya en las técnicas avanzadas descritas en la **[Sección 6: Estrategias Avanzadas de RAG](#6-estrategias-avanzadas-de-rag)**. Para entender en profundidad cómo funciona cada bloque que puede activar (Multi-Query, Decomposition, HyDE, Hybrid, Iterative), consulta las **[secciones 6.2–6.6](#62-multi-query-rephrasing-reformulación-multi-consulta)**.
 
 #### 8.3.5 Backends (qdrant_backend.py, pgvector_backend.py)
 
@@ -2977,378 +3184,11 @@ python scripts/main_pipeline.py --stats
 
 ---
 
-## 10. Técnicas Avanzadas de RAG
+## 10. Optimización y Métricas
 
-### 10.1 Multi-Query Rephrasing
+### 10.1 Métricas de Evaluación
 
-**Problema**: Queries del usuario pueden ser ambiguos o usar vocabulario diferente al de los documentos.
-
-**Solución**: Generar múltiples variaciones del query y fusionar resultados.
-
-**Algoritmo:**
-
-```
-1. LLM genera N variaciones del query
-   Original: "¿Qué son bases de datos vectoriales?"
-   Var 1: "Explica las bases de datos vectoriales"
-   Var 2: "Definición de vector databases"
-   Var 3: "Cómo funcionan los almacenes vectoriales"
-
-2. Búsqueda vectorial para cada variación
-   Results1 = search(var1) → Top-50
-   Results2 = search(var2) → Top-50
-   Results3 = search(var3) → Top-50
-
-3. Reciprocal Rank Fusion (RRF)
-   Para cada documento d:
-     score(d) = Σ(1 / (k + rank_i(d)))
-
-   Ejemplo:
-   Doc A: rank1=1, rank2=3, rank3=2
-   score(A) = 1/(60+1) + 1/(60+3) + 1/(60+2) = 0.0481
-
-4. Re-rank y retornar Top-K
-```
-
-**Ventajas:**
-
-✅ Mayor recall (más documentos relevantes capturados)
-✅ Robusto a diferentes formas de expresar la pregunta
-✅ Combina perspectivas múltiples
-
-**Desventajas:**
-
-❌ Más llamadas a LLM y búsqueda vectorial (latencia)
-❌ Mayor costo computacional
-
-**Cuándo usar:**
-
-- Queries cortos o ambiguos
-- Score gap bajo entre resultados (poca confianza)
-- Cuando precisión es crítica
-
-**Endpoint:**
-
-```bash
-curl "http://localhost:8080/advanced/multi-query?q=bases vectoriales&num_variations=3"
-```
-
-### 10.2 Query Decomposition
-
-**Problema**: Queries complejos contienen múltiples sub-preguntas que deberían responderse por separado.
-
-**Solución**: Descomponer en sub-queries, buscar cada uno, sintetizar respuesta final.
-
-**Algoritmo:**
-
-```
-1. LLM descompone query complejo
-   Original: "¿Cuáles son las ventajas y desventajas de Qdrant vs PostgreSQL?"
-
-   Sub-Q1: "¿Cuáles son las ventajas de Qdrant?"
-   Sub-Q2: "¿Cuáles son las desventajas de Qdrant?"
-   Sub-Q3: "¿Cuáles son las ventajas de PostgreSQL?"
-   Sub-Q4: "¿Cuáles son las desventajas de PostgreSQL?"
-
-2. Búsqueda independiente para cada sub-query
-   Results1 = search(sub_q1)
-   Results2 = search(sub_q2)
-   ...
-
-3. Síntesis (opcional)
-   LLM combina todas las respuestas parciales:
-   "Basado en la información recuperada:
-
-    Ventajas de Qdrant:
-    - [de Results1]
-
-    Desventajas de Qdrant:
-    - [de Results2]
-    ..."
-```
-
-**Ventajas:**
-
-✅ Maneja queries multi-parte
-✅ Respuestas más estructuradas
-✅ Mejor cobertura de temas complejos
-
-**Desventajas:**
-
-❌ Overhead de descomposición (LLM call)
-❌ Múltiples búsquedas (latencia)
-
-**Cuándo usar:**
-
-- Queries con "y", "vs", enumeraciones
-- Preguntas comparativas
-- Solicitudes multi-aspecto
-
-**Endpoint:**
-
-```bash
-curl "http://localhost:8080/advanced/decompose?q=ventajas y desventajas de Qdrant&synthesize=true"
-```
-
-### 10.3 HyDE (Hypothetical Document Embeddings)
-
-**Problema**: Query y documentos pueden estar en "espacios semánticos" diferentes (domain gap).
-
-**Solución**: LLM genera un documento hipotético que respondería la pregunta, buscar con su embedding.
-
-**Algoritmo:**
-
-```
-1. LLM genera documento hipotético
-   Query: "¿Qué es pgvector?"
-
-   Hypothetical Doc:
-   "pgvector es una extensión de PostgreSQL que añade soporte
-    para vectores y búsqueda de similitud. Permite almacenar
-    embeddings directamente en PostgreSQL y realizar búsquedas
-    ANN usando índices IVF o HNSW..."
-
-2. Embedding del documento hipotético
-   hyp_emb = encode("passage: " + hypothetical_doc)
-   # Nota: usa prefijo "passage", no "query"
-
-3. Búsqueda vectorial con hyp_emb
-   results = search(hyp_emb, k=50)
-
-4. Opcionalmente: Generar respuesta final
-   LLM responde usando los documentos recuperados
-```
-
-**Intuición:**
-
-Los documentos están escritos en cierto estilo/vocabulario. Un documento hipotético generado por el LLM está más cerca de ese estilo que un query directo del usuario.
-
-**Ventajas:**
-
-✅ Excelente para queries abstractos
-✅ Cierra el domain gap
-✅ Mejora recall en dominios técnicos
-
-**Desventajas:**
-
-❌ Depende de calidad del LLM
-❌ LLM puede "alucinar" en doc hipotético
-❌ Mayor latencia (LLM + búsqueda)
-
-**Cuándo usar:**
-
-- Queries muy cortos o abstractos
-- Domain gap conocido (e.g., lenguaje casual → técnico)
-- Cuando búsqueda directa falla
-
-**Endpoint:**
-
-```bash
-curl "http://localhost:8080/advanced/hyde?q=pgvector"
-```
-
-### 10.4 Hybrid Search (BM25 + Dense)
-
-**Problema**: Búsqueda vectorial pura ignora matches léxicos exactos (keywords).
-
-**Solución**: Combinar búsqueda keyword (BM25) con búsqueda densa (vectorial) usando RRF.
-
-**Algoritmo:**
-
-```
-1. Búsqueda Semántica (Dense)
-   emb = encode("query: " + query)
-   semantic_results = vector_search(emb, k=50)
-
-2. Búsqueda Keyword (BM25)
-   # BM25: TF-IDF mejorado, estándar en full-text search
-   keyword_results = bm25_search(query, corpus, k=50)
-
-   BM25(d, q) = Σ(IDF(qi) × (f(qi,d) × (k1+1)) / (f(qi,d) + k1 × (1-b+b×|d|/avgdl)))
-
-   Donde:
-   - f(qi, d): frecuencia del término qi en documento d
-   - |d|: longitud del documento
-   - avgdl: longitud promedio de documentos
-   - k1, b: parámetros de calibración
-
-3. Reciprocal Rank Fusion
-   Fusionar ambos resultados ponderados:
-
-   score_final(d) = λ × score_semantic(d) + (1-λ) × score_bm25(d)
-
-   Usando RRF:
-   score(d) = λ × (1/(60+rank_semantic(d))) + (1-λ) × (1/(60+rank_bm25(d)))
-```
-
-**Ventajas:**
-
-✅ Combina lo mejor de ambos mundos
-✅ Robusto a queries con términos técnicos específicos
-✅ Mejora precision y recall
-
-**Desventajas:**
-
-❌ Requiere implementación BM25 (o ElasticSearch integración)
-❌ Más complejo de configurar
-
-**Parámetros:**
-
-- **semantic_weight (λ)**: Balance entre semántico y keyword
-  - 0.7 (default): 70% semántico, 30% keyword
-  - 0.5: Balance equitativo
-  - 0.9: Casi puro semántico
-
-**Cuándo usar:**
-
-- Queries con nombres propios, IDs, términos técnicos exactos
-- Cuando sabes que usuarios buscan keywords específicos
-- **Recomendación general** como baseline
-
-**Endpoint:**
-
-```bash
-curl "http://localhost:8080/advanced/hybrid?q=PostgreSQL pgvector&semantic_weight=0.7"
-```
-
-### 10.5 Iterative Retrieval (Multi-Round)
-
-**Problema**: Respuesta completa requiere información de múltiples fuentes que la búsqueda inicial no captura.
-
-**Solución**: Iterativamente generar nuevas búsquedas basadas en gaps de información identificados.
-
-**Algoritmo:**
-
-```
-Round 1:
-  1. Búsqueda inicial con query original
-  2. LLM evalúa: ¿Es suficiente para responder?
-  3. Si NO: Identificar qué información falta
-
-Round 2:
-  1. Generar followup query específico para los gaps
-     Ejemplo: Si falta "ventajas de Qdrant"
-     Followup: "ventajas y beneficios de usar Qdrant"
-  2. Búsqueda con followup query
-  3. Acumular resultados
-  4. Re-evaluar answerability
-
-Round N:
-  Repetir hasta:
-  - Información suficiente (answerable=True)
-  - Max rounds alcanzado (default: 3)
-  - No se pueden generar más followups
-```
-
-**Ejemplo real:**
-
-```
-Query: "¿Cómo configurar HNSW en Qdrant y PostgreSQL?"
-
-Round 1:
-  Search: "configurar HNSW Qdrant PostgreSQL"
-  Results: Docs sobre HNSW general
-  Answerability: PARCIAL (falta detalles de configuración)
-  Missing: "parámetros específicos de HNSW"
-
-Round 2:
-  Followup: "parámetros M ef_construction HNSW"
-  Results: Docs con valores de parámetros
-  Answerability: SÍ
-  → STOP, generar respuesta
-```
-
-**Ventajas:**
-
-✅ Maneja queries multi-hop complejos
-✅ Adaptativo (para cuando encuentra gaps)
-✅ Mejora cobertura de información
-
-**Desventajas:**
-
-❌ Múltiples llamadas LLM + búsqueda (latencia alta)
-❌ Riesgo de "rabbit holes" (buscar info irrelevante)
-
-**Cuándo usar:**
-
-- Queries muy complejos que requieren múltiples documentos
-- Cuando answerability check muestra gaps claros
-- Tienes budget de tiempo/costo para múltiples rondas
-
-**Endpoint:**
-
-```bash
-curl "http://localhost:8080/advanced/iterative?q=configurar HNSW&max_rounds=3"
-```
-
-### 10.6 Orchestrated RAG (Sistema Inteligente)
-
-**Concepto**: Pipeline que **automáticamente decide** qué técnicas aplicar basado en características del query.
-
-**Ventajas principales:**
-
-✅ **Plug-and-play**: Usuario no necesita decidir qué técnica usar
-✅ **Eficiente**: Early exit cuando info es suficiente
-✅ **Budget control**: Limita llamadas a retrieval/LLM
-✅ **Adaptativo**: Se ajusta a complejidad del query
-
-**Ejemplo de ejecución:**
-
-```
-Query: "introducción vectores"
-
-Phase 0: Preflight
-  Signals: is_short=True, is_abstract=True, query_length=2
-
-Phase 1: Baseline
-  Hybrid search → 50 results
-  Answerability: PARCIAL (confidence=0.65)
-  → Continue
-
-Phase 2: Enrichment
-  Signal: is_short=True → Apply Multi-Query
-  Generate 2 variations
-  Search each → 100 more results
-  Answerability: SÍ (confidence=0.82)
-  → Early exit (no need for HyDE, Decomposition)
-
-Final:
-  MMR reranking → Top-10
-  LLM generates answer
-  Return results with execution trace
-```
-
-**Endpoint:**
-
-```bash
-curl "http://localhost:8080/orchestrated?q=bases de datos vectoriales"
-```
-
-### 10.7 Comparativa de Técnicas
-
-| Técnica           | Latencia  | Complejidad    | Recall      | Precision   | Mejor Para          |
-| ----------------- | --------- | -------------- | ----------- | ----------- | ------------------- |
-| **Básico**        | 🟢 ~50ms  | 🟢 Baja        | ⚠️ Media    | ⚠️ Media    | Queries simples     |
-| **Multi-Query**   | 🟡 ~200ms | 🟡 Media       | ✅ Alta     | ✅ Alta     | Queries ambiguos    |
-| **Decomposition** | 🟡 ~300ms | 🟡 Media       | ✅ Alta     | ✅ Alta     | Queries complejos   |
-| **HyDE**          | 🟡 ~250ms | 🟡 Media       | ✅ Muy alta | ⚠️ Media    | Queries abstractos  |
-| **Hybrid**        | 🟢 ~80ms  | 🟢 Baja        | ✅ Alta     | ✅ Alta     | **General purpose** |
-| **Iterative**     | 🔴 ~1s    | 🔴 Alta        | ✅ Muy alta | ✅ Alta     | Queries multi-hop   |
-| **Orchestrated**  | 🟡 ~300ms | 🟢 Baja (auto) | ✅ Muy alta | ✅ Muy alta | **Producción**      |
-
-**Recomendaciones:**
-
-1. **Prototipado**: RAG básico
-2. **Producción general**: Orchestrated RAG o Hybrid Search
-3. **Casos específicos**: Elegir técnica apropiada basado en tabla
-
----
-
-## 11. Optimización y Métricas
-
-### 11.1 Métricas de Evaluación
-
-#### 11.1.1 Retrieval Metrics
+#### 10.1.1 Retrieval Metrics
 
 **Recall@K**: ¿Qué porcentaje de documentos relevantes están en top-K?
 
@@ -3443,9 +3283,9 @@ Total:                  2085 ms (100%)
 # LLM domina la latencia → optimizar primero
 ```
 
-### 11.2 Optimización de Búsqueda Vectorial
+### 10.2 Optimización de Búsqueda Vectorial
 
-#### 11.2.1 Tuning de HNSW
+#### 10.2.1 Tuning de HNSW
 
 **Parámetro M** (conexiones por nodo):
 
@@ -3578,9 +3418,9 @@ def load_or_compute_embeddings(chunks):
     return embeddings
 ```
 
-### 11.3 Optimización de LLM
+### 10.3 Optimización de LLM
 
-#### 11.3.1 Selección de Modelo
+#### 10.3.1 Selección de Modelo
 
 **Trade-off: Tamaño vs. Calidad**
 
@@ -3679,7 +3519,7 @@ Para RAG: 300-500 (suficiente para respuesta + citas)
    """
    ```
 
-### 11.4 Monitoreo en Producción
+### 10.4 Monitoreo en Producción
 
 **Métricas clave a trackear:**
 
@@ -3719,9 +3559,9 @@ monthly_cost = $15000
 
 ---
 
-## 12. Despliegue en la Nube
+## 11. Despliegue en la Nube
 
-### 12.1 Arquitectura Cloud-Native
+### 11.1 Arquitectura Cloud-Native
 
 **Stack recomendado:**
 
@@ -3758,9 +3598,9 @@ monthly_cost = $15000
 └─────────────────────────────────────────────────────────┘
 ```
 
-### 12.2 Opciones por Proveedor
+### 11.2 Opciones por Proveedor
 
-#### 12.2.1 AWS Deployment
+#### 11.2.1 AWS Deployment
 
 **Opción 1: Serverless (Simple)**
 
@@ -3904,7 +3744,7 @@ gcloud run deploy rag-api \
 # - Total: ~$400/month
 ```
 
-### 12.3 Managed Services vs. Self-Hosted
+### 11.3 Managed Services vs. Self-Hosted
 
 #### Qdrant
 
@@ -3985,7 +3825,7 @@ Costos:
 - = ~$220/month
 ```
 
-### 12.4 CI/CD Pipeline
+### 11.4 CI/CD Pipeline
 
 **GitHub Actions ejemplo:**
 
@@ -4039,7 +3879,7 @@ jobs:
             --force-new-deployment
 ```
 
-### 12.5 Costos Comparativos
+### 11.5 Costos Comparativos
 
 **Escenario: Startup (10k queries/day)**
 
@@ -4072,11 +3912,11 @@ jobs:
 
 ---
 
-## 13. Aplicaciones Empresariales
+## 12. Aplicaciones Empresariales
 
-### 13.1 Casos de Uso por Industria
+### 12.1 Casos de Uso por Industria
 
-#### 13.1.1 Servicio al Cliente
+#### 12.1.1 Servicio al Cliente
 
 **Problema**: Agentes necesitan buscar en manuales/FAQs extensos para resolver tickets.
 
@@ -4282,7 +4122,7 @@ def product_search(query: str, user_profile: dict):
     }
 ```
 
-### 13.2 ROI y Justificación de Inversión
+### 12.2 ROI y Justificación de Inversión
 
 **Costos iniciales:**
 
@@ -4319,9 +4159,9 @@ Ahorro: $18,000/mes = $216,000/año
 ROI: ($216,000 - $35,000 - $2,000×12) / $35,000 = 511% primer año
 ```
 
-### 13.3 Consideraciones de Implementación
+### 12.3 Consideraciones de Implementación
 
-#### 13.3.1 Data Privacy y Seguridad
+#### 12.3.1 Data Privacy y Seguridad
 
 **Preocupaciones:**
 
@@ -4441,9 +4281,9 @@ def scheduled_reindex():
 
 ---
 
-## 14. Recomendaciones y Mejores Prácticas
+## 13. Recomendaciones y Mejores Prácticas
 
-### 14.1 Para Estudiantes y Aprendizaje Autónomo
+### 13.1 Para Estudiantes y Aprendizaje Autónomo
 
 **Ruta de aprendizaje progresivo:**
 
@@ -4959,7 +4799,7 @@ Aplica todo lo aprendido para construir un sistema RAG en un dominio específico
 
 **Tip final:** La mejor forma de aprender es **construyendo**. Empieza simple, itera, mide resultados, y mejora progresivamente. No intentes implementar todo a la vez.
 
-### 14.2 Para Desarrolladores
+### 13.2 Para Desarrolladores
 
 **Mejores prácticas de código:**
 
@@ -5061,7 +4901,7 @@ class DocumentRepository:
         return self.format_results(results)
 ```
 
-### 14.3 Para Arquitectos de Sistemas
+### 13.3 Para Arquitectos de Sistemas
 
 **Decisiones arquitectónicas clave:**
 
@@ -5112,7 +4952,7 @@ class DocumentRepository:
   - [ ] Data retention policy definida
   - [ ] GDPR compliance (derecho al olvido)
 
-### 14.4 Recomendación Final: ¿Qué Base de Datos Elegir?
+### 13.4 Recomendación Final: ¿Qué Base de Datos Elegir?
 
 **Para este proyecto académico:**
 
@@ -5198,4 +5038,4 @@ Este documento cubre la teoría completa de bases de datos vectoriales y RAG apl
 ---
 
 _Documento creado para el curso 1CA217 - Sistemas de Base de Datos Avanzadas_
-_Universidad de Costa Rica - 2025_
+_UTP :) - 2025_
