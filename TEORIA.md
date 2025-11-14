@@ -3328,55 +3328,497 @@ def scheduled_reindex():
 
 ## 13. Recomendaciones y Mejores Prácticas
 
-### 13.1 Para Estudiantes y Aprendizaje
+### 13.1 Para Estudiantes y Aprendizaje Autónomo
 
-**Progresión recomendada:**
+**Ruta de aprendizaje progresivo:**
 
-1. **Semana 1: Fundamentos**
+Esta sección está diseñada para cualquier persona que quiera aprender sobre bases de datos vectoriales y RAG, independientemente de si está en un curso formal o aprendiendo por cuenta propia.
 
-   - Entender embeddings (ejecutar `/manual/embed`)
-   - Calcular similitudes manualmente
-   - Probar búsqueda básica (`/ask`)
+#### **Nivel 1: Fundamentos (1-2 semanas)**
 
-2. **Semana 2: RAG Básico**
+**Objetivos:**
+- Comprender qué es un embedding y cómo se genera
+- Entender cómo funciona la similitud vectorial
+- Realizar tu primera búsqueda semántica
 
-   - Implementar RAG simple (query → búsqueda → LLM)
-   - Experimentar con diferentes modelos embedding
-   - Medir recall y precision
+**Ejercicios prácticos:**
 
-3. **Semana 3: Técnicas Avanzadas**
+1. **Generar tu primer embedding:**
+   ```python
+   from sentence_transformers import SentenceTransformer
+   
+   model = SentenceTransformer('intfloat/multilingual-e5-base')
+   
+   # Textos de ejemplo
+   textos = [
+       "El perro corre en el parque",
+       "Un canino juega en el jardín",
+       "El auto está en el garaje"
+   ]
+   
+   # Generar embeddings
+   embeddings = model.encode(textos)
+   print(f"Forma del vector: {embeddings.shape}")  # (3, 768)
+   
+   # Calcular similitud
+   from sklearn.metrics.pairwise import cosine_similarity
+   similitud = cosine_similarity(embeddings)
+   print(similitud)  # Observa que texto 1 y 2 son muy similares
+   ```
 
-   - Probar Multi-Query, HyDE, Hybrid Search
-   - Comparar resultados de cada técnica
-   - Entender trade-offs
+2. **Explorar el espacio vectorial:**
+   ```python
+   # Visualizar embeddings en 2D usando t-SNE
+   from sklearn.manifold import TSNE
+   import matplotlib.pyplot as plt
+   
+   # Genera embeddings de varios conceptos
+   conceptos = [
+       "perro", "gato", "ratón",  # Animales
+       "auto", "camión", "bicicleta",  # Vehículos
+       "manzana", "naranja", "plátano"  # Frutas
+   ]
+   
+   embeddings = model.encode(conceptos)
+   
+   # Reducir a 2D
+   tsne = TSNE(n_components=2, random_state=42)
+   coords_2d = tsne.fit_transform(embeddings)
+   
+   # Graficar
+   plt.scatter(coords_2d[:, 0], coords_2d[:, 1])
+   for i, concepto in enumerate(conceptos):
+       plt.annotate(concepto, (coords_2d[i, 0], coords_2d[i, 1]))
+   plt.title("Espacio de Embeddings (2D)")
+   plt.show()
+   # Verás que conceptos similares se agrupan
+   ```
 
-4. **Semana 4: Optimización**
+3. **Experimentar con diferentes métricas de distancia:**
+   ```python
+   import numpy as np
+   from scipy.spatial import distance
+   
+   vec1 = embeddings[0]  # "perro"
+   vec2 = embeddings[1]  # "gato"
+   vec3 = embeddings[3]  # "auto"
+   
+   # Comparar métricas
+   print(f"Cosine (perro-gato): {1 - distance.cosine(vec1, vec2):.4f}")
+   print(f"Cosine (perro-auto): {1 - distance.cosine(vec1, vec3):.4f}")
+   
+   print(f"Euclidean (perro-gato): {distance.euclidean(vec1, vec2):.4f}")
+   print(f"Euclidean (perro-auto): {distance.euclidean(vec1, vec3):.4f}")
+   
+   # Pregunta: ¿Qué métrica diferencia mejor conceptos relacionados vs no relacionados?
+   ```
 
-   - Tuning de HNSW (M, ef_construction)
-   - Benchmarking de diferentes configuraciones
-   - Análisis de latencia
+**Recursos de estudio:**
+- 📖 [Sentence Transformers Documentation](https://www.sbert.net/)
+- 🎥 [3Blue1Brown - Neural Networks](https://www.youtube.com/watch?v=aircAruvnKk)
+- 📄 Sección 2 de este documento (Embeddings y Representación Vectorial)
 
-5. **Proyecto Final**
-   - Sistema RAG completo en dominio específico
-   - Comparativa Qdrant vs PostgreSQL
-   - Presentación de resultados
+#### **Nivel 2: Implementación Básica de RAG (2-3 semanas)**
 
-**Recursos de práctica:**
+**Objetivos:**
+- Construir un sistema RAG funcional desde cero
+- Entender el flujo completo: indexación → búsqueda → generación
+- Comparar diferentes backends vectoriales
 
-```bash
-# 1. Dataset pequeño para experimentos
-curl http://localhost:8080/demo/pipeline?storage_type=both
+**Proyecto guiado: "Mi primera base de conocimiento"**
 
-# 2. Comparar backends
-curl http://localhost:8080/compare?q=tu_query
+```python
+# Paso 1: Preparar datos
+documentos = [
+    {"id": 1, "contenido": "Python es un lenguaje de programación interpretado..."},
+    {"id": 2, "contenido": "JavaScript es esencial para desarrollo web..."},
+    {"id": 3, "contenido": "SQL se utiliza para gestionar bases de datos..."},
+    # Añade 20-50 documentos sobre un tema que te interese
+]
 
-# 3. Visualizar embeddings (PCA/t-SNE)
-curl http://localhost:8080/demo/similarity
+# Paso 2: Generar embeddings
+from sentence_transformers import SentenceTransformer
+model = SentenceTransformer('intfloat/multilingual-e5-base')
 
-# 4. Probar técnicas avanzadas
-curl http://localhost:8080/advanced/multi-query?q=tu_query
-curl http://localhost:8080/advanced/hyde?q=tu_query
+for doc in documentos:
+    doc['embedding'] = model.encode(f"passage: {doc['contenido']}")
+
+# Paso 3A: Indexar en Qdrant
+from qdrant_client import QdrantClient
+from qdrant_client.models import Distance, VectorParams, PointStruct
+
+client = QdrantClient(host="localhost", port=6333)
+
+client.create_collection(
+    collection_name="mi_conocimiento",
+    vectors_config=VectorParams(size=768, distance=Distance.COSINE)
+)
+
+points = [
+    PointStruct(
+        id=doc['id'],
+        vector=doc['embedding'].tolist(),
+        payload={"contenido": doc['contenido']}
+    )
+    for doc in documentos
+]
+
+client.upsert(collection_name="mi_conocimiento", points=points)
+
+# Paso 4: Búsqueda
+def buscar(pregunta, k=3):
+    query_emb = model.encode(f"query: {pregunta}")
+    
+    resultados = client.search(
+        collection_name="mi_conocimiento",
+        query_vector=query_emb.tolist(),
+        limit=k
+    )
+    
+    return [(r.score, r.payload['contenido']) for r in resultados]
+
+# Paso 5: Generación (con Ollama local)
+import ollama
+
+def preguntar(pregunta):
+    # Buscar contexto relevante
+    resultados = buscar(pregunta, k=3)
+    contexto = "\n\n".join([f"[{i+1}] {cont}" for i, (score, cont) in enumerate(resultados)])
+    
+    # Generar respuesta
+    prompt = f"""Responde basándote solo en el siguiente contexto:
+
+{contexto}
+
+Pregunta: {pregunta}
+
+Respuesta:"""
+    
+    respuesta = ollama.generate(model='phi3:mini', prompt=prompt)
+    return respuesta['response']
+
+# Probar
+print(preguntar("¿Qué es Python?"))
 ```
+
+**Ejercicios de experimentación:**
+
+1. **Comparar backends:**
+   - Implementa lo mismo con PostgreSQL+pgvector
+   - Mide tiempo de indexación y búsqueda
+   - Compara resultados de búsqueda
+
+2. **Experimentar con chunking:**
+   - Prueba diferentes tamaños de chunk (100, 200, 500 tokens)
+   - Mide el impacto en calidad de respuestas
+   - ¿Chunks más grandes = mejores respuestas? ¿Por qué o por qué no?
+
+3. **A/B testing de modelos embedding:**
+   - Prueba `all-MiniLM-L6-v2` (más rápido, 384 dims)
+   - Prueba `multilingual-e5-base` (multilingüe, 768 dims)
+   - Compara precision de búsqueda
+
+**Recursos:**
+- 📖 Sección 5 de este documento (RAG completo)
+- 🔗 [Qdrant Tutorial](https://qdrant.tech/documentation/tutorials/)
+- 🔗 [pgvector Examples](https://github.com/pgvector/pgvector-python)
+
+#### **Nivel 3: Técnicas Avanzadas (2-4 semanas)**
+
+**Objetivos:**
+- Implementar y comparar técnicas avanzadas de RAG
+- Entender cuándo usar cada técnica
+- Optimizar rendimiento y calidad
+
+**Proyectos prácticos:**
+
+1. **Implementar Multi-Query Rephrasing:**
+   ```python
+   def multi_query_search(pregunta_original, num_variaciones=3):
+       # Generar variaciones con LLM
+       prompt = f"""Genera {num_variaciones} formas alternativas de preguntar:
+       "{pregunta_original}"
+       
+       Responde solo con las preguntas, una por línea."""
+       
+       variaciones = ollama.generate(model='phi3:mini', prompt=prompt)
+       queries = [pregunta_original] + variaciones['response'].strip().split('\n')
+       
+       # Buscar con cada variación
+       todos_resultados = []
+       for q in queries:
+           resultados = buscar(q, k=20)
+           todos_resultados.append(resultados)
+       
+       # Fusionar con RRF (Reciprocal Rank Fusion)
+       return fusionar_rrf(todos_resultados)
+   
+   # Pregunta: ¿Cuándo mejora Multi-Query vs búsqueda simple?
+   # Experimento: Compara con queries ambiguos vs específicos
+   ```
+
+2. **Implementar Hybrid Search:**
+   ```python
+   from rank_bm25 import BM25Okapi
+   
+   def hybrid_search(pregunta, lambda_weight=0.7):
+       # Búsqueda semántica (densa)
+       resultados_densos = buscar(pregunta, k=50)
+       
+       # Búsqueda keyword (BM25)
+       corpus = [doc['contenido'] for doc in documentos]
+       tokenized_corpus = [doc.split() for doc in corpus]
+       bm25 = BM25Okapi(tokenized_corpus)
+       
+       query_tokens = pregunta.split()
+       scores_bm25 = bm25.get_scores(query_tokens)
+       
+       # Combinar scores
+       # Score final = lambda * score_denso + (1-lambda) * score_bm25
+       ...
+       
+       return resultados_combinados
+   
+   # Experimento: Varía lambda de 0.0 a 1.0
+   # ¿Cuál es el valor óptimo para tu dataset?
+   ```
+
+3. **Implementar HyDE:**
+   ```python
+   def hyde_search(pregunta):
+       # Generar documento hipotético
+       prompt = f"""Genera un párrafo que respondería perfectamente esta pregunta:
+       {pregunta}
+       
+       Escribe solo el párrafo informativo."""
+       
+       doc_hipotetico = ollama.generate(model='phi3:mini', prompt=prompt)
+       
+       # Buscar usando embedding del documento hipotético (no de la pregunta)
+       emb_hipotetico = model.encode(f"passage: {doc_hipotetico['response']}")
+       
+       resultados = client.search(
+           collection_name="mi_conocimiento",
+           query_vector=emb_hipotetico.tolist(),
+           limit=5
+       )
+       
+       return resultados
+   
+   # Experimento: ¿Cuándo HyDE supera a búsqueda directa?
+   ```
+
+**Desafíos de evaluación:**
+
+1. **Crear benchmark personalizado:**
+   ```python
+   # Define 20-30 preguntas con respuestas gold standard
+   benchmark = [
+       {
+           "pregunta": "¿Qué es Python?",
+           "respuesta_esperada": "lenguaje de programación interpretado...",
+           "docs_relevantes": [1, 5, 12]  # IDs de docs que deberían recuperarse
+       },
+       # ... más preguntas
+   ]
+   
+   # Medir Recall@K
+   def evaluar_recall(metodo_busqueda):
+       recalls = []
+       for item in benchmark:
+           resultados = metodo_busqueda(item['pregunta'], k=5)
+           ids_recuperados = [r['id'] for r in resultados]
+           
+           hits = len(set(ids_recuperados) & set(item['docs_relevantes']))
+           recall = hits / len(item['docs_relevantes'])
+           recalls.append(recall)
+       
+       return np.mean(recalls)
+   
+   # Compara: búsqueda_basica vs multi_query vs hyde vs hybrid
+   ```
+
+2. **Optimización de parámetros:**
+   - HNSW: Prueba M=[8, 16, 32], ef_construction=[100, 200, 400]
+   - Hybrid: Prueba lambda=[0.5, 0.6, 0.7, 0.8, 0.9]
+   - Grafica precision vs latencia
+
+**Recursos:**
+- 📖 Sección 9 de este documento (Técnicas Avanzadas)
+- 📄 [RAG Survey Paper](https://arxiv.org/abs/2312.10997)
+- 🔗 [Advanced RAG Patterns](https://blog.langchain.dev/deconstructing-rag/)
+
+#### **Nivel 4: Optimización y Producción (3-6 semanas)**
+
+**Objetivos:**
+- Optimizar rendimiento (latencia, throughput)
+- Implementar monitoreo y observabilidad
+- Preparar para despliegue en producción
+
+**Proyectos avanzados:**
+
+1. **Benchmarking sistemático:**
+   ```python
+   import time
+   import statistics
+   
+   def benchmark_latencia(metodo, queries, repeticiones=10):
+       latencias = []
+       
+       for query in queries:
+           tiempos = []
+           for _ in range(repeticiones):
+               inicio = time.time()
+               _ = metodo(query)
+               fin = time.time()
+               tiempos.append((fin - inicio) * 1000)  # ms
+           
+           latencias.append(statistics.median(tiempos))
+       
+       return {
+           "p50": statistics.median(latencias),
+           "p95": sorted(latencias)[int(0.95 * len(latencias))],
+           "p99": sorted(latencias)[int(0.99 * len(latencias))],
+           "mean": statistics.mean(latencias)
+       }
+   
+   # Compara diferentes configuraciones
+   configs = [
+       ("Básico", busqueda_basica),
+       ("Multi-Query", multi_query_search),
+       ("Hybrid", hybrid_search)
+   ]
+   
+   for nombre, metodo in configs:
+       stats = benchmark_latencia(metodo, test_queries)
+       print(f"{nombre}: P50={stats['p50']:.1f}ms, P95={stats['p95']:.1f}ms")
+   ```
+
+2. **Implementar caching:**
+   ```python
+   from functools import lru_cache
+   import hashlib
+   
+   @lru_cache(maxsize=1000)
+   def buscar_con_cache(pregunta_hash, k):
+       # Cache de búsquedas frecuentes
+       return buscar(pregunta_hash, k)
+   
+   def buscar_inteligente(pregunta, k=5):
+       # Hash de la pregunta normalizada
+       pregunta_norm = pregunta.lower().strip()
+       pregunta_hash = hashlib.md5(pregunta_norm.encode()).hexdigest()
+       
+       return buscar_con_cache(pregunta_hash, k)
+   
+   # Mide el hit rate del cache después de 1000 queries
+   ```
+
+3. **Monitoreo y logging:**
+   ```python
+   import logging
+   import json
+   from datetime import datetime
+   
+   # Configurar logging estructurado
+   logging.basicConfig(level=logging.INFO)
+   logger = logging.getLogger(__name__)
+   
+   def buscar_con_telemetria(pregunta, k=5):
+       inicio = time.time()
+       
+       try:
+           resultados = buscar(pregunta, k)
+           latencia = (time.time() - inicio) * 1000
+           
+           # Log estructurado
+           logger.info(json.dumps({
+               "evento": "busqueda_exitosa",
+               "timestamp": datetime.now().isoformat(),
+               "pregunta_length": len(pregunta),
+               "num_resultados": len(resultados),
+               "latencia_ms": latencia,
+               "top_score": resultados[0][0] if resultados else 0
+           }))
+           
+           return resultados
+           
+       except Exception as e:
+           logger.error(json.dumps({
+               "evento": "busqueda_fallida",
+               "timestamp": datetime.now().isoformat(),
+               "error": str(e)
+           }))
+           raise
+   
+   # Analiza los logs para identificar patrones
+   ```
+
+**Desafío final: Sistema RAG de producción**
+
+Construye un sistema completo con:
+- ✅ API REST (FastAPI)
+- ✅ Autenticación (API keys)
+- ✅ Rate limiting
+- ✅ Caching
+- ✅ Logging estructurado
+- ✅ Métricas (Prometheus)
+- ✅ Tests unitarios e integración
+- ✅ Docker Compose para deployment local
+- ✅ CI/CD básico (GitHub Actions)
+
+**Recursos:**
+- 📖 Secciones 10-11 de este documento (Optimización y Cloud)
+- 🔗 [FastAPI Best Practices](https://github.com/zhanymkanov/fastapi-best-practices)
+- 🔗 [Production ML Systems](https://madewithml.com/)
+
+#### **Proyecto Capstone: RAG Especializado**
+
+Aplica todo lo aprendido para construir un sistema RAG en un dominio específico de tu interés:
+
+**Ideas de proyectos:**
+
+1. **Asistente académico personalizado**
+   - Indexa tus apuntes, papers, libros
+   - Ayuda a estudiar con preguntas y respuestas
+   - Genera resúmenes y flashcards
+
+2. **Buscador de código interno**
+   - Indexa repositorios de código
+   - Búsqueda semántica de funciones
+   - Explica código con contexto
+
+3. **Asistente de documentación técnica**
+   - Indexa docs de frameworks/libraries
+   - Responde preguntas de implementación
+   - Sugiere ejemplos relevantes
+
+4. **Analizador de contenido (Reddit, Twitter, blogs)**
+   - Indexa posts/artículos sobre un tema
+   - Detecta tendencias
+   - Resume discusiones
+
+**Rúbrica de evaluación autónoma:**
+
+| Criterio | Básico | Intermedio | Avanzado |
+|----------|--------|------------|----------|
+| **Funcionalidad** | RAG básico funciona | Multiple técnicas implementadas | Sistema producción-ready |
+| **Rendimiento** | Funciona en dataset pequeño | Optimizado para dataset mediano | Escala a 100k+ docs |
+| **Código** | Scripts funcionales | Código estructurado | Tests, CI/CD, docs |
+| **Evaluación** | Pruebas manuales | Benchmark básico | Métricas completas |
+| **Innovación** | Implementación estándar | Adaptación al dominio | Técnicas novedosas |
+
+---
+
+**Comunidad y recursos adicionales:**
+
+- 💬 [Qdrant Discord](https://discord.gg/qdrant)
+- 💬 [LangChain Discord](https://discord.gg/langchain)
+- 📚 [Hugging Face Forums](https://discuss.huggingface.co/)
+- 📺 [RAG YouTube Tutorials](https://www.youtube.com/@LangChain)
+- 📖 [Este proyecto GitHub](https://github.com/aleistrying/basic-py-rag) - código completo funcionando
+
+**Tip final:** La mejor forma de aprender es **construyendo**. Empieza simple, itera, mide resultados, y mejora progresivamente. No intentes implementar todo a la vez.
 
 ### 13.2 Para Desarrolladores
 
