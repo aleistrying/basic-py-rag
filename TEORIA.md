@@ -1,43 +1,106 @@
-# Teoría Completa: Bases de Datos Vectoriales y RAG
+# Del Texto a la Inteligencia: Cómo las Máquinas Entienden el Significado (Hecho por LLMs para Humanos)
 
-**Documento de referencia para el proyecto 1CA217 - Sistemas de Base de Datos Avanzadas**
+_La revolución silenciosa que está transformando cómo buscamos y encontramos información_
 
----
+> **¿Te has preguntado cómo Google traduce idiomas, Spotify te recomienda música perfecta, o ChatGPT responde preguntas sobre cualquier tema?** La respuesta está en una tecnología fascinante que convierte palabras, imágenes y sonidos en **"coordenadas de significado"** que las computadoras pueden entender y comparar.
 
-## Tabla de Contenidos
+> Bienvenido al mundo de las **Bases de Datos Vectoriales** y **RAG** - donde cada palabra tiene una ubicación en un mapa invisible de 768 dimensiones, y donde "buscar" significa navegar por el espacio del significado puro.
 
-1. [Fundamentos de Bases de Datos Vectoriales](#1-fundamentos-de-bases-de-datos-vectoriales)
-2. [Embeddings y Representación Vectorial](#2-embeddings-y-representación-vectorial)
-3. [Búsqueda de Vecinos Más Cercanos (ANN)](#3-búsqueda-de-vecinos-más-cercanos-ann)
-4. [Inteligencia Artificial Generativa y LLMs](#4-inteligencia-artificial-generativa-y-llms)
-5. [Retrieval-Augmented Generation (RAG)](#5-retrieval-augmented-generation-rag)
-6. [Estrategias Avanzadas de RAG](#6-estrategias-avanzadas-de-rag)
-7. [Comparativa de Bases de Datos Vectoriales](#7-comparativa-de-bases-de-datos-vectoriales)
-8. [Arquitectura del Proyecto](#8-arquitectura-del-proyecto)
-9. [Pipeline de Procesamiento](#9-pipeline-de-procesamiento)
-10. [Optimización y Métricas](#10-optimización-y-métricas)
-11. [Despliegue en la Nube](#11-despliegue-en-la-nube)
-12. [Aplicaciones Empresariales](#12-aplicaciones-empresariales)
-13. [Recomendaciones y Mejores Prácticas](#13-recomendaciones-y-mejores-prácticas)
+**Documento de referencia - Proyecto 1CA217: Sistemas de Base de Datos Avanzadas**
 
 ---
 
-## 1. Fundamentos de Bases de Datos Vectoriales
+## 🗺️ Tu Viaje por el Espacio Vectorial
 
-### 1.1 ¿Qué es una Base de Datos Vectorial?
+### 🏗️ **PARTE I: Fundamentos** _(Los Cimientos)_
 
-Una **base de datos vectorial** es un sistema de almacenamiento especializado diseñado para guardar, indexar y consultar datos representados como **vectores numéricos de alta dimensionalidad** (típicamente entre 384 y 1536 dimensiones).
+1. 🧭 [¿Por Qué Existen las Bases de Datos Vectoriales?](#1-fundamentos-de-bases-de-datos-vectoriales)
+2. 🔢 [El Arte de Convertir Palabras en Números](#2-embeddings-y-representación-vectorial)
+3. 🎯 [Encontrar Agujas en Pajares de 768 Dimensiones](#3-búsqueda-de-vecinos-más-cercanos-ann)
+   - 🛠️ [Guía del Practicante: Qué Usar y Cuándo](#36-guía-práctica-algoritmos-y-distancias-por-base-de-datos)
 
-**Características principales:**
+### 🤖 **PARTE II: Inteligencia Artificial** _(El Motor)_
 
-- **Optimización para similitud semántica**: A diferencia de las bases de datos tradicionales que buscan coincidencias exactas, las bases vectoriales encuentran elementos _semánticamente similares_.
-- **Vectores como ciudadanos de primera clase**: Los vectores no son un complemento, sino el tipo de dato principal.
-- **Índices especializados**: Utilizan estructuras de datos específicas (HNSW, IVF, etc.) para búsquedas rápidas en espacios de alta dimensión.
-- **Escalabilidad horizontal**: Diseñadas para manejar millones o miles de millones de vectores.
+4. 🧠 [Máquinas que Crean y Entienden](#4-inteligencia-artificial-generativa-y-llms)
+5. 🔗 [RAG: Cuando la IA Busca Antes de Responder](#5-retrieval-augmented-generation-rag)
+6. ⚡ [Estrategias Ninja para RAG Avanzado](#6-estrategias-avanzadas-de-rag)
 
-**Analogía práctica:**
+### 🏭 **PARTE III: Implementación** _(Del Concepto a la Realidad)_
 
-Imagina un mapa tridimensional donde cada punto representa un documento. Documentos sobre el mismo tema están más cerca entre sí. Una búsqueda vectorial es como encontrar todos los puntos cercanos a una ubicación dada, en lugar de buscar palabras clave exactas.
+7. ⚖️ [Qdrant vs PostgreSQL: La Gran Comparación](#7-comparativa-de-bases-de-datos-vectoriales)
+8. 🏗️ [Anatomía de Nuestro Sistema RAG](#8-arquitectura-del-proyecto)
+9. 🔄 [De PDF a Respuesta Inteligente en 6 Pasos](#9-pipeline-de-procesamiento)
+10. 📊 [Optimizar para el Mundo Real](#10-optimización-y-métricas)
+11. ☁️ [Llevarlo a Producción](#11-despliegue-en-la-nube)
+12. 💼 [Casos de Uso que Cambian Industrias](#12-aplicaciones-empresariales)
+13. 💎 [Sabiduría Destilada: Lo que Realmente Importa](#13-recomendaciones-y-mejores-prácticas)
+
+---
+
+## 1. 🧭 ¿Por Qué Existen las Bases de Datos Vectoriales?
+
+### 1.1 El Problema que Cambió Todo
+
+**Imagine esto:** Eres médico en urgencias a las 3 AM. Un paciente llega con síntomas extraños: "dolor en el pecho, pero no como infarto, más como quemazón, empeora al agacharse".
+
+En una base de datos tradicional buscarías:
+
+- `symptoms = "chest pain"` ❌ Demasiado general
+- `symptoms = "heartburn"` ❌ El paciente no usó esa palabra
+- `symptoms = "GERD"` ❌ El paciente no conoce el término médico
+
+**Resultado:** Miles de casos irrelevantes o ningún resultado útil.
+
+### 1.2 La Revolución Vectorial
+
+Una **base de datos vectorial** convierte cada síntoma, diagnóstico y caso clínico en **"coordenadas de significado"** - vectores de 768 números que capturan la esencia semántica.
+
+**En nuestro ejemplo:**
+
+```
+"dolor en pecho quemazón agacharse" → [0.23, -0.11, 0.87, ..., 0.45]
+"reflujo gastroesofágico empeora flexión" → [0.21, -0.09, 0.89, ..., 0.47]
+                                           ↑
+                                    ¡Vectores casi idénticos!
+```
+
+**El resultado:** El sistema encuentra casos de GERD aunque el paciente nunca mencionó "reflujo" o "gastroesofágico".
+
+### 1.3 Más Allá de la Medicina: El Mundo Vectorial
+
+**🎵 Spotify:** Tu playlist de "rock alternativo de los 90" encuentra bandas que nunca has escuchado pero que amarás.
+
+**🛒 Amazon:** "Clientes que compraron esto también compraron..." funciona por similitud vectorial de productos.
+
+**💬 ChatGPT:** Cuando le preguntas sobre "algoritmos de grafos", entiende que también es relevante hablar de "estructuras de datos", "complejidad computacional" y "breadth-first search".
+
+**🔍 Google Translate:** Sabe que "banco" en español puede ser "bank" (dinero) o "bench" (asiento) según el contexto.
+
+### 1.4 ¿Qué Hace Especial a una Base de Datos Vectorial?
+
+```
+Base de Datos Tradicional          Base de Datos Vectorial
+📝 Busca palabras exactas    →    🧠 Busca significados similares
+📊 "Gato" ≠ "Felino"         →    🎯 "Gato" ≈ "Felino" ≈ "Minino"
+⚡ Muy rápida en exactitud    →    💫 Muy rápida en relevancia
+```
+
+**Las características que las hacen mágicas:**
+
+1. **🎯 Similitud Semántica como Primer Ciudadano**
+   - No buscan coincidencias, buscan _significados_
+   - "iPhone" y "smartphone" están cerca en el espacio vectorial
+2. **🚀 Optimizadas para Alta Dimensionalidad**
+   - Operan eficientemente en espacios de 384-1536 dimensiones
+   - Algoritmos especiales (HNSW, IVF) que no colapsan con muchas dimensiones
+3. **⚡ Velocidad Sub-lineal**
+
+   - Encuentran vecinos cercanos en millones de vectores en milisegundos
+   - Magia: O(log n) en lugar de O(n)
+
+4. **🌐 Escalabilidad Natural**
+   - Diseñadas desde cero para distribuirse
+   - Millones → Miles de millones de vectores sin problema
 
 ### 1.2 Diferencias con Bases de Datos Tradicionales
 
@@ -64,24 +127,57 @@ Imagina un mapa tridimensional donde cada punto representa un documento. Documen
 
 ---
 
-## 2. Embeddings y Representación Vectorial
+## 2. 🔢 El Arte de Convertir Palabras en Números
 
-### 2.1 ¿Qué son los Embeddings?
+### 2.1 La Magia de los Embeddings: Mapear el Universo del Significado
 
-Un **embedding** es una representación numérica (vector) de un objeto (texto, imagen, audio, etc.) que captura su **significado semántico** en un espacio vectorial continuo.
+**¿Cómo le explicas a una computadora que "perrito", "can", "chucho" y "🐕" significan lo mismo?**
 
-**Propiedades clave:**
+Los **embeddings** son la respuesta: una forma de darle a cada palabra, frase o concepto una **"dirección postal"** en un espacio matemático gigante donde:
 
-- **Dimensionalidad fija**: Todos los embeddings del mismo modelo tienen la misma cantidad de dimensiones (e.g., 768 para E5-base).
-- **Semántica capturada**: Elementos similares tienen vectores cercanos en el espacio.
-- **Operaciones matemáticas**: Puedes sumar, restar, promediar vectores para obtener nuevos significados.
+- Cosas similares viven en el mismo barrio
+- La distancia = qué tan relacionadas están
+- Puedes hacer "matemáticas del significado"
 
-**Ejemplo visual:**
+### 2.2 Un Ejemplo que Cambia Todo: El Mapa de las Emociones
+
+Imagina que mapeamos emociones en un plano 2D simple:
 
 ```
-"perro"     → [0.2, 0.8, 0.1, ..., 0.5]  (768 números)
-"cachorro"  → [0.3, 0.7, 0.2, ..., 0.4]  (muy cercano a "perro")
-"auto"      → [0.9, 0.1, 0.8, ..., 0.2]  (lejano de "perro")
+           😊 Alegría (0.8, 0.9)
+               ↗️
+         💝 Amor (0.6, 0.7)    🎉 Euforia (1.0, 0.8)
+              ↙️                  ↗️
+    😐 Neutral (0.0, 0.0) ——————————→ 😢 Tristeza (-0.8, -0.2)
+              ↘️                  ↘️
+         😠 Ira (-0.3, -0.6)    😰 Miedo (-0.5, -0.9)
+               ↘️
+           😞 Depresión (-0.9, -0.8)
+```
+
+**¡Observa los patrones!**
+
+- Emociones positivas → valores altos en Y
+- Emociones intensas → valores extremos en X
+- "Amor" está cerca de "Alegría" pero lejos de "Ira"
+
+### 2.3 Escalando a la Realidad: 768 Dimensiones de Puro Significado
+
+Los embeddings reales no usan 2 dimensiones, usan **768** (E5-base) o **1536** (OpenAI). Cada dimensión captura aspectos sutiles:
+
+```
+Dimensión 23: ¿Es esto un animal? (0.9 = muy animal, -0.9 = nada animal)
+Dimensión 157: ¿Es formal o informal? (0.8 = muy formal, -0.6 = coloquial)
+Dimensión 384: ¿Es positivo o negativo? (0.7 = positivo, -0.4 = negativo)
+... 765 dimensiones más capturando cada matiz del significado
+```
+
+**Ejemplos reales con E5-base:**
+
+```
+"perro doméstico"    → [0.23, -0.11, 0.87, ..., 0.45]  (768 números)
+"mascota canina"     → [0.21, -0.09, 0.89, ..., 0.47]  ← 99% similar
+"automóvil deportivo" → [0.91, 0.12, -0.23, ..., 0.02] ← 5% similar
 ```
 
 ### 2.2 ¿Cómo se Generan los Embeddings?
@@ -134,32 +230,61 @@ doc_emb = encode("passage: Las bases vectoriales almacenan...")
 
 Esto mejora la alineación entre consultas y documentos en el espacio vectorial.
 
-### 2.4 Propiedades Matemáticas de los Embeddings
+### 2.4 🧐 La Matemática Mágica: Propiedades que Vuelan la Cabeza
 
-#### Similitud Semántica
+#### 🎯 Similitud Semántica: "Cercanía = Parecido"
 
-Vectores cercanos = conceptos similares:
+**La propiedad fundamental:** Vectores cercanos en el espacio = conceptos similares en la vida real.
 
-```
-distancia("rey" - "hombre" + "mujer") ≈ "reina"
-```
-
-#### Clustering Natural
-
-Conceptos relacionados forman clusters en el espacio:
+**Ejemplo que rompe esquemas:**
 
 ```
-["perro", "gato", "conejo"] → cluster de animales
-["auto", "camión", "bicicleta"] → cluster de vehículos
+👑 "rey" - 👨 "hombre" + 👩 "mujer" = 👸 "reina"
+¡Matemáticas + significado = magia pura!
 ```
 
-#### Composicionalidad
+**En el mundo real:**
 
-Puedes combinar embeddings para crear nuevos conceptos:
+```python
+# OpenAI embeddings
+vec_paris = embedding("París es la capital de Francia")
+vec_london = embedding("Londres es la capital de Reino Unido")
+vec_madrid = embedding("Madrid es la capital de España")
+
+# Todos estos vectores están EN EL MISMO BARRIO del espacio vectorial
+# Porque expresan la misma relación: ciudad ↔️ país
+```
+
+#### 🎆 Clustering Natural: La Organización Emergente
+
+**Sin programar nada extra, los embeddings se auto-organizan:**
 
 ```
-embed("París") + embed("Francia") - embed("Berlín") ≈ embed("Alemania")
+🐈 Zona "Animales Domésticos":
+   ["perro", "gato", "conejo", "hámster"] ← cluster natural
+
+🏎️ Zona "Vehículos":
+   ["auto", "camión", "bicicleta", "motocicleta"] ← otro cluster
+
+🎵 Zona "Instrumentos":
+   ["guitarra", "piano", "violín", "batería"] ← otro más
 ```
+
+**🤯 Esto significa:** Tu algoritmo de búsqueda automáticamente encuentra "cosas relacionadas" sin que le digas qué está relacionado con qué.
+
+#### ✨ Composicionalidad: Aritmética del Significado
+
+**Puedes hacer "matemáticas conceptuales":**
+
+```
+🇫🇷 embed("París") + embed("Francia") - embed("Berlín") ≈ embed("Alemania") 🇩🇪
+
+💰 embed("Apple") + embed("CEO") - embed("Microsoft") ≈ embed("Tim Cook")
+
+🎨 embed("Mona Lisa") + embed("música") - embed("pintura") ≈ embed("sinfonía")
+```
+
+**🚀 Aplicación práctica:** Sistemas de recomendación inteligentes que entienden analogías.
 
 ---
 
@@ -418,43 +543,113 @@ index_algorithm = "ivfflat"
 
 **Concepto:**
 
-**Reducir la precisión** de los vectores (e.g., float32 → uint8) para ahorrar memoria y acelerar búsquedas.
+**Scalar Quantization (SQ)** es una técnica de **compresión de vectores** que reduce la precisión numérica de cada componente del vector para ahorrar memoria y acelerar búsquedas, con pérdida mínima de precisión.
+
+**Qué es (definición simple):**
+
+Convierte vectores de **32 bits por dimensión** (float32) a **8 bits** (uint8 o int8), reduciendo el tamaño **4x**.
+
+**Ejemplo visual:**
+
+```
+Vector original (float32):
+[0.2341523, -0.8729384, 0.5123847, ...]  → 384 dims × 4 bytes = 1536 bytes
+
+Vector cuantizado (int8):
+[23, -87, 51, ...]                       → 384 dims × 1 byte = 384 bytes
+                                            ↓
+                                        4x menos memoria
+```
 
 **Cómo funciona:**
 
-1. **Construcción**:
+1. **Fase de Entrenamiento (Construcción del Índice)**:
 
-   - Calcular min/max por dimensión
-   - Mapear valores float a enteros (e.g., 0-255)
+   - Analizar todos los vectores para calcular **min/max por dimensión**
+   - O usar **percentiles** (ej: p1 y p99) para robustez contra outliers
+   - Crear función de mapeo: `float → int8`
 
+   ```python
+   # Ejemplo simplificado
+   min_val = np.percentile(all_vectors, 1)   # percentil 1
+   max_val = np.percentile(all_vectors, 99)  # percentil 99
+
+   def quantize(value):
+       # Mapear rango [min_val, max_val] → [0, 255]
+       normalized = (value - min_val) / (max_val - min_val)
+       return int(np.clip(normalized * 255, 0, 255))
    ```
-   quantized_value = (value - min) / (max - min) × 255
-   ```
 
-2. **Búsqueda**:
-   - Cuantizar el query vector
-   - Buscar usando vectores cuantizados (operaciones más rápidas)
-   - Opcionalmente: re-rank con vectores originales
+2. **Fase de Búsqueda**:
+   - Cuantizar el query vector usando misma función
+   - Buscar en índice con vectores cuantizados (operaciones enteras, más rápidas)
+   - **Opción A**: Retornar resultados cuantizados directamente
+   - **Opción B** (mejor precisión): Re-ranking con vectores originales en top-K candidatos
+
+**Parámetros clave (Qdrant):**
+
+```python
+quantization_config=models.ScalarQuantization(
+    scalar=models.ScalarQuantizationConfig(
+        type=models.ScalarType.INT8,    # int8 o uint8
+        quantile=0.99,                  # percentil para clipping
+        always_ram=True                 # mantener en RAM (más rápido)
+    )
+)
+```
+
+- **type**: `INT8` (signed, -128 a 127) o `UINT8` (unsigned, 0 a 255)
+- **quantile**: Percentil para calcular min/max (default: 0.99, rango: 0.5-1.0)
+- **always_ram**: Si `True`, vectores cuantizados siempre en RAM (búsqueda más rápida)
 
 **Ventajas:**
 
-- **4x reducción de memoria** (float32 → uint8)
-- Búsquedas más rápidas (operaciones enteras)
-- Compatible con HNSW, IVF
+- **4x reducción de memoria** (float32 → int8: 1536 bytes → 384 bytes para 384-dim)
+- **Búsquedas más rápidas**: Operaciones enteras son más eficientes que float
+- **Compatible con HNSW, IVF**: Se aplica sobre el algoritmo base
+- **Pérdida mínima**: ~2-3% recall loss en benchmarks típicos
 
 **Desventajas:**
 
-- Pérdida de precisión (~1-3% recall)
+- Pérdida de precisión (aunque pequeña)
+- Requiere fase de entrenamiento para calcular min/max
+- No todos los sistemas lo soportan (pgvector v0.7.4: ❌ No)
 
 **Cuándo usar:**
 
-- Datasets masivos donde memoria es crítica
-- Cuando 95% precision es suficiente
+- **Datasets masivos** (>1M vectores) donde memoria es limitante
+- Cuando **95-97% recall es aceptable** (vs 99% sin compresión)
+- Qdrant en producción con recursos limitados
+- **No usar** si necesitas precisión máxima o dataset es pequeño (<100K vectores)
+
+**Trade-offs cuantificados:**
+
+| Métrica            | Sin SQ (float32) | Con SQ (int8) |
+| ------------------ | ---------------- | ------------- |
+| Memoria por vector | 1536 bytes       | 384 bytes     |
+| Recall @10         | 98-99%           | 95-97%        |
+| Latencia búsqueda  | 10 ms            | 6-8 ms        |
+| Throughput (QPS)   | 100              | 140-160       |
+
+**Soporte por base de datos:**
+
+- **Qdrant**: ✅ Sí, nativo y optimizado
+- **pgvector**: ❌ No (v0.7.4), solo float32/float16
+- **Weaviate**: ✅ Sí, con PQ (Product Quantization)
+- **Milvus**: ✅ Sí, SQ y PQ
+
+**Referencias:**
+
+- Guo, R. et al. (2020). "Accelerating Large-Scale Inference with Anisotropic Vector Quantization." _ICML 2020_.
+- Qdrant Documentation (2023). "Quantization for Vector Search."
 
 **En este proyecto:**
 
 ```python
-index_algorithm = "scalar_quantization"
+# Actualmente NO usamos SQ porque nuestro dataset es pequeño (~500 chunks)
+# Para habilitar en datasets grandes:
+index_algorithm = "hnsw"  # Base
+compression = "scalar_quantization"  # Añadir compresión
 ```
 
 #### 3.4.4 Exact Search (Fuerza Bruta)
@@ -493,6 +688,535 @@ index_algorithm = "exact"  # Solo para testing/comparación
 | **IVF**          | ⚡⚡ Rápido       | ⚠️ 85-95% | 📦 Media    | ✅ Fácil      | Datasets grandes    |
 | **Scalar Quant** | ⚡⚡⚡ Muy rápido | ⚠️ 93-97% | 📦 Muy baja | ✅ Fácil      | Memoria limitada    |
 | **Exact**        | 🐌 Lento          | ✅ 100%   | 📦 Baja     | ✅ Fácil      | Datasets pequeños   |
+
+---
+
+### 3.6 Guía Práctica: Algoritmos y Distancias por Base de Datos
+
+Esta sección detalla **qué algoritmos y distancias soporta cada base de datos**, **cuándo usarlos**, y **por qué no puedes mezclarlos** en el mismo índice.
+
+#### 3.6.1 Definiciones de Términos Clave
+
+Antes de comparar, definamos términos técnicos importantes:
+
+**Scalar Quantization (SQ):**
+
+- **Definición**: Técnica de compresión que reduce la precisión de cada dimensión del vector (ej: float32 → uint8)
+- **Qué es**: Convierte vectores de 32 bits por dimensión a 8 bits, reduciendo memoria ~4x
+- **Trade-off**: Pérdida mínima de precisión (2-5%) a cambio de 75% menos memoria
+- **Uso común**: Datasets grandes donde memoria es limitante
+- **Referencias**: Guo et al. (2020), "Accelerating Large-Scale Inference with Anisotropic Vector Quantization"
+
+**Product Quantization (PQ):**
+
+- **Definición**: Divide cada vector en sub-vectores y los cuantiza independientemente
+- **Qué es**: Técnica más agresiva que SQ, comprime hasta 32x
+- **Trade-off**: Mayor pérdida de precisión (5-15%) pero memoria ultra-baja
+- **Referencias**: Jégou et al. (2011), "Product Quantization for Nearest Neighbor Search"
+
+**ANN (Approximate Nearest Neighbor):**
+
+- **Definición**: Algoritmo que encuentra vecinos "casi óptimos" en tiempo sub-lineal
+- **Por qué**: Búsqueda exacta en alta dimensión es O(n), impráctica para millones de vectores
+- **Trade-off**: 95-99% recall vs 100%, pero 100-1000x más rápido
+
+**Recall:**
+
+- **Definición**: Proporción de vecinos verdaderos que el algoritmo encuentra
+- **Fórmula**: `Recall = vecinos_correctos_encontrados / k`
+- **Ejemplo**: Si pides top-10 y el algoritmo encuentra 9 de los 10 verdaderos → Recall = 90%
+
+#### 3.6.2 Comparativa: pgvector vs Qdrant
+
+##### **Tabla Comparativa General**
+
+| Característica                | **pgvector**                                | **Qdrant**                                |
+| ----------------------------- | ------------------------------------------- | ----------------------------------------- |
+| **Tipo**                      | Extensión de PostgreSQL                     | Base de datos vectorial nativa            |
+| **Algoritmos soportados**     | HNSW, IVFFlat                               | HNSW, Scalar Quantization                 |
+| **Distancias soportadas**     | Cosine, L2 (Euclidean), Inner Product (Dot) | Cosine, Euclidean, Dot Product, Manhattan |
+| **Compresión**                | ❌ No (v0.7.4)                              | ✅ Sí (Scalar Quantization)               |
+| **Índices múltiples**         | ❌ No (1 índice por columna)                | ❌ No (1 config por colección)            |
+| **Actualización en caliente** | ⚠️ Lenta (HNSW reconstruye)                 | ✅ Rápida (optimizado)                    |
+| **Filtrado + vectorial**      | ✅ WHERE clause (SQL nativo)                | ✅ Payload filtering (JSON)               |
+| **Mejor para**                | Apps que ya usan PostgreSQL, transacciones  | Búsqueda vectorial pura, alta escala      |
+
+##### **Algoritmos Detallados**
+
+**pgvector:**
+
+1. **HNSW** (desde v0.5.0):
+
+   ```sql
+   CREATE INDEX ON items USING hnsw (embedding vector_cosine_ops)
+   WITH (m = 16, ef_construction = 64);
+   ```
+
+   - **Parámetros**:
+     - `m`: conexiones por nodo (default: 16, rango: 2-100)
+     - `ef_construction`: esfuerzo construcción (default: 64, rango: 4-1000)
+   - **Búsqueda**: usa `SET hnsw.ef_search = 40;` antes del query
+   - **Referencias**: Malkov & Yashunin (2018), "Efficient and robust approximate nearest neighbor search using HNSW graphs"
+
+2. **IVFFlat** (desde v0.1.0):
+   ```sql
+   CREATE INDEX ON items USING ivfflat (embedding vector_l2_ops)
+   WITH (lists = 100);
+   ```
+   - **Parámetros**:
+     - `lists`: número clusters (default: rows/1000, rango: 1-32768)
+   - **Búsqueda**: usa `SET ivfflat.probes = 10;` antes del query
+   - **Referencias**: Baranchuk et al. (2018), "Revisiting the Inverted Indices for Billion-Scale ANN"
+
+**Qdrant:**
+
+1. **HNSW** (default):
+
+   ```python
+   from qdrant_client import models
+
+   client.create_collection(
+       collection_name="docs",
+       vectors_config=models.VectorParams(
+           size=384,
+           distance=models.Distance.COSINE
+       ),
+       hnsw_config=models.HnswConfigDiff(
+           m=16,                    # conexiones
+           ef_construct=100,        # construcción
+           full_scan_threshold=10000  # umbral fuerza bruta
+       )
+   )
+   ```
+
+   - **Parámetros extra**:
+     - `full_scan_threshold`: si vectors < threshold, usa búsqueda exacta
+     - `max_indexing_threads`: paralelización construcción
+
+2. **Scalar Quantization** (compresión):
+   ```python
+   client.update_collection(
+       collection_name="docs",
+       quantization_config=models.ScalarQuantization(
+           scalar=models.ScalarQuantizationConfig(
+               type=models.ScalarType.INT8,  # float32 → int8
+               quantile=0.99,                # percentil para clipping
+               always_ram=True               # mantener en RAM
+           )
+       )
+   )
+   ```
+   - **Reduce memoria 4x** con ~2-3% pérdida recall
+   - **Referencias**: Qdrant docs (2023), "Quantization for Vector Search"
+
+##### **Distancias Soportadas**
+
+**Comparativa por distancia:**
+
+| Distancia          | pgvector operator | Qdrant Distance      | Normalización requerida    | Mejor para                |
+| ------------------ | ----------------- | -------------------- | -------------------------- | ------------------------- |
+| **Cosine**         | `<=>` (cosine)    | `Distance.COSINE`    | ❌ No                      | **Texto, embeddings**     |
+| **Euclidean (L2)** | `<->` (L2)        | `Distance.EUCLID`    | ⚠️ Sí (escala)             | Imágenes, datos numéricos |
+| **Dot Product**    | `<#>` (neg inner) | `Distance.DOT`       | ✅ Sí (vectores unitarios) | Modelos normalizados      |
+| **Manhattan (L1)** | ❌ No soporta     | `Distance.MANHATTAN` | ❌ No                      | Datos sparse, categorías  |
+
+**Operadores pgvector:**
+
+```sql
+-- Cosine distance (0 = idénticos, 2 = opuestos)
+SELECT * FROM items ORDER BY embedding <=> '[1,2,3]' LIMIT 5;
+
+-- L2 distance (Euclidean)
+SELECT * FROM items ORDER BY embedding <-> '[1,2,3]' LIMIT 5;
+
+-- Negative inner product (menor = más similar)
+SELECT * FROM items ORDER BY embedding <#> '[1,2,3]' LIMIT 5;
+```
+
+#### 3.6.3 Guía de Selección: ¿Qué Distancia Usar?
+
+##### **Regla General**
+
+```
+Tipo de dato → Distancia recomendada
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Texto (embeddings)           → Cosine
+Imágenes (CLIP, ResNet)      → Cosine o L2
+Audio (wav2vec)              → Cosine
+Código (CodeBERT)            → Cosine
+Datos numéricos normalizados → Dot Product
+Datos numéricos sin normalizar → L2
+Categorías one-hot            → Manhattan
+```
+
+##### **Decisión Detallada**
+
+**1. Cosine Similarity (Recomendado por default)**
+
+✅ **Usar cuando:**
+
+- Embeddings de texto (Sentence Transformers, OpenAI, etc.)
+- La magnitud no importa, solo la dirección
+- Vectores ya están normalizados o no
+- Quieres resultados intuitivos (0-1 o 0-2)
+
+❌ **Evitar cuando:**
+
+- La magnitud del vector es significativa
+- Necesitas capturar "intensidad" o "cantidad"
+
+**Ejemplo:**
+
+```python
+# Embeddings de texto - Cosine es ideal
+query = "¿Qué es un vector?"
+# → [0.23, -0.11, 0.87, ...]  (magnitud varía)
+# Cosine ignora magnitud, solo compara "dirección semántica"
+```
+
+**2. Euclidean Distance (L2)**
+
+✅ **Usar cuando:**
+
+- Datos numéricos donde distancia absoluta importa
+- Imágenes en espacio de píxeles
+- Coordenadas espaciales
+- Magnitud del vector es significativa
+
+❌ **Evitar cuando:**
+
+- Vectores tienen escalas muy diferentes
+- Solo importa la dirección, no la magnitud
+
+**Ejemplo:**
+
+```python
+# Embeddings de imagen - L2 puede ser mejor
+image_vec = [0.12, 0.34, 0.56, ...]  # normalizado
+# L2 captura distancia "geométrica real" en espacio embedding
+```
+
+**3. Dot Product (Inner Product)**
+
+✅ **Usar cuando:**
+
+- Vectores están **explícitamente normalizados** (‖v‖ = 1)
+- Modelos como `all-MiniLM-L6-v2` que normalizan
+- Quieres velocidad máxima (no requiere sqrt como L2)
+
+❌ **Evitar cuando:**
+
+- Vectores NO están normalizados (resultados incorrectos)
+
+**Ejemplo:**
+
+```python
+# Sentence Transformers con normalize=True
+from sentence_transformers import SentenceTransformer
+model = SentenceTransformer('all-MiniLM-L6-v2')
+vec = model.encode("texto", normalize_embeddings=True)
+# → Dot Product es equivalente a Cosine pero más rápido
+```
+
+**4. Manhattan Distance (L1)**
+
+✅ **Usar cuando:**
+
+- Datos sparse (muchos ceros)
+- Vectores categóricos (one-hot)
+- Robustez contra outliers
+
+❌ **Evitar cuando:**
+
+- Embeddings densos de texto
+- Alta dimensionalidad sin sparsity
+
+##### **Tabla de Decisión Rápida**
+
+| Tu caso                                 | Distancia 1ª opción | Distancia 2ª opción | DB recomendada |
+| --------------------------------------- | ------------------- | ------------------- | -------------- |
+| RAG con Sentence Transformers           | Cosine              | Dot (si normalized) | Qdrant         |
+| RAG con OpenAI embeddings               | Cosine              | -                   | Ambas          |
+| Búsqueda imágenes (CLIP)                | Cosine              | L2                  | Qdrant         |
+| Datos numéricos < 1M vectores           | L2                  | Cosine              | pgvector       |
+| Datos numéricos > 1M vectores           | L2                  | Cosine              | Qdrant         |
+| App ya usa PostgreSQL                   | Cosine              | L2                  | pgvector       |
+| Necesitas compresión (memoria limitada) | Cosine + SQ         | -                   | Qdrant         |
+| Necesitas filtrado SQL complejo         | Cosine              | -                   | pgvector       |
+
+#### 3.6.4 ¿Por Qué NO Puedes Usar Múltiples Algoritmos Simultáneamente?
+
+##### **Limitación Arquitectónica Fundamental**
+
+```
+❌ NO PUEDES hacer esto:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"Buscar con HNSW Y IVF al mismo tiempo"
+"Usar Cosine Y L2 en una sola búsqueda"
+```
+
+**Razones técnicas:**
+
+1. **Índice = Estructura de datos única**
+
+   Cada índice es una estructura física en disco/RAM:
+
+   ```
+   HNSW Index:
+   ┌─────────────────────────────────────┐
+   │ Layer 2: [Vec1 → Vec5 → Vec9]       │  (grafo navegable)
+   │ Layer 1: [Vec1 → Vec2 → Vec5 ...]   │
+   │ Layer 0: [todos los vectores]       │
+   └─────────────────────────────────────┘
+
+   IVF Index:
+   ┌─────────────────────────────────────┐
+   │ Cluster 1: [Vec1, Vec3, Vec7]       │  (lista invertida)
+   │ Cluster 2: [Vec2, Vec5, Vec9]       │
+   │ ...                                  │
+   └─────────────────────────────────────┘
+   ```
+
+   **No puedes "fusionar" estas estructuras** en tiempo de búsqueda.
+
+2. **Distancia está embebida en el índice**
+
+   El índice se construye **ordenando** por una distancia específica:
+
+   ```python
+   # HNSW construye grafo conectando vecinos según Cosine
+   # Si cambias a L2 en búsqueda, las conexiones del grafo
+   # no representan "vecinos cercanos" en L2, ¡están ROTAS!
+   ```
+
+3. **Performance sería terrible**
+
+   Si quisieras buscar en 2 índices y mezclar resultados:
+
+   ```python
+   # Hipotético (NO FUNCIONA ASÍ)
+   results_hnsw = search_hnsw(query, k=50)      # 10ms
+   results_ivf = search_ivf(query, k=50)        # 15ms
+   merged = merge_and_rerank(results_hnsw, results_ivf)  # ???
+   # Problema: ¿Cómo combinas scores de algoritmos diferentes?
+   # ¿Cosine de HNSW vs L2 de IVF? No son comparables.
+   ```
+
+##### **Qué SÍ Puedes Hacer**
+
+**Opción 1: Índices separados en colecciones diferentes**
+
+```python
+# Qdrant: Colecciones separadas
+collection_cosine = "docs_cosine"  # HNSW + Cosine
+collection_l2 = "docs_l2"          # HNSW + L2
+
+# Buscar en ambas y decidir en app logic
+results_cosine = client.search(collection_cosine, query_vector, limit=10)
+results_l2 = client.search(collection_l2, query_vector, limit=10)
+```
+
+**Costo:** 2x almacenamiento, 2x inserts, 2x búsquedas
+
+**Opción 2: Cambiar índice (requiere reconstrucción)**
+
+```python
+# pgvector: Cambiar de IVF a HNSW
+DROP INDEX items_embedding_idx;  # Borra índice viejo
+CREATE INDEX ON items USING hnsw (embedding vector_cosine_ops);  # Crea nuevo
+```
+
+**Costo:** Downtime durante reconstrucción (minutos a horas según tamaño)
+
+**Opción 3: Hybrid Search (algoritmo único, múltiples fuentes)**
+
+```python
+# Esto SÍ funciona: mezclar búsqueda vectorial + lexical
+# Pero AMBOS usan el mismo índice vectorial (ej: HNSW + Cosine)
+results_vector = vector_search(query_embedding)    # HNSW + Cosine
+results_lexical = bm25_search(query_text)          # BM25
+merged = rrf_fusion(results_vector, results_lexical)
+```
+
+##### **Diagrama: Flujo de Decisión de Índice**
+
+```
+Inicio del Proyecto
+        ↓
+¿Ya tienes PostgreSQL en prod?
+    ├─ Sí → pgvector (integración fácil)
+    │         ↓
+    │   ¿Dataset < 1M vectores?
+    │       ├─ Sí → HNSW + Cosine (default)
+    │       └─ No → IVFFlat + Cosine
+    │
+    └─ No → ¿Qué prioridad?
+            ├─ Velocidad/Escala → Qdrant
+            │     ↓
+            │   HNSW + Cosine (+ SQ si memoria limitada)
+            │
+            └─ Flexibilidad SQL → pgvector
+                  ↓
+                HNSW + Cosine
+
+⚠️ Una vez elegido, NO CAMBIAS sin rebuild completo
+```
+
+#### 3.6.5 Cuándo en el Pipeline se Usa Cada Componente
+
+##### **Diagrama de Flujo Completo**
+
+```
+FASE 1: INGESTA (Offline/Batch)
+═══════════════════════════════════════════════════════════════
+┌─────────────────────────────────────────────────────────────┐
+│ 1. Documento PDF → Chunks                                   │
+│    [pdf_cleaner.py, chunker.py]                             │
+└──────────────────┬──────────────────────────────────────────┘
+                   ↓
+┌──────────────────────────────────────────────────────────────┐
+│ 2. Chunk → Embedding (384-dim vector)                        │
+│    [Modelo: all-MiniLM-L6-v2 o similar]                      │
+│    Decisión: ¿Qué dimensión? ¿Normalized?                   │
+└──────────────────┬───────────────────────────────────────────┘
+                   ↓
+┌──────────────────────────────────────────────────────────────┐
+│ 3. Elegir Base de Datos                                      │
+│    ┌─────────────────┬─────────────────┐                    │
+│    │   pgvector      │     Qdrant      │                    │
+│    └─────────────────┴─────────────────┘                    │
+│    Decisión: ¿PostgreSQL existente? ¿Escala? ¿Compresión?  │
+└──────────────────┬───────────────────────────────────────────┘
+                   ↓
+┌──────────────────────────────────────────────────────────────┐
+│ 4. Elegir Algoritmo de Índice                                │
+│    - HNSW (99% casos)                                        │
+│    - IVFFlat (si >10M vectores y memoria crítica)            │
+│    Decisión: Basado en tabla 3.5                            │
+└──────────────────┬───────────────────────────────────────────┘
+                   ↓
+┌──────────────────────────────────────────────────────────────┐
+│ 5. Elegir Métrica de Distancia                               │
+│    - Cosine (texto - DEFAULT)                                │
+│    - L2 (imágenes/numéricos)                                 │
+│    - Dot (si vectores normalizados)                          │
+│    Decisión: Ver sección 3.6.3                              │
+└──────────────────┬───────────────────────────────────────────┘
+                   ↓
+┌──────────────────────────────────────────────────────────────┐
+│ 6. Configurar Índice                                         │
+│    pgvector:                                                 │
+│      CREATE INDEX USING hnsw (embedding vector_cosine_ops)   │
+│      WITH (m=16, ef_construction=64);                        │
+│    Qdrant:                                                   │
+│      vectors_config=VectorParams(distance=COSINE)            │
+│      hnsw_config=HnswConfigDiff(m=16, ef_construct=100)      │
+└──────────────────┬───────────────────────────────────────────┘
+                   ↓
+┌──────────────────────────────────────────────────────────────┐
+│ 7. (Opcional) Aplicar Compresión                             │
+│    Qdrant: Scalar Quantization (reduce 4x memoria)           │
+│    pgvector: No disponible (v0.7.4)                          │
+│    Decisión: Solo si memoria limitada y toleras -3% recall  │
+└──────────────────┬───────────────────────────────────────────┘
+                   ↓
+┌──────────────────────────────────────────────────────────────┐
+│ 8. INSERT de Vectores + Construcción de Índice               │
+│    - HNSW construye grafo capa por capa                      │
+│    - IVF crea clusters con k-means                           │
+│    Tiempo: Minutos a horas según dataset                     │
+└──────────────────────────────────────────────────────────────┘
+
+FASE 2: BÚSQUEDA (Online/Real-time)
+═══════════════════════════════════════════════════════════════
+┌──────────────────────────────────────────────────────────────┐
+│ 1. Query de Usuario → Embedding                              │
+│    "¿Qué es HNSW?" → [0.23, -0.11, 0.87, ...]               │
+│    (MISMO modelo que fase ingesta)                           │
+└──────────────────┬───────────────────────────────────────────┘
+                   ↓
+┌──────────────────────────────────────────────────────────────┐
+│ 2. Búsqueda ANN con Algoritmo Configurado                    │
+│    ┌─ HNSW: Navegar grafo top-down (10-50ms)                │
+│    └─ IVF: Buscar en n_probes clusters (20-100ms)            │
+│    Usa: DISTANCIA configurada en paso 5 de ingesta          │
+└──────────────────┬───────────────────────────────────────────┘
+                   ↓
+┌──────────────────────────────────────────────────────────────┐
+│ 3. (Opcional) Estrategia RAG Avanzada                        │
+│    - Multi-Query: 3 variaciones → 3 búsquedas ANN            │
+│    - HyDE: Generar doc hipotético → 1 búsqueda ANN           │
+│    - Hybrid: ANN + BM25 → Fusión RRF                         │
+│    Decisión: Ver sección 6                                   │
+└──────────────────┬───────────────────────────────────────────┘
+                   ↓
+┌──────────────────────────────────────────────────────────────┐
+│ 4. Recuperar Top-K Chunks                                    │
+│    k=3-10 típicamente (configurable)                         │
+└──────────────────┬───────────────────────────────────────────┘
+                   ↓
+┌──────────────────────────────────────────────────────────────┐
+│ 5. (Opcional) Reranking                                      │
+│    - Cross-encoder reordena por relevancia                   │
+│    - Usa: MISMO algoritmo índice, NO se cambia aquí          │
+│    Decisión: Ver sección 7                                   │
+└──────────────────┬───────────────────────────────────────────┘
+                   ↓
+┌──────────────────────────────────────────────────────────────┐
+│ 6. LLM Genera Respuesta                                      │
+│    Chunks + Query → GPT/Llama/Phi → Respuesta                │
+└──────────────────────────────────────────────────────────────┘
+
+⚠️ IMPORTANTE: Algoritmo y Distancia se fijan en FASE 1
+   No se pueden cambiar en FASE 2 sin rebuild completo
+```
+
+##### **Ejemplo Concreto: Nuestro Proyecto**
+
+```python
+# ingest_config.py - Decisiones tomadas:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EMBEDDING_MODEL = "all-MiniLM-L6-v2"       # → 384 dims, normalized
+DATABASE = "qdrant"                         # → Decisión: escala, velocidad
+INDEX_ALGORITHM = "hnsw"                    # → Decisión: mejor recall
+DISTANCE_METRIC = "cosine"                  # → Decisión: texto embeddings
+HNSW_M = 16                                 # → Default balanceado
+HNSW_EF_CONSTRUCT = 100                     # → Alta calidad índice
+COMPRESSION = None                          # → No usamos (dataset pequeño)
+
+# Estas decisiones se aplican en:
+1. embedding_database.py → Crea colección Qdrant con config
+2. Todos los inserts posteriores usan ESTA configuración
+3. rag.py → Búsquedas usan HNSW + Cosine automáticamente
+
+# Si quisiéramos cambiar a L2, necesitaríamos:
+❌ NO: cambiar solo en query (índice roto)
+✅ SÍ:
+   1. Borrar colección
+   2. Cambiar DISTANCE_METRIC = "euclidean"
+   3. Re-ejecutar ingesta completa
+   4. Rebuild índice (~20min para nuestro dataset)
+```
+
+#### 3.6.6 Referencias Académicas
+
+**Algoritmos:**
+
+- **HNSW**: Malkov, Y. A., & Yashunin, D. A. (2018). "Efficient and robust approximate nearest neighbor search using Hierarchical Navigable Small World graphs." _IEEE Transactions on Pattern Analysis and Machine Intelligence_.
+- **IVF**: Baranchuk, D., Babenko, A., & Malkov, Y. (2018). "Revisiting the Inverted Indices for Billion-Scale Approximate Nearest Neighbors." _ECCV 2018_.
+- **Product Quantization**: Jégou, H., Douze, M., & Schmid, C. (2011). "Product quantization for nearest neighbor search." _IEEE Transactions on Pattern Analysis and Machine Intelligence_, 33(1), 117-128.
+
+**Scalar Quantization:**
+
+- Guo, R., Sun, P., Lindgren, E., Geng, Q., Simcha, D., Chern, F., & Kumar, S. (2020). "Accelerating Large-Scale Inference with Anisotropic Vector Quantization." _ICML 2020_.
+
+**Comparativas:**
+
+- Aumüller, M., Bernhardsson, E., & Faithfull, A. (2020). "ANN-Benchmarks: A benchmarking tool for approximate nearest neighbor algorithms." _Information Systems_, 87, 101374.
+
+**Métricas:**
+
+- Aggarwal, C. C., Hinneburg, A., & Keim, D. A. (2001). "On the surprising behavior of distance metrics in high dimensional space." _Database Theory—ICDT 2001_, 420-434.
 
 ---
 
