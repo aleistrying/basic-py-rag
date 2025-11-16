@@ -71,7 +71,7 @@ def get_model():
                     print(f"⚠️ CUDA placement failed, using CPU: {cuda_error}")
                     device = "cpu"
                     _model = _model.to("cpu")
-                    
+
             if device == "cpu":
                 if not hasattr(get_model, '_already_printed'):
                     print("💻 Model loaded on CPU")
