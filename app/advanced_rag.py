@@ -241,7 +241,8 @@ def multi_query_search(
     k: int = 5,
     num_variations: int = 3,
     model: str = "phi3:mini",
-    filters: Optional[Dict] = None
+    filters: Optional[Dict] = None,
+    collection_suffix: str = None
 ) -> Dict[str, Any]:
     """
     Perform multi-query search with query rephrasing and RRF fusion.
@@ -280,7 +281,8 @@ def multi_query_search(
         else:
             emb = embed_e5([q], is_query=True)[0]
 
-        results = BACKENDS[backend](emb, k=k, where=filters)
+        results = BACKENDS[backend](
+            emb, k=k, where=filters, collection_suffix=collection_suffix)
         all_results.append({
             "query": q,
             "query_number": i + 1,
@@ -458,7 +460,8 @@ def decomposed_search(
     k: int = 5,
     model: str = "phi3:mini",
     filters: Optional[Dict] = None,
-    synthesize: bool = True
+    synthesize: bool = True,
+    collection_suffix: str = None
 ) -> Dict[str, Any]:
     """
     Perform search using query decomposition strategy with comprehensive debugging info.
@@ -496,7 +499,8 @@ def decomposed_search(
         else:
             emb = embed_e5([sub_q], is_query=True)[0]
 
-        results = BACKENDS[backend](emb, k=k, where=filters)
+        results = BACKENDS[backend](
+            emb, k=k, where=filters, collection_suffix=collection_suffix)
         sub_search_time = round((time.time() - sub_search_start) * 1000, 1)
 
         sub_results.append({
@@ -729,7 +733,8 @@ def hyde_search(
     k: int = 5,
     model: str = "phi3:mini",
     filters: Optional[Dict] = None,
-    generate_final_answer: bool = True
+    generate_final_answer: bool = True,
+    collection_suffix: str = None
 ) -> Dict[str, Any]:
     """
     Perform search using Hypothetical Document Embeddings (HyDE).
@@ -765,7 +770,8 @@ def hyde_search(
 
     # Step 3: Search using hypothetical document embedding (with timing)
     search_start = time.time()
-    results = BACKENDS[backend](hyp_embedding, k=k, where=filters)
+    results = BACKENDS[backend](
+        hyp_embedding, k=k, where=filters, collection_suffix=collection_suffix)
     search_time = round((time.time() - search_start) * 1000, 1)
 
     # Step 4: Generate final answer with real documents (with timing)
@@ -968,7 +974,8 @@ def hybrid_search(
     k: int = 5,
     semantic_weight: float = 0.7,
     filters: Optional[Dict] = None,
-    use_rrf: bool = True
+    use_rrf: bool = True,
+    collection_suffix: str = None
 ) -> Dict[str, Any]:
     """
     Perform hybrid search combining semantic (vector) and keyword (BM25) search.
@@ -995,7 +1002,8 @@ def hybrid_search(
     else:
         emb = embed_e5([query], is_query=True)[0]
 
-    semantic_results = BACKENDS[backend](emb, k=k*3, where=filters)
+    semantic_results = BACKENDS[backend](
+        emb, k=k*3, where=filters, collection_suffix=collection_suffix)
     semantic_time = round((time.time() - semantic_start) * 1000, 1)
 
     # Step 2: Perform keyword search on the same set (with timing)
@@ -1140,7 +1148,8 @@ def iterative_retrieval(
     k: int = 5,
     max_rounds: int = 3,
     model: str = "phi3:mini",
-    filters: Optional[Dict] = None
+    filters: Optional[Dict] = None,
+    collection_suffix: str = None
 ) -> Dict[str, Any]:
     """
     Perform multi-round iterative retrieval with query refinement.
@@ -1167,7 +1176,8 @@ def iterative_retrieval(
             emb = embed_query_clean(query)
         else:
             emb = embed_e5([query], is_query=True)[0]
-        results = BACKENDS[backend](emb, k=k, where=filters)
+        results = BACKENDS[backend](
+            emb, k=k, where=filters, collection_suffix=collection_suffix)
         return {
             "query": query,
             "method": "Single-Round (Ollama unavailable)",
@@ -1193,7 +1203,8 @@ def iterative_retrieval(
         else:
             emb = embed_e5([current_query], is_query=True)[0]
 
-        results = BACKENDS[backend](emb, k=k, where=filters)
+        results = BACKENDS[backend](
+            emb, k=k, where=filters, collection_suffix=collection_suffix)
         accumulated_context.extend(results)
         search_time = round((time.time() - search_start) * 1000, 1)
 

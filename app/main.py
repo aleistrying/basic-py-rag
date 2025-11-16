@@ -539,6 +539,10 @@ def advanced_multi_query(
     k: int = 5,
     num_variations: int = 3,
     model: str = "phi3:mini",
+    distance_metric: str = Query(
+        "cosine", description="Métrica de distancia: 'cosine', 'euclidean', 'dot_product', 'manhattan'"),
+    index_algorithm: str = Query(
+        "hnsw", description="Algoritmo de índice: 'hnsw', 'ivfflat', 'scalar_quantization', 'exact'"),
     response_format: str = Query(
         "html", description="Formato: 'json' o 'html'", alias="format"),
     document_type: Optional[str] = Query(
@@ -564,13 +568,17 @@ def advanced_multi_query(
         if topic:
             filters['topic'] = topic
 
+        # Generate collection name based on algorithm combination
+        collection_suffix = f"{distance_metric}_{index_algorithm}"
+
         result = multi_query_search(
             query=q,
             backend=backend,
             k=k,
             num_variations=num_variations,
             model=model,
-            filters=filters or None
+            filters=filters or None,
+            collection_suffix=collection_suffix
         )
 
         if response_format == "json":
@@ -593,6 +601,10 @@ def advanced_decompose(
     k: int = 5,
     model: str = "phi3:mini",
     synthesize: bool = True,
+    distance_metric: str = Query(
+        "cosine", description="Métrica de distancia: 'cosine', 'euclidean', 'dot_product', 'manhattan'"),
+    index_algorithm: str = Query(
+        "hnsw", description="Algoritmo de índice: 'hnsw', 'ivfflat', 'scalar_quantization', 'exact'"),
     response_format: str = Query(
         "html", description="Formato: 'json' o 'html'", alias="format"),
     document_type: Optional[str] = Query(
@@ -618,13 +630,17 @@ def advanced_decompose(
         if topic:
             filters['topic'] = topic
 
+        # Generate collection name based on algorithm combination
+        collection_suffix = f"{distance_metric}_{index_algorithm}"
+
         result = decomposed_search(
             query=q,
             backend=backend,
             k=k,
             model=model,
             filters=filters or None,
-            synthesize=synthesize
+            synthesize=synthesize,
+            collection_suffix=collection_suffix
         )
 
         if response_format == "json":
@@ -647,6 +663,10 @@ def advanced_hyde(
     k: int = 5,
     model: str = "phi3:mini",
     generate_answer: bool = True,
+    distance_metric: str = Query(
+        "cosine", description="Métrica de distancia: 'cosine', 'euclidean', 'dot_product', 'manhattan'"),
+    index_algorithm: str = Query(
+        "hnsw", description="Algoritmo de índice: 'hnsw', 'ivfflat', 'scalar_quantization', 'exact'"),
     response_format: str = Query(
         "html", description="Formato: 'json' o 'html'", alias="format"),
     document_type: Optional[str] = Query(
@@ -672,13 +692,17 @@ def advanced_hyde(
         if topic:
             filters['topic'] = topic
 
+        # Generate collection name based on algorithm combination
+        collection_suffix = f"{distance_metric}_{index_algorithm}"
+
         result = hyde_search(
             query=q,
             backend=backend,
             k=k,
             model=model,
             filters=filters or None,
-            generate_final_answer=generate_answer
+            generate_final_answer=generate_answer,
+            collection_suffix=collection_suffix
         )
 
         if response_format == "json":
@@ -701,6 +725,10 @@ def advanced_hybrid(
     k: int = 5,
     semantic_weight: float = Query(0.7, description="Peso semántico (0-1)"),
     use_rrf: bool = True,
+    distance_metric: str = Query(
+        "cosine", description="Métrica de distancia: 'cosine', 'euclidean', 'dot_product', 'manhattan'"),
+    index_algorithm: str = Query(
+        "hnsw", description="Algoritmo de índice: 'hnsw', 'ivfflat', 'scalar_quantization', 'exact'"),
     response_format: str = Query(
         "html", description="Formato: 'json' o 'html'", alias="format"),
     document_type: Optional[str] = Query(
@@ -726,13 +754,17 @@ def advanced_hybrid(
         if topic:
             filters['topic'] = topic
 
+        # Generate collection name based on algorithm combination
+        collection_suffix = f"{distance_metric}_{index_algorithm}"
+
         result = hybrid_search(
             query=q,
             backend=backend,
             k=k,
             semantic_weight=semantic_weight,
             filters=filters or None,
-            use_rrf=use_rrf
+            use_rrf=use_rrf,
+            collection_suffix=collection_suffix
         )
 
         if response_format == "json":
@@ -755,6 +787,10 @@ def advanced_iterative(
     k: int = 5,
     max_rounds: int = Query(3, description="Máximo de rondas de búsqueda"),
     model: str = "phi3:mini",
+    distance_metric: str = Query(
+        "cosine", description="Métrica de distancia: 'cosine', 'euclidean', 'dot_product', 'manhattan'"),
+    index_algorithm: str = Query(
+        "hnsw", description="Algoritmo de índice: 'hnsw', 'ivfflat', 'scalar_quantization', 'exact'"),
     response_format: str = Query(
         "html", description="Formato: 'json' o 'html'", alias="format"),
     document_type: Optional[str] = Query(
@@ -780,13 +816,17 @@ def advanced_iterative(
         if topic:
             filters['topic'] = topic
 
+        # Generate collection name based on algorithm combination
+        collection_suffix = f"{distance_metric}_{index_algorithm}"
+
         result = iterative_retrieval(
             query=q,
             backend=backend,
             k=k,
             max_rounds=max_rounds,
             model=model,
-            filters=filters or None
+            filters=filters or None,
+            collection_suffix=collection_suffix
         )
 
         if response_format == "json":
