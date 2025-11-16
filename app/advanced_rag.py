@@ -172,12 +172,22 @@ Preguntas reformuladas:
         variations_text = response.get('response', '').strip()
 
         # Parse variations (split by newline, clean up)
-        variations = [
-            line.strip()
-            for line in variations_text.split('\n')
-            if line.strip() and not line.strip().startswith(('-', '*', '•', str(i)))
-            for i in range(10)  # Remove numbered lines
-        ][:num_variations]
+        variations = []
+        for line in variations_text.split('\n'):
+            line = line.strip()
+            if not line:
+                continue
+            
+            # Remove numbered prefixes (1., 2., 3., etc.)
+            import re
+            line_clean = re.sub(r'^\d+\.\s*', '', line)
+            
+            # Skip lines that start with bullets or are too short
+            if line_clean and not line_clean.startswith(('-', '*', '•')):
+                variations.append(line_clean)
+        
+        # Limit to requested number of variations
+        variations = variations[:num_variations]
 
         # Always include original query
         all_queries = [query] + variations
