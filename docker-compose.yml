@@ -7,7 +7,10 @@ services:
       - "6334:6334" # gRPC
     volumes:
       - ./data/qdrant:/qdrant/storage
-
+    ulimits: # had to increase this because reaching thread panic opening too many files...
+      nofile:
+        soft: 65535
+        hard: 65535
   app:
     build: .
     container_name: app
