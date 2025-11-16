@@ -327,6 +327,23 @@
             <option value="exact" {% if index_algorithm=='exact' %}selected{% endif %}>Exact</option>
         </select>
     </div>
+    <div class="control-group" style="display: flex; align-items: center; gap: 8px;">
+        <label for="modelSelect" style="color: #cbd5e1; font-weight: 600; font-size: 14px;">Modelo:</label>
+        <select id="modelSelect"
+            style="padding: 6px 10px; background: #374151; border: 1px solid #4b5563; border-radius: 6px; color: #e5e7eb;">
+            <option value="phi3:mini" {% if model=='phi3:mini' %}selected{% endif %}>phi3:mini</option>
+        </select>
+    </div>
+    <div class="control-group" style="display: flex; align-items: center; gap: 8px;">
+        <label for="kSelect" style="color: #cbd5e1; font-weight: 600; font-size: 14px;">Resultados:</label>
+        <select id="kSelect"
+            style="padding: 6px 10px; background: #374151; border: 1px solid #4b5563; border-radius: 6px; color: #e5e7eb;">
+            <option value="3" {% if k==3 %}selected{% endif %}>3</option>
+            <option value="5" {% if k==5 %}selected{% endif %}>5</option>
+            <option value="10" {% if k==10 %}selected{% endif %}>10</option>
+            <option value="15" {% if k==15 %}selected{% endif %}>15</option>
+        </select>
+    </div>
 </div>
 <div class="title">
     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2">
@@ -397,6 +414,7 @@
 {% endblock %}
 
 {% block scripts %}
+{{ super() }}
 <script>
     function toggleDetails() {
         const details = document.getElementById('jsonDetails');
@@ -446,23 +464,6 @@
         text = text.replace(/,/g, '<span class="json-comma">,</span>');
 
         jsonContent.innerHTML = text;
-    }
-
-    function newSearch() {
-        const query = document.getElementById('searchInput').value;
-        const backend = document.getElementById('backendSelect').value;
-        const distance_metric = document.getElementById('distanceSelect').value;
-        const index_algorithm = document.getElementById('algorithmSelect').value;
-
-        if (query.trim()) {
-            const params = new URLSearchParams({
-                q: query.trim(),
-                backend: backend,
-                distance_metric: distance_metric,
-                index_algorithm: index_algorithm
-            });
-            window.location.href = `/ask?${params.toString()}`;
-        }
     }
 
     // Enhanced initialization with animations

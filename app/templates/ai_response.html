@@ -681,6 +681,15 @@
             <option value="exact" {% if index_algorithm=='exact' %}selected{% endif %}>Exact</option>
         </select>
     </div>
+    <div class="control-group">
+        <label for="kSelect">Resultados:</label>
+        <select id="kSelect" class="select-control">
+            <option value="3" {% if k==3 %}selected{% endif %}>3</option>
+            <option value="5" {% if k==5 %}selected{% endif %}>5</option>
+            <option value="10" {% if k==10 %}selected{% endif %}>10</option>
+            <option value="15" {% if k==15 %}selected{% endif %}>15</option>
+        </select>
+    </div>
 </div>
 <div class="title">
     {{ get_svg_icon("robot", "32", "#ffffff") }} Respuesta AI
@@ -1119,6 +1128,7 @@
 {% endblock %}
 
 {% block scripts %}
+{{ super() }}
 <script>
     function toggleDetails() {
         const details = document.getElementById('jsonDetails');
@@ -1183,78 +1193,10 @@
         jsonContent.innerHTML = text;
     }
 
-    function newSearch() {
-        const query = document.getElementById('searchInput').value;
-        const backend = document.getElementById('backendSelect').value;
-        const model = document.getElementById('modelSelect').value;
-        const distance_metric = document.getElementById('distanceSelect').value;
-        const index_algorithm = document.getElementById('algorithmSelect').value;
-
-        if (query.trim()) {
-            const params = new URLSearchParams({
-                q: query.trim(),
-                backend: backend,
-                model: model,
-                distance_metric: distance_metric,
-                index_algorithm: index_algorithm
-            });
-
-            // Detect current route and redirect to the same type
-            const currentPath = window.location.pathname;
-            let targetRoute = '/ai'; // default
-            let loadingMessage = 'Procesando búsqueda AI...';
-
-            if (currentPath.startsWith('/orchestrated')) {
-                targetRoute = '/orchestrated';
-                loadingMessage = 'Ejecutando Pipeline Orquestado...';
-            } else if (currentPath.startsWith('/advanced/multi-query')) {
-                targetRoute = '/advanced/multi-query';
-                loadingMessage = 'Generando consultas múltiples...';
-            } else if (currentPath.startsWith('/advanced/decompose')) {
-                targetRoute = '/advanced/decompose';
-                loadingMessage = 'Descomponiendo consulta...';
-            } else if (currentPath.startsWith('/advanced/hyde')) {
-                targetRoute = '/advanced/hyde';
-                loadingMessage = 'Generando documento hipotético...';
-            } else if (currentPath.startsWith('/advanced/hybrid')) {
-                targetRoute = '/advanced/hybrid';
-                loadingMessage = 'Ejecutando búsqueda híbrida...';
-            } else if (currentPath.startsWith('/advanced/iterative')) {
-                targetRoute = '/advanced/iterative';
-                loadingMessage = 'Iniciando búsqueda iterativa...';
-            } else if (currentPath.startsWith('/ask')) {
-                targetRoute = '/ask';
-                loadingMessage = 'Procesando búsqueda...';
-            }
-
-            showLoading(loadingMessage);
-            setTimeout(() => {
-                window.location.href = `${targetRoute}?${params.toString()}`;
-            }, 100);
-        }
-    }
-
-    function updateSettings() {
-        const query = document.getElementById('searchInput').value;
-        if (query.trim()) {
-            newSearch();
-        }
-    }
-
     // Enhanced initialization with animations
     document.addEventListener('DOMContentLoaded', function () {
-        // Add event listeners for controls
-        const backendSelect = document.getElementById('backendSelect');
-        const modelSelect = document.getElementById('modelSelect');
-        const searchInput = document.getElementById('searchInput');
-
-        if (backendSelect) backendSelect.addEventListener('change', updateSettings);
-        if (modelSelect) modelSelect.addEventListener('change', updateSettings);
-        if (searchInput) {
-            searchInput.addEventListener('keypress', function (e) {
-                if (e.key === 'Enter') newSearch();
-            });
-        }
+        // Event listeners are now handled by the global system in base.html
+        console.log('🎨 AI Response template initialized with global search system');
 
         // Add subtle animations to source items
         const sourceItems = document.querySelectorAll('.source-item');

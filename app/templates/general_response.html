@@ -854,6 +854,7 @@
 {% endblock %}
 
 {% block scripts %}
+{{ super() }}
 <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 <script>
     function toggleDetails() {
