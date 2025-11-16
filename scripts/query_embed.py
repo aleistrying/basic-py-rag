@@ -53,18 +53,26 @@ def get_model():
             # Environment setup for containers
             os.environ['TOKENIZERS_PARALLELISM'] = 'false'
 
-            # Load model with device optimization
+            # Load model with device optimization (PyTorch 2.8+ compatible)
             _model = SentenceTransformer(
                 EMBED_MODEL,
-                device=device,
+                device="cpu",  # Always load on CPU first
                 trust_remote_code=False
             )
 
-            # Device-specific optimizations
+            # Move to CUDA safely after loading (PyTorch 2.8+ compatible)
             if device == "cuda":
-                if not hasattr(get_model, '_already_printed'):
-                    print("🚀 Model loaded with GPU acceleration")
-            else:
+                try:
+                    # Use the newer PyTorch 2.8+ method for CUDA placement
+                    _model = _model.to("cuda")
+                    if not hasattr(get_model, '_already_printed'):
+                        print("🚀 Model loaded with GPU acceleration")
+                except Exception as cuda_error:
+                    print(f"⚠️ CUDA placement failed, using CPU: {cuda_error}")
+                    device = "cpu"
+                    _model = _model.to("cpu")
+                    
+            if device == "cpu":
                 if not hasattr(get_model, '_already_printed'):
                     print("💻 Model loaded on CPU")
                 # CPU-specific optimizations for containers

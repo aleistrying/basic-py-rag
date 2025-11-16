@@ -14,7 +14,7 @@ Path(CLEAN_DIR).mkdir(parents=True, exist_ok=True)
 EMBED_MODEL = "intfloat/multilingual-e5-base"
 
 # Chunking parameters (optimized for short queries like "what time are classes")
-CHUNK_TOKENS = 200  # Smaller chunks ~150-200 words for better granular search
+CHUNK_TOKENS = 150  # Smaller chunks ~150-200 words for better granular search
 CHUNK_OVERLAP = 50  # ~30-40 words overlap to preserve context
 MIN_CHARS = 50      # Allow shorter chunks to capture specific details
 
