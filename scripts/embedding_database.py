@@ -633,19 +633,29 @@ class UnifiedEmbeddingProcessor:
 
         if USE_QDRANT and self.qdrant_client:
             try:
+                # Check the first algorithm configuration as a representative sample
+                sample_collection = f"{QDRANT_COLLECTION}_{self.algorithm_configs[0]['distance']}_{self.algorithm_configs[0]['index']}"
                 collection_info = self.qdrant_client.get_collection(
-                    QDRANT_COLLECTION)
+                    sample_collection)
                 count = collection_info.points_count
-                logger.info(f"📊 Qdrant final count: {count}")
+                logger.info(
+                    f"📊 Qdrant sample collection ({sample_collection}): {count} points")
+                logger.info(
+                    f"📊 Total Qdrant collections created: {len(self.algorithm_configs)}")
             except Exception as e:
                 logger.error(f"Failed to get Qdrant count: {e}")
 
         if USE_PGVECTOR and self.pg_connection:
             try:
+                # Check the first algorithm configuration as a representative sample
+                sample_table = f"{PG_TABLE}_{self.algorithm_configs[0]['distance']}_{self.algorithm_configs[0]['index']}"
                 cur = self.pg_connection.cursor()
-                cur.execute(f"SELECT COUNT(*) FROM {PG_TABLE};")
+                cur.execute(f"SELECT COUNT(*) FROM {sample_table};")
                 count = cur.fetchone()[0]
-                logger.info(f"📊 PostgreSQL final count: {count}")
+                logger.info(
+                    f"📊 PostgreSQL sample table ({sample_table}): {count} rows")
+                logger.info(
+                    f"📊 Total PostgreSQL tables created: {len(self.algorithm_configs)}")
             except Exception as e:
                 logger.error(f"Failed to get PostgreSQL count: {e}")
 
