@@ -325,6 +325,7 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
             'content': hit['content'],
             'sim': min(max(hit['score'], 0.0), 1.0),  # Normalize score to 0-1
             'path': hit['path'],
+            'document': hit.get('document', ''),  # Include document name
             'chunk_id': hit.get('chunk_id', hit.get('page', 'unknown')),
             'page': hit.get('page'),
             'metadata': hit.get('metadata', {})
@@ -343,17 +344,24 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
 
         # Enhanced document information with rich metadata extraction
         import re
-        # Clean document path properly
-        raw_path = item['path']
-        doc_path = raw_path.replace(
-            './data/raw/', '').replace('data/raw/', '').replace('.pdf', '')
+
+        # Get clean document name - prefer 'document' field, fallback to path processing
+        if 'document' in item and item['document']:
+            clean_doc_name = item['document']
+        elif 'path' in item:
+            # Clean document path properly
+            raw_path = item['path']
+            doc_path = raw_path.replace(
+                './data/raw/', '').replace('data/raw/', '').replace('.pdf', '')
+            clean_doc_name = doc_path
+        else:
+            clean_doc_name = "Documento de curso"
+
         metadata = item.get('metadata', {})
 
         # Also try to get clean name from metadata if available
         if metadata.get('source_name'):
             clean_doc_name = metadata['source_name'].replace('.pdf', '')
-        else:
-            clean_doc_name = doc_path
         # Extract document metadata from filename
         doc_metadata = extract_document_metadata(clean_doc_name)
 
@@ -373,8 +381,13 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
         if content_metadata.get('section'):
             ref_parts.append(content_metadata['section'])
 
-        clean_reference = " - ".join(
-            ref_parts) if ref_parts else "Documento de curso"
+        # Use clean document name with page reference if available
+        if clean_doc_name and clean_doc_name != "Documento" and item.get('page'):
+            clean_reference = f"{clean_doc_name} (página {item['page']})"
+        elif ref_parts:
+            clean_reference = " - ".join(ref_parts)
+        else:
+            clean_reference = f"Documento (página {item.get('page', '?')})"
 
         # Build enhanced reference for detailed sources section
         detailed_parts = []
@@ -441,10 +454,29 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
         # Build enhanced source attribution footer with full metadata
         source_references = []
         for i, result in enumerate(results[:3], 1):  # Show top 3 sources
-            # Build comprehensive reference from available metadata
-            path = result.get('path', result.get('source_path', ''))
-            doc_name = path.replace(
-                'data/raw/', '').replace('.pdf', '').replace('./', '')
+            # Extract clean document name - prefer 'document' field, fallback to path processing
+            if 'document' in result and result['document']:
+                doc_name = result['document']
+            else:
+                # Build comprehensive reference from available metadata
+                path = result.get('path', result.get('source_path', ''))
+
+                # Extract clean document name from path
+                doc_name = path
+                if 'data/raw/' in doc_name:
+                    doc_name = doc_name.split('data/raw/')[-1]
+                elif 'data/clean/' in doc_name:
+                    doc_name = doc_name.split('data/clean/')[-1]
+
+                # Clean up file extensions and normalize name
+                doc_name = doc_name.replace('.pdf', '').replace(
+                    '.jsonl', '').replace('.chunks', '')
+                doc_name = doc_name.replace('.txt', '').replace(
+                    '.yaml', '').replace('.yml', '')
+
+                # Handle empty or missing document names
+                if not doc_name or doc_name.strip() == '':
+                    doc_name = "Documento de curso"
 
             # Add page information if available
             page_info = ""
@@ -461,7 +493,7 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
             elif metadata.get('section'):
                 chapter_info = f", {metadata['section']}"
 
-            # Create full reference
+            # Create full reference with document name included
             full_ref = f"{doc_name}{page_info}{chapter_info}"
             source_references.append(f"{i}. {full_ref}")
 

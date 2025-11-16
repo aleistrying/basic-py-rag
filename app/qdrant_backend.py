@@ -11,12 +11,25 @@ CLEAN_COLLECTION = "course_docs_clean"
 
 
 def get_available_collection():
-    """Determine which collection to use"""
+    """Determine which collection to use - prefer algorithm-specific collections"""
+    # Default algorithm-specific collection (cosine + hnsw is most common)
+    default_collection = f"{CLEAN_COLLECTION}_cosine_hnsw"
+    
     try:
-        # Try clean pipeline collection first
-        client.get_collection(CLEAN_COLLECTION)
-        return CLEAN_COLLECTION
+        # Try the default algorithm-specific collection first
+        client.get_collection(default_collection)
+        return default_collection
     except:
+        # If that doesn't work, try to find any algorithm-specific collection
+        try:
+            collections = client.get_collections()
+            for collection in collections.collections:
+                if collection.name.startswith(CLEAN_COLLECTION + "_"):
+                    return collection.name
+        except:
+            pass
+        
+        # Fall back to base collection name (though it probably won't exist)
         return CLEAN_COLLECTION
 
 
