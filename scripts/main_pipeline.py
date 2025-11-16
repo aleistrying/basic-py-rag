@@ -110,7 +110,8 @@ class UnifiedMainPipeline:
         raw_path = Path(RAW_DIR)
         if raw_path.exists():
             files = list(raw_path.glob("*.pdf")) + \
-                list(raw_path.glob("*.txt")) + list(raw_path.glob("*.md"))
+                list(raw_path.glob("*.txt")) + list(raw_path.glob("*.md")) + \
+                list(raw_path.glob("*.yaml")) + list(raw_path.glob("*.yml"))
             if not files:
                 issues.append(f"No files to process in {RAW_DIR}")
 
@@ -230,11 +231,21 @@ class UnifiedMainPipeline:
         """
         try:
             # Import here to avoid pickling issues in multiprocessing
-            from pdf_processing import process_single_pdf
+            from pdf_processing import UnifiedPDFProcessor
 
-            # Process the PDF
-            process_single_pdf(pdf_file)
-            return True
+            # Create processor instance and process the PDF
+            processor = UnifiedPDFProcessor()
+            result = processor.process_pdf_file(
+                pdf_file, output_format="jsonl")
+
+            if result:
+                logger.info(f"✅ Successfully processed: {pdf_file.name}")
+                return True
+            else:
+                logger.warning(
+                    f"⚠️  Processing returned None: {pdf_file.name}")
+                return False
+
         except Exception as e:
             logger.error(f"Error processing {pdf_file}: {e}")
             return False
@@ -396,7 +407,10 @@ class UnifiedMainPipeline:
             pdf_files = list(Path(RAW_DIR).glob("*.pdf")
                              ) if Path(RAW_DIR).exists() else []
             text_files = list(Path(RAW_DIR).glob(
-                "*.txt")) + list(Path(RAW_DIR).glob("*.md")) if Path(RAW_DIR).exists() else []
+                "*.txt")) + list(Path(RAW_DIR).glob("*.md")) + \
+                list(Path(RAW_DIR).glob("*.yaml")) + \
+                list(Path(RAW_DIR).glob("*.yml")
+                     ) if Path(RAW_DIR).exists() else []
             clean_files = list(clean_path.glob("*.jsonl")
                                ) if clean_path.exists() else []
             clean_files = [

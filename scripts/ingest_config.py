@@ -14,7 +14,7 @@ Path(CLEAN_DIR).mkdir(parents=True, exist_ok=True)
 EMBED_MODEL = "intfloat/multilingual-e5-base"
 
 # Chunking parameters (optimized for short queries like "what time are classes")
-CHUNK_TOKENS = 150  # Smaller chunks ~150-200 words for better granular search
+CHUNK_TOKENS = 250  # Smaller chunks ~150-200 words for better granular search
 CHUNK_OVERLAP = 50  # ~30-40 words overlap to preserve context
 MIN_CHARS = 50      # Allow shorter chunks to capture specific details
 
@@ -23,13 +23,14 @@ USE_QDRANT = True
 USE_PGVECTOR = True
 
 # Qdrant settings
-QDRANT_URL = "http://localhost:6333"
+# Use Docker service name for container networking
+QDRANT_URL = "http://qdrant:6333"
 QDRANT_COLLECTION = "course_docs_clean"
 QDRANT_VECTOR_SIZE = 768  # E5-base dimensions
 QDRANT_DISTANCE = "Cosine"
 
 # PostgreSQL+pgvector settings
-PG_HOST = "localhost"
+PG_HOST = "postgres"  # Use Docker service name for container networking
 PG_PORT = 5432
 PG_USER = "pguser"
 PG_PASSWORD = "pgpass"

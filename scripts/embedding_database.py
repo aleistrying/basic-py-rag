@@ -300,8 +300,6 @@ class UnifiedEmbeddingProcessor:
 
         return self.pg_connection
 
-        return self.pg_connection
-
     def clear_databases(self):
         """Clear existing data from both databases - ALL algorithm-specific collections/tables"""
         logger.info(

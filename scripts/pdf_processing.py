@@ -634,22 +634,38 @@ def process_all_pdfs():
 
 
 def process_text_files():
-    """Process text and markdown files"""
+    """Process text, markdown, and YAML files"""
     raw_path = Path(RAW_DIR)
     if not raw_path.exists():
         return
 
-    text_files = list(raw_path.glob("*.txt")) + list(raw_path.glob("*.md"))
+    # Include YAML files (.yaml and .yml extensions)
+    text_files = list(raw_path.glob("*.txt")) + list(raw_path.glob("*.md")) + \
+        list(raw_path.glob("*.yaml")) + list(raw_path.glob("*.yml"))
 
     for text_file in text_files:
         try:
             logger.info(f"Processing text file: {text_file.name}")
 
+            # Determine file type for appropriate processing
+            file_ext = text_file.suffix.lower()
+
             with open(text_file, 'r', encoding='utf-8') as f:
                 content = f.read()
 
             if not content.strip():
+                logger.warning(f"Empty file skipped: {text_file.name}")
                 continue
+
+            # For YAML files, we can optionally parse and reformat the content
+            # but for now, we'll process them as plain text like other files
+            if file_ext in ['.yaml', '.yml']:
+                extractor_type = "yaml_file"
+                logger.info(f"Processing YAML file: {text_file.name}")
+            elif file_ext == '.md':
+                extractor_type = "markdown_file"
+            else:
+                extractor_type = "text_file"
 
             # Create JSONL output
             output_path = Path(CLEAN_DIR) / (text_file.stem + ".jsonl")
@@ -659,7 +675,7 @@ def process_text_files():
                     "source_path": str(text_file),
                     "page": 1,
                     "text": content,
-                    "extractor": "text_file"
+                    "extractor": extractor_type
                 }
                 output_file.write(json.dumps(
                     record, ensure_ascii=False) + '\n')
