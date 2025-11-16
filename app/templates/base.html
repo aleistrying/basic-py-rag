@@ -446,6 +446,9 @@
                     <a href="/demo/pipeline?q=demo+completo" class="nav-link">
                         {{ get_svg_icon("zap", "16", "#3b82f6") }} Pipeline RAG
                     </a>
+                    <a href="/visualizations?chart_type=overview" class="nav-link">
+                        {{ get_svg_icon("bar-chart-2", "16", "#3b82f6") }} Visualizaciones
+                    </a>
                     <a href="/manual/embed?text=PostgreSQL+vectorial" class="nav-link">
                         {{ get_svg_icon("layers", "16", "#3b82f6") }} Demo Embedding
                     </a>
@@ -470,24 +473,133 @@
 
     {% block scripts %}
     <script>
-        // Global search function
+        // Global state and configuration
+        let currentSearchParams = {
+            backend: 'qdrant',
+            model: 'phi3:mini',
+            distance_metric: 'cosine',
+            index_algorithm: 'hnsw',
+            k: 3
+        };
+
+        // Global search function with parameters
         function newSearch() {
-            const query = document.getElementById('searchInput').value;
-            if (query.trim()) {
-                window.location.href = `/ask?q=${encodeURIComponent(query.trim())}`;
+            const query = document.getElementById('searchInput')?.value;
+            if (!query || !query.trim()) {
+                alert('Por favor ingresa una consulta');
+                return;
+            }
+
+            // Get current parameters from selectors if they exist
+            const backendSelect = document.getElementById('backendSelect');
+            const modelSelect = document.getElementById('modelSelect');
+            const distanceSelect = document.getElementById('distanceSelect');
+            const algorithmSelect = document.getElementById('algorithmSelect');
+            const kSelect = document.getElementById('kSelect');
+
+            if (backendSelect) currentSearchParams.backend = backendSelect.value;
+            if (modelSelect) currentSearchParams.model = modelSelect.value;
+            if (distanceSelect) currentSearchParams.distance_metric = distanceSelect.value;
+            if (algorithmSelect) currentSearchParams.index_algorithm = algorithmSelect.value;
+            if (kSelect) currentSearchParams.k = kSelect.value;
+
+            // Build URL with parameters
+            const params = new URLSearchParams({
+                q: query.trim(),
+                backend: currentSearchParams.backend,
+                model: currentSearchParams.model,
+                distance_metric: currentSearchParams.distance_metric,
+                index_algorithm: currentSearchParams.index_algorithm,
+                k: currentSearchParams.k
+            });
+
+            // Determine the current page type and navigate accordingly
+            const currentPath = window.location.pathname;
+            let targetRoute = '/ask';
+            let loadingMessage = 'Buscando documentos...';
+
+            if (currentPath.startsWith('/ai')) {
+                targetRoute = '/ai';
+                loadingMessage = 'Procesando consulta con IA...';
+            } else if (currentPath.startsWith('/advanced/multi-query')) {
+                targetRoute = '/advanced/multi-query';
+                loadingMessage = 'Generando consultas múltiples...';
+            } else if (currentPath.startsWith('/advanced/decompose')) {
+                targetRoute = '/advanced/decompose';
+                loadingMessage = 'Descomponiendo consulta...';
+            } else if (currentPath.startsWith('/advanced/hyde')) {
+                targetRoute = '/advanced/hyde';
+                loadingMessage = 'Generando documento hipotético...';
+            } else if (currentPath.startsWith('/advanced/hybrid')) {
+                targetRoute = '/advanced/hybrid';
+                loadingMessage = 'Ejecutando búsqueda híbrida...';
+            } else if (currentPath.startsWith('/advanced/iterative')) {
+                targetRoute = '/advanced/iterative';
+                loadingMessage = 'Iniciando búsqueda iterativa...';
+            } else if (currentPath.startsWith('/compare')) {
+                targetRoute = '/compare';
+                loadingMessage = 'Comparando motores de búsqueda...';
+            }
+
+            showLoading(loadingMessage);
+            setTimeout(() => {
+                window.location.href = `${targetRoute}?${params.toString()}`;
+            }, 100);
+        }
+
+        // Update search when selectors change
+        function updateSearchSettings() {
+            const query = document.getElementById('searchInput')?.value;
+            if (query && query.trim()) {
+                newSearch();
             }
         }
 
-        // Enter key support for search
+        // Initialize all event listeners when DOM is ready
         document.addEventListener('DOMContentLoaded', function () {
+            console.log('🔧 Inicializando sistema de búsqueda...');
+
+            // Search input event listeners
             const searchInput = document.getElementById('searchInput');
             if (searchInput) {
                 searchInput.addEventListener('keypress', function (e) {
                     if (e.key === 'Enter') {
+                        e.preventDefault();
                         newSearch();
                     }
                 });
+                console.log('✅ Search input configurado');
             }
+
+            // Search button
+            const searchBtn = document.querySelector('.search-btn');
+            if (searchBtn) {
+                searchBtn.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    newSearch();
+                });
+                console.log('✅ Search button configurado');
+            }
+
+            // Selector change events
+            const selectors = ['backendSelect', 'modelSelect', 'distanceSelect', 'algorithmSelect', 'kSelect'];
+            selectors.forEach(selectorId => {
+                const selector = document.getElementById(selectorId);
+                if (selector) {
+                    selector.addEventListener('change', updateSearchSettings);
+                    console.log(`✅ Selector ${selectorId} configurado`);
+                }
+            });
+
+            // Initialize parameters from current URL
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('backend')) currentSearchParams.backend = urlParams.get('backend');
+            if (urlParams.has('model')) currentSearchParams.model = urlParams.get('model');
+            if (urlParams.has('distance_metric')) currentSearchParams.distance_metric = urlParams.get('distance_metric');
+            if (urlParams.has('index_algorithm')) currentSearchParams.index_algorithm = urlParams.get('index_algorithm');
+            if (urlParams.has('k')) currentSearchParams.k = urlParams.get('k');
+
+            console.log('🎯 Sistema de búsqueda inicializado correctamente');
         });
 
         // Global loading functions - Enhanced for floating design
@@ -495,37 +607,63 @@
             const overlay = document.getElementById('loadingOverlay');
             const messageEl = document.getElementById('loadingMessage');
             if (messageEl) messageEl.textContent = message;
-            overlay.classList.add('active');
+            if (overlay) overlay.classList.add('active');
 
-            // Auto-hide after 10 seconds as failsafe
+            console.log('🔄 Loading:', message);
+
+            // Auto-hide after 15 seconds as failsafe
             setTimeout(() => {
                 hideLoading();
-            }, 10000);
+            }, 15000);
         }
 
         function hideLoading() {
-            document.getElementById('loadingOverlay').classList.remove('active');
+            const overlay = document.getElementById('loadingOverlay');
+            if (overlay) overlay.classList.remove('active');
+            console.log('✅ Loading ocultado');
         }
 
-        // Toggle JSON details
-        function toggleJsonDetails(button) {
-            const details = button.nextElementSibling;
-            if (details && details.classList.contains('json-details')) {
+        // Enhanced JSON toggle functionality
+        function toggleDetails() {
+            const details = document.getElementById('jsonDetails');
+            const btn = document.querySelector('.toggle-btn');
+
+            if (details && btn) {
                 details.classList.toggle('show');
-                button.textContent = details.classList.contains('show')
-                    ? 'Ocultar Detalles JSON'
-                    : 'Ver Detalles JSON';
+                const isShowing = details.classList.contains('show');
+
+                // Update button text and icon
+                const eyeIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+                const eyeOffIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2"><path d="m9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 11 8 11 8a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 1 12s4 8 11 8a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" y1="2" x2="22" y2="22"/></svg>';
+
+                btn.innerHTML = isShowing
+                    ? `${eyeOffIcon} Ocultar detalles técnicos JSON`
+                    : `${eyeIcon} Ver detalles técnicos JSON`;
+
+                // Trigger JSON highlighting if showing
+                if (isShowing && typeof highlightJSON === 'function') {
+                    setTimeout(highlightJSON, 100);
+                }
             }
         }
 
         // Navigation with loading - Enhanced with custom messages
         function navigateWithLoading(url, message = 'Navegando...') {
             showLoading(message);
-            // Small delay to show the loading indicator before navigation
             setTimeout(() => {
                 window.location.href = url;
             }, 100);
         }
+
+        // Auto-hide loading on page load completion
+        window.addEventListener('load', function () {
+            setTimeout(hideLoading, 500);
+        });
+
+        // Global error handling
+        window.addEventListener('error', function () {
+            hideLoading();
+        });
     </script>
     {% endblock %}
 </body>

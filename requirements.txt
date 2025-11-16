@@ -36,3 +36,9 @@ ollama
 rapidfuzz
 plotly
 kaleido
+
+# Enhanced visualization libraries
+matplotlib
+seaborn
+scikit-learn
+numpy

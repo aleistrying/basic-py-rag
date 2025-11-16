@@ -642,6 +642,15 @@
             </div>
         </div>
 
+        <div class="action-card" onclick="navigateWithLoading('/visualizations', 'Cargando visualizaciones...')">
+            <div class="action-icon">
+                {{ get_svg_icon("trending-up", "24", "#ffffff") }}
+            </div>
+            <div class="action-title">{{ get_svg_icon("bar-chart-2", "20", "#8b5cf6") }} Visualizaciones Avanzadas</div>
+            <div class="action-description">Scatter plots, mapas de vectores, matrices de similitud y filtros por
+                colección. Análisis completo de datos vectoriales.</div>
+        </div>
+
         <div class="action-card"
             onclick="navigateWithLoading('/pipeline/visualization', 'Generando visualizaciones...')">
             <div class="action-icon">

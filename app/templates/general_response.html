@@ -192,6 +192,55 @@
         box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
     }
 
+    /* Filter Controls */
+    .filter-controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+        margin: 20px 0;
+        padding: 20px;
+        background: rgba(31, 41, 55, 0.4);
+        border: 1px solid rgba(75, 85, 99, 0.4);
+        border-radius: 10px;
+    }
+
+    .filter-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        min-width: 200px;
+    }
+
+    .filter-group label {
+        color: #c7d2fe;
+        font-size: 13px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .filter-group select {
+        padding: 10px 15px;
+        border: 1px solid rgba(107, 114, 128, 0.4);
+        border-radius: 8px;
+        background: rgba(17, 24, 39, 0.8);
+        color: #e1e5e9;
+        font-size: 14px;
+        transition: all 0.3s ease;
+    }
+
+    .filter-group select:focus {
+        outline: none;
+        border-color: #8b5cf6;
+        box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.3);
+    }
+
+    .filter-group option {
+        background: rgba(17, 24, 39, 1);
+        color: #e1e5e9;
+        padding: 8px;
+    }
+
     .info-card {
         background: rgba(31, 41, 55, 0.4);
         border: 1px solid rgba(75, 85, 99, 0.4);
@@ -511,6 +560,82 @@
 </div>
 {% else %}
 
+{% if plot_data %}
+<!-- Visualization Section -->
+<div class="visualization-section">
+    <h3>{{ get_svg_icon("bar-chart", "20", "#8b5cf6") }} Visualización RAG: Análisis de Rendimiento</h3>
+
+    {% if config %}
+    <div class="visualization-controls">
+        <div class="control-group">
+            <div class="control-label">Tipo</div>
+            <div class="control-value">{{ config.chart_type|upper }}</div>
+        </div>
+        <div class="control-group">
+            <div class="control-label">Métrica</div>
+            <div class="control-value">{{ config.distance_metric|upper }}</div>
+        </div>
+        <div class="control-group">
+            <div class="control-label">Algoritmo</div>
+            <div class="control-value">{{ config.index_algorithm|upper }}</div>
+        </div>
+        <div class="control-group">
+            <div class="control-label">Colección</div>
+            <div class="control-value">{{ config.collection_type|upper }}</div>
+        </div>
+        <div class="control-group">
+            <div class="control-label">Archivos</div>
+            <div class="control-value">{{ config.file_type_filter|upper }}</div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Collection Filter Dropdown -->
+    {% if available_collections %}
+    <div class="filter-controls">
+        <div class="filter-group">
+            <label for="collectionFilter">Filtrar por Colección:</label>
+            <select id="collectionFilter" onchange="updateVisualization()">
+                <option value="all" {% if config.collection_type=="all" %}selected{% endif %}>Todas las Colecciones
+                </option>
+                {% for collection in available_collections %}
+                <option value="{{ collection }}" {% if config.collection_type==collection %}selected{% endif %}>{{
+                    collection[:30] }}...</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        {% if file_type_filters %}
+        <div class="filter-group">
+            <label for="fileTypeFilter">Filtrar por Tipo de Archivo:</label>
+            <select id="fileTypeFilter" onchange="updateVisualization()">
+                {% for file_type in file_type_filters %}
+                <option value="{{ file_type }}" {% if config.file_type_filter==file_type %}selected{% endif %}>{{
+                    file_type|upper }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if available_types %}
+    <div class="viz-type-buttons">
+        {% for viz_type in available_types %}
+        <a href="/visualizations?chart_type={{ viz_type }}&collection_type={{ config.collection_type or 'all' }}&file_type_filter={{ config.file_type_filter or 'all' }}"
+            class="viz-type-btn {% if config.chart_type == viz_type %}active{% endif %}">
+            {{ viz_type|title }}
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="plot-container" id="plotContainer">
+        <!-- Plotly chart will be rendered here -->
+    </div>
+</div>
+{% endif %}
+
 {% if pipeline_stats %}
 <!-- Pipeline Statistics Section -->
 <div class="pipeline-stats">
@@ -565,49 +690,6 @@
         </div>
     </div>
     {% endif %}
-</div>
-{% endif %}
-
-{% if plot_data %}
-<!-- Visualization Section -->
-<div class="visualization-section">
-    <h3>{{ get_svg_icon("bar-chart", "20", "#8b5cf6") }} Visualización de Datos</h3>
-
-    {% if config %}
-    <div class="visualization-controls">
-        <div class="control-group">
-            <div class="control-label">Tipo</div>
-            <div class="control-value">{{ type|title }}</div>
-        </div>
-        <div class="control-group">
-            <div class="control-label">Métrica</div>
-            <div class="control-value">{{ config.distance_metric|upper }}</div>
-        </div>
-        <div class="control-group">
-            <div class="control-label">Algoritmo</div>
-            <div class="control-value">{{ config.index_algorithm|upper }}</div>
-        </div>
-        <div class="control-group">
-            <div class="control-label">Colección</div>
-            <div class="control-value">{{ config.collection }}</div>
-        </div>
-    </div>
-    {% endif %}
-
-    {% if available_types %}
-    <div class="viz-type-buttons">
-        {% for viz_type in available_types %}
-        <a href="/pipeline/visualization?type={{ viz_type }}&format=html&include_stats=true"
-            class="viz-type-btn {% if viz_type == type %}active{% endif %}">
-            {{ viz_type|title }}
-        </a>
-        {% endfor %}
-    </div>
-    {% endif %}
-
-    <div class="plot-container" id="plotContainer">
-        <!-- Plotly chart will be rendered here -->
-    </div>
 </div>
 {% endif %}
 
@@ -769,45 +851,6 @@
         <div class="json-content" id="jsonContent">{{ json_data }}</div>
     </div>
 </div>
-
-<div class="navigation">
-    <div class="nav-group">
-        <a href="/" class="nav-link primary">
-            {{ get_svg_icon("home", "16", "#ffffff") }} Inicio
-        </a>
-        <a href="/ask?q=bases+de+datos+vectoriales" class="nav-link">
-            {{ get_svg_icon("search", "16", "#3b82f6") }} Búsqueda
-        </a>
-        <a href="/ai?q=bases+de+datos+vectoriales" class="nav-link">
-            {{ get_svg_icon("robot", "16", "#3b82f6") }} AI Search
-        </a>
-        <a href="/compare?q=pgvector" class="nav-link">
-            {{ get_svg_icon("balance", "16", "#3b82f6") }} Comparar
-        </a>
-    </div>
-    <div class="nav-group">
-        <a href="/demo/pipeline?q=demo+completo" class="nav-link">
-            {{ get_svg_icon("zap", "16", "#3b82f6") }} Pipeline RAG
-        </a>
-        <a href="/manual/embed?text=PostgreSQL+vectorial" class="nav-link">
-            {{ get_svg_icon("layers", "16", "#3b82f6") }} Demo Embedding
-        </a>
-        <a href="/demo/similarity" class="nav-link">
-            {{ get_svg_icon("target", "16", "#3b82f6") }} Demo Similitud
-        </a>
-    </div>
-    <div class="nav-group">
-        <a href="/gpu-status" class="nav-link">
-            {{ get_svg_icon("cpu", "16", "#3b82f6") }} System Status
-        </a>
-        <a href="/filters/examples" class="nav-link">
-            {{ get_svg_icon("filter", "16", "#3b82f6") }} Filtros
-        </a>
-        <a href="/docs" class="nav-link">
-            {{ get_svg_icon("book", "16", "#3b82f6") }} API Docs
-        </a>
-    </div>
-</div>
 {% endblock %}
 
 {% block scripts %}
@@ -840,16 +883,27 @@
         jsonContent.innerHTML = html;
     }
 
-    function newSearch() {
-        const query = document.getElementById('searchInput').value;
-        if (query.trim()) {
-            window.location.href = `/ask?q=${encodeURIComponent(query)}`;
-        }
-    }
-
-    document.getElementById('searchInput').addEventListener('keypress', function (e) {
-        if (e.key === 'Enter') newSearch();
+    // Initialize global system
+    document.addEventListener('DOMContentLoaded', function () {
+        console.log('📊 General response template initialized with global search system');
     });
+
+    // Update visualization with new filters
+    function updateVisualization() {
+        const collectionFilter = document.getElementById('collectionFilter')?.value || 'all';
+        const fileTypeFilter = document.getElementById('fileTypeFilter')?.value || 'all';
+        const currentChartType = '{{ config.chart_type or "overview" }}';
+
+        const params = new URLSearchParams({
+            chart_type: currentChartType,
+            collection_type: collectionFilter,
+            file_type_filter: fileTypeFilter,
+            distance_metric: '{{ config.distance_metric or "cosine" }}',
+            index_algorithm: '{{ config.index_algorithm or "hnsw" }}'
+        });
+
+        window.location.href = `/visualizations?${params.toString()}`;
+    }
 
     // Render plotly chart if plot data is available
     {% if plot_data %}
