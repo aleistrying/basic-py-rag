@@ -5,8 +5,12 @@ WORKDIR /app
 COPY requirements.txt .
 
 # Install dependencies with pip cache mount for faster rebuilds
+# Also install Docker CLI for container management
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install -r requirements.txt
+    apt-get update && \
+    apt-get install -y docker.io && \
+    pip install -r requirements.txt && \
+    rm -rf /var/lib/apt/lists/*
 
 # Copy the rest of the application
 # Use build arg to bust cache when needed

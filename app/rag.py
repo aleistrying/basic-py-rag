@@ -26,6 +26,12 @@ try:
 except ImportError:
     ollama = None
 
+try:
+    from app.ollama_utils import ollama_generate_with_retry, check_ollama_health
+except ImportError:
+    ollama_generate_with_retry = None
+    check_ollama_health = None
+
 BACKENDS = {"qdrant": search_qdrant, "pgvector": search_pgvector}
 
 # Improved prompt: concise, focused answers without excessive citations
@@ -432,21 +438,42 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
     prompt = PROMPT_TEMPLATE.format(q=query, sources=sources)
 
     try:
-        # Configure Ollama client with Docker service name support
-        ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-        client = ollama.Client(host=ollama_host)
+        # Use resilient Ollama generation with automatic retry and fallback
+        if ollama_generate_with_retry:
+            response = ollama_generate_with_retry(
+                model=model,
+                prompt=prompt,
+                max_retries=3,
+                auto_fallback=True,  # Automatically try smaller models on GPU memory errors
+                auto_restart=True,   # Attempt container restart on first failure
+                options={
+                    "repeat_penalty": 1.0,
+                    "temperature": 0.5,
+                    "num_predict": 256,
+                    "top_p": 0.9
+                }
+            )
 
-        # Call Ollama API with stricter settings
-        response = client.generate(
-            model=model,
-            prompt=prompt,
-            options={
-                "repeat_penalty": 1.0,
-                "temperature": 0.5,
-                "num_predict": 256,
-                "top_p": 0.9
-            }
-        )
+            # Extract metadata from resilient wrapper
+            metadata = response.get('_metadata', {})
+            if metadata.get('fallback_used'):
+                logger.info(
+                    f"⚠️  Used fallback model: {metadata['model_used']} (original: {model})")
+        else:
+            # Fallback to direct Ollama call if utils not available
+            ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+            client = ollama.Client(host=ollama_host)
+            response = client.generate(
+                model=model,
+                prompt=prompt,
+                options={
+                    "repeat_penalty": 1.0,
+                    "temperature": 0.5,
+                    "num_predict": 256,
+                    "top_p": 0.9
+                }
+            )
+            metadata = {}
 
         # Extract the generated text
         generated_text = response.get('response', '').strip()
@@ -507,7 +534,8 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
         # Calculate total processing time
         total_time_ms = round((time.time() - start_time) * 1000, 1)
 
-        return {
+        # Build response with model metadata
+        response_data = {
             "query": query,
             "expanded_query": expanded_query if expanded_query != query else None,
             "backend": backend.upper(),
@@ -517,7 +545,7 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
                 "index_algorithm": index_algorithm,
                 "collection_suffix": collection_suffix
             },
-            "model": model,
+            "model": metadata.get('model_used', model) if metadata else model,
             "filters_applied": filters or {},
             "ai_response": enhanced_response,
             "answer": enhanced_response,  # Add answer field for consistency
@@ -526,6 +554,18 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
             "results": results,  # Add results field for consistency
             "prompt_used": prompt
         }
+
+        # Add model fallback info if applicable
+        if metadata:
+            if metadata.get('fallback_used'):
+                response_data["model_fallback_info"] = {
+                    "original_model": model,
+                    "used_model": metadata['model_used'],
+                    "models_tried": metadata.get('models_tried', []),
+                    "attempts": metadata.get('attempts', 1)
+                }
+
+        return response_data
 
     except Exception as e:
         logging.error(f"Ollama API error: {e}")

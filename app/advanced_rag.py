@@ -34,6 +34,12 @@ from app.qdrant_backend import search_qdrant
 from app.pgvector_backend import search_pgvector
 from app.rerank import mmr, build_context
 
+try:
+    from app.ollama_utils import ollama_generate_with_retry, check_ollama_health
+except ImportError:
+    ollama_generate_with_retry = None
+    check_ollama_health = None
+
 logger = logging.getLogger(__name__)
 
 BACKENDS = {"qdrant": search_qdrant, "pgvector": search_pgvector}
@@ -177,15 +183,15 @@ Preguntas reformuladas:
             line = line.strip()
             if not line:
                 continue
-            
+
             # Remove numbered prefixes (1., 2., 3., etc.)
             import re
             line_clean = re.sub(r'^\d+\.\s*', '', line)
-            
+
             # Skip lines that start with bullets or are too short
             if line_clean and not line_clean.startswith(('-', '*', '•')):
                 variations.append(line_clean)
-        
+
         # Limit to requested number of variations
         variations = variations[:num_variations]
 

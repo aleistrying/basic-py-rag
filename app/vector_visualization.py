@@ -92,24 +92,42 @@ def fetch_embeddings_from_backend(
         try:
             client = QdrantClient(host="qdrant", port=6333)
 
-            # Scroll through collection to get points
-            points, _ = client.scroll(
-                collection_name=collection_name,
-                limit=limit,
-                with_vectors=True,
-                with_payload=True
-            )
+            # Scroll through collection to get points (handling pagination)
+            all_points = []
+            offset = None
+            batch_size = 500  # Qdrant's default scroll batch size
 
-            if not points:
+            while len(all_points) < limit:
+                points, offset = client.scroll(
+                    collection_name=collection_name,
+                    limit=min(batch_size, limit - len(all_points)),
+                    offset=offset,
+                    with_vectors=True,
+                    with_payload=True
+                )
+
+                if not points:
+                    break
+
+                all_points.extend(points)
+
+                # If offset is None, we've reached the end
+                if offset is None:
+                    break
+
+            if not all_points:
                 logger.warning(
                     f"No points found in collection {collection_name}")
                 return np.array([]), [], []
+
+            logger.info(
+                f"Fetched {len(all_points)} points from {collection_name}")
 
             embeddings = []
             metadata = []
             unique_docs = set()
 
-            for point in points:
+            for point in all_points:
                 # Extract document name from metadata.source_name
                 metadata_dict = point.payload.get("metadata", {})
                 source_name = metadata_dict.get("source_name", "")

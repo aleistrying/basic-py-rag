@@ -48,6 +48,22 @@ except ImportError as e:
     print(f"⚠️  Orchestrated RAG import error: {e}")
     orchestrated_rag_pipeline = None
 
+# Import Ollama utilities
+try:
+    from app.ollama_utils import (
+        check_ollama_health,
+        get_ollama_status,
+        restart_ollama_container,
+        unload_all_models
+    )
+    print("✅ Ollama utilities loaded successfully")
+except ImportError as e:
+    print(f"⚠️  Ollama utilities import error: {e}")
+    check_ollama_health = None
+    get_ollama_status = None
+    restart_ollama_container = None
+    unload_all_models = None
+
 # Import template functions
 try:
     from app.templates.template_renderer import (
@@ -759,6 +775,286 @@ def gpu_status(response_format: str = Query("html", description="Formato: 'json'
             "ollama_status": "⚠️"
         }
         return HTMLResponse(render_general_response(default_data, "Estado del Sistema"))
+
+
+@app.get("/ollama/health", response_class=JSONResponse)
+def ollama_health():
+    """Check Ollama health and GPU status"""
+    if check_ollama_health is None:
+        return JSONResponse(content={
+            "error": "Ollama utilities not available",
+            "healthy": False
+        })
+
+    try:
+        health = check_ollama_health(timeout=5)
+        return JSONResponse(content=health)
+    except Exception as e:
+        return JSONResponse(content={
+            "error": str(e),
+            "healthy": False
+        }, status_code=500)
+
+
+@app.get("/ollama/status", response_class=HTMLResponse)
+def ollama_status_page(response_format: str = Query("html", description="Formato: 'json' o 'html'", alias="format")):
+    """Comprehensive Ollama status page"""
+    if get_ollama_status is None:
+        error_result = {
+            "error": "Ollama utilities not available",
+            "healthy": False
+        }
+        if response_format == "json":
+            return JSONResponse(content=error_result)
+        return HTMLResponse(f"<h1>Error</h1><p>{error_result['error']}</p>")
+
+    try:
+        status = get_ollama_status()
+
+        if response_format == "json":
+            return JSONResponse(content=status)
+
+        # Build HTML status page
+        health = status.get('health', {})
+        config = status.get('config', {})
+        container_status = status.get('container_status', 'unknown')
+
+        healthy_emoji = "✅" if health.get('healthy') else "❌"
+        gpu_emoji = "🎮" if health.get('gpu_available') else "❌"
+
+        html = f"""
+        <html>
+        <head>
+            <title>Ollama Status</title>
+            <style>
+                body {{
+                    font-family: system-ui, -apple-system, sans-serif;
+                    max-width: 900px;
+                    margin: 40px auto;
+                    padding: 20px;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: #1f2937;
+                }}
+                .container {{
+                    background: white;
+                    border-radius: 12px;
+                    padding: 30px;
+                    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+                }}
+                h1 {{
+                    color: #667eea;
+                    margin-bottom: 10px;
+                }}
+                .status-grid {{
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                    gap: 20px;
+                    margin: 20px 0;
+                }}
+                .status-card {{
+                    background: #f9fafb;
+                    border: 2px solid #e5e7eb;
+                    border-radius: 8px;
+                    padding: 20px;
+                    text-align: center;
+                }}
+                .status-card.healthy {{
+                    border-color: #10b981;
+                    background: #ecfdf5;
+                }}
+                .status-card.unhealthy {{
+                    border-color: #ef4444;
+                    background: #fef2f2;
+                }}
+                .status-value {{
+                    font-size: 2em;
+                    font-weight: bold;
+                    margin: 10px 0;
+                }}
+                .status-label {{
+                    color: #6b7280;
+                    font-size: 0.9em;
+                }}
+                .section {{
+                    margin: 30px 0;
+                }}
+                .action-buttons {{
+                    display: flex;
+                    gap: 10px;
+                    margin: 20px 0;
+                }}
+                .btn {{
+                    padding: 10px 20px;
+                    border: none;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    font-weight: 600;
+                    text-decoration: none;
+                    display: inline-block;
+                }}
+                .btn-primary {{
+                    background: #667eea;
+                    color: white;
+                }}
+                .btn-danger {{
+                    background: #ef4444;
+                    color: white;
+                }}
+                .btn-success {{
+                    background: #10b981;
+                    color: white;
+                }}
+                .model-list {{
+                    list-style: none;
+                    padding: 0;
+                }}
+                .model-list li {{
+                    padding: 8px;
+                    background: #f9fafb;
+                    margin: 5px 0;
+                    border-radius: 4px;
+                }}
+                pre {{
+                    background: #1f2937;
+                    color: #f9fafb;
+                    padding: 15px;
+                    border-radius: 6px;
+                    overflow-x: auto;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>🤖 Ollama Status Monitor</h1>
+                <p>Real-time health monitoring for Ollama LLM service</p>
+                
+                <div class="status-grid">
+                    <div class="status-card {'healthy' if health.get('healthy') else 'unhealthy'}">
+                        <div class="status-label">Service Status</div>
+                        <div class="status-value">{healthy_emoji}</div>
+                        <div class="status-label">{"Healthy" if health.get('healthy') else "Unhealthy"}</div>
+                    </div>
+                    
+                    <div class="status-card {'healthy' if health.get('gpu_available') else 'unhealthy'}">
+                        <div class="status-label">GPU Available</div>
+                        <div class="status-value">{gpu_emoji}</div>
+                        <div class="status-label">{"Yes" if health.get('gpu_available') else "No"}</div>
+                    </div>
+                    
+                    <div class="status-card">
+                        <div class="status-label">Container Status</div>
+                        <div class="status-value">📦</div>
+                        <div class="status-label">{container_status.title()}</div>
+                    </div>
+                    
+                    <div class="status-card">
+                        <div class="status-label">Models Loaded</div>
+                        <div class="status-value">{health.get('gpu_info', {}).get('models_loaded', 0)}</div>
+                        <div class="status-label">In GPU Memory</div>
+                    </div>
+                </div>
+                
+                <div class="section">
+                    <h2>📋 Configuration</h2>
+                    <ul>
+                        <li><strong>Host:</strong> {config.get('host', 'N/A')}</li>
+                        <li><strong>Container:</strong> {config.get('container_name', 'N/A')}</li>
+                        <li><strong>Timeout:</strong> {config.get('timeout', 'N/A')}s</li>
+                        <li><strong>Max Retries:</strong> {config.get('max_retries', 'N/A')}</li>
+                    </ul>
+                </div>
+                
+                <div class="section">
+                    <h2>🔄 Model Fallback Chain</h2>
+                    <ul class="model-list">
+        """
+
+        for i, model in enumerate(config.get('model_fallback_chain', []), 1):
+            html += f"<li>{i}. {model} {'(Default)' if i == 1 else '(Fallback ' + str(i-1) + ')'}</li>"
+
+        html += """
+                    </ul>
+                </div>
+                
+                <div class="section">
+                    <h2>🎯 Available Models</h2>
+                    <ul class="model-list">
+        """
+
+        for model in health.get('models_available', []):
+            html += f"<li>{model}</li>"
+
+        html += """
+                    </ul>
+                </div>
+                
+                <div class="section">
+                    <h2>🔧 Management Actions</h2>
+                    <div class="action-buttons">
+                        <a href="/ollama/restart" class="btn btn-danger">🔄 Restart Container</a>
+                        <a href="/ollama/unload" class="btn btn-primary">💾 Unload Models</a>
+                        <a href="/" class="btn btn-success">🏠 Home</a>
+                    </div>
+                </div>
+                
+                <div class="section">
+                    <h2>📊 Raw Status (JSON)</h2>
+                    <pre>""" + str(status).replace('<', '&lt;').replace('>', '&gt;') + """</pre>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+
+        return HTMLResponse(content=html)
+
+    except Exception as e:
+        error_html = f"<h1>Error</h1><p>{str(e)}</p>"
+        return HTMLResponse(content=error_html, status_code=500)
+
+
+@app.post("/ollama/restart")
+def restart_ollama():
+    """Restart Ollama container"""
+    if restart_ollama_container is None:
+        return JSONResponse(content={
+            "error": "Ollama utilities not available",
+            "success": False
+        })
+
+    try:
+        success = restart_ollama_container()
+        return JSONResponse(content={
+            "success": success,
+            "message": "Container restarted successfully" if success else "Failed to restart container"
+        })
+    except Exception as e:
+        return JSONResponse(content={
+            "success": False,
+            "error": str(e)
+        }, status_code=500)
+
+
+@app.post("/ollama/unload")
+def unload_ollama_models():
+    """Unload all models from GPU memory"""
+    if unload_all_models is None:
+        return JSONResponse(content={
+            "error": "Ollama utilities not available",
+            "success": False
+        })
+
+    try:
+        success = unload_all_models()
+        return JSONResponse(content={
+            "success": success,
+            "message": "Models unloaded successfully" if success else "Failed to unload models"
+        })
+    except Exception as e:
+        return JSONResponse(content={
+            "success": False,
+            "error": str(e)
+        }, status_code=500)
 
 
 @app.get("/", response_class=HTMLResponse)

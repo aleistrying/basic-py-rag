@@ -32,6 +32,7 @@ cryptography
 
 # LLM integration
 ollama 
+docker  # For container management from inside container
 
 rapidfuzz
 plotly

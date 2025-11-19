@@ -29,6 +29,7 @@ services:
       - CUDA_VISIBLE_DEVICES=0
     volumes:
       - ./data:/app/data # Mount data directory for pipeline access (read-write)
+      - /var/run/docker.sock:/var/run/docker.sock:ro # Enable container management (read-only for security)
     command: python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8080
 
   postgres:
