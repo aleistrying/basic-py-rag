@@ -12,6 +12,17 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r requirements.txt && \
     rm -rf /var/lib/apt/lists/*
 
+# Pre-download embedding model for fully offline operation
+# This downloads the model during build so it's available offline
+ENV HF_HOME=/app/models/huggingface
+ENV TRANSFORMERS_OFFLINE=0
+RUN python3 -c "from sentence_transformers import SentenceTransformer; \
+    import os; \
+    os.makedirs('/app/models/embeddings', exist_ok=True); \
+    print('Downloading embedding model...'); \
+    model = SentenceTransformer('intfloat/multilingual-e5-base', cache_folder='/app/models/embeddings'); \
+    print('Model downloaded successfully!');" || echo "Model download failed, will download on first use"
+
 # Copy the rest of the application
 # Use build arg to bust cache when needed
 ARG CACHE_BUST

@@ -1658,10 +1658,21 @@ ANN (Approximate Nearest Neighbor):
                     content TEXT NOT NULL,
                     embedding vector(768),
                     metadata JSONB,
-                    algorithm VARCHAR(50),
                     created_at TIMESTAMP DEFAULT NOW()
                 );
             """)
+
+            # Add algorithm column if it doesn't exist (migration for existing tables)
+            try:
+                cur.execute("""
+                    ALTER TABLE demo_vectors 
+                    ADD COLUMN IF NOT EXISTS algorithm VARCHAR(50);
+                """)
+                conn.commit()
+            except Exception as alter_error:
+                # If ALTER fails, rollback and continue
+                conn.rollback()
+                pass
 
             # Create algorithm-specific index for efficient search
             try:

@@ -33,6 +33,7 @@ cryptography
 # LLM integration
 ollama 
 docker  # For container management from inside container
+openai>=1.0.0  # For OpenAI embeddings (optional)
 
 rapidfuzz
 plotly
