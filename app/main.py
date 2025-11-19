@@ -7,6 +7,7 @@ import pandas as pd
 import subprocess
 import os
 from pathlib import Path
+import numpy as np
 from app.rag import search_knowledge_base, generate_llm_answer
 
 # Import query utilities from consolidated module
@@ -214,29 +215,382 @@ def compare(
     response_format: str = Query(
         "html", description="Formato: 'json' o 'html'", alias="format")
 ):
-    """Compare Qdrant vs pgvector performance"""
+    """
+    ⚖️ Compare Qdrant vs PgVector Performance
+
+    Compares both backends side-by-side with:
+    - Search latency (ms)
+    - Result quality and scores
+    - Document overlap
+    - Performance recommendations
+    """
+    import time
     try:
-        # Search both backends
+        # Time Qdrant search
+        start_qdrant = time.time()
         qdrant_result = search_knowledge_base(q, backend="qdrant", k=k)
+        qdrant_time = (time.time() - start_qdrant) * 1000  # ms
+
+        # Time PgVector search
+        start_pg = time.time()
         postgres_result = search_knowledge_base(q, backend="pgvector", k=k)
+        postgres_time = (time.time() - start_pg) * 1000  # ms
+
+        # Extract results for comparison
+        qdrant_docs = qdrant_result.get(
+            "results", []) if isinstance(qdrant_result, dict) else []
+        postgres_docs = postgres_result.get(
+            "results", []) if isinstance(postgres_result, dict) else []
+
+        # Calculate overlap
+        qdrant_ids = {doc.get("id") or doc.get("content", "")[
+            :50] for doc in qdrant_docs}
+        postgres_ids = {doc.get("id") or doc.get("content", "")[
+            :50] for doc in postgres_docs}
+        overlap = len(qdrant_ids & postgres_ids)
+        overlap_pct = (overlap / k * 100) if k > 0 else 0
+
+        # Determine winner
+        if qdrant_time < postgres_time:
+            faster = "Qdrant"
+            speed_diff = postgres_time - qdrant_time
+        else:
+            faster = "PgVector"
+            speed_diff = qdrant_time - postgres_time
 
         comparison = {
             "query": q,
+            "k": k,
+            "timing": {
+                "qdrant_ms": round(qdrant_time, 2),
+                "postgres_ms": round(postgres_time, 2),
+                "faster": faster,
+                "difference_ms": round(speed_diff, 2)
+            },
             "qdrant": qdrant_result,
-            "postgres": postgres_result
+            "postgres": postgres_result,
+            "overlap": {
+                "count": overlap,
+                "percentage": round(overlap_pct, 1)
+            }
         }
 
         if response_format == "json":
             return JSONResponse(content=comparison)
         else:
-            return HTMLResponse(render_general_response(comparison, "Comparación Qdrant vs PostgreSQL", "#8b5cf6"))
+            # Generate enhanced HTML comparison
+            return HTMLResponse(generate_comparison_html(comparison))
     except Exception as e:
+        logger.error(f"Comparison error: {e}", exc_info=True)
         error_data = {
             "error": f"Error de comparación: {str(e)}", "status": 500}
         if response_format == "json":
             raise HTTPException(
                 status_code=500, detail=f"Comparison error: {str(e)}") from e
-        return HTMLResponse(render_general_response(error_data, "Error", "#dc2626"))
+        return HTMLResponse(f"""
+            <html>
+            <head>
+                <style>
+                    body {{ background: #111827; color: #e5e7eb; padding: 40px; font-family: sans-serif; }}
+                    a {{ color: #8b5cf6; }}
+                </style>
+            </head>
+            <body>
+                <h1 style="color: #ef4444;">Comparison Error</h1>
+                <p>{str(e)}</p>
+                <a href="/">← Back to Home</a>
+            </body>
+            </html>
+        """)
+
+
+def generate_comparison_html(comparison: dict) -> str:
+    """Generate side-by-side comparison HTML"""
+    qdrant_results = comparison["qdrant"].get(
+        "results", []) if isinstance(comparison["qdrant"], dict) else []
+    postgres_results = comparison["postgres"].get(
+        "results", []) if isinstance(comparison["postgres"], dict) else []
+
+    timing = comparison["timing"]
+    overlap = comparison["overlap"]
+
+    # Build results HTML
+    qdrant_html = ""
+    for i, doc in enumerate(qdrant_results[:5], 1):
+        score = doc.get("score", 0)
+        content = doc.get("content", "")[:200] + "..."
+        page = doc.get("page", "?")
+        qdrant_html += f"""
+            <div class="result-card">
+                <div class="result-rank">#{i}</div>
+                <div class="result-score" style="background: #0ea5e9;">Score: {score:.4f}</div>
+                <div class="result-content">{content}</div>
+                <div class="result-meta">Página: {page}</div>
+            </div>
+        """
+
+    postgres_html = ""
+    for i, doc in enumerate(postgres_results[:5], 1):
+        score = doc.get("score", 0)
+        content = doc.get("content", "")[:200] + "..."
+        page = doc.get("page", "?")
+        postgres_html += f"""
+            <div class="result-card">
+                <div class="result-rank">#{i}</div>
+                <div class="result-score" style="background: #10b981;">Score: {score:.4f}</div>
+                <div class="result-content">{content}</div>
+                <div class="result-meta">Página: {page}</div>
+            </div>
+        """
+
+    faster_badge = timing["faster"]
+    winner_color = "#0ea5e9" if faster_badge == "Qdrant" else "#10b981"
+
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <title>Comparación: Qdrant vs PgVector</title>
+        <style>
+            body {{
+                margin: 0;
+                padding: 20px;
+                background: #111827;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                color: #e5e7eb;
+            }}
+            .container {{
+                max-width: 1400px;
+                margin: 0 auto;
+            }}
+            .nav-bar {{
+                background: linear-gradient(135deg, #4c1d95 0%, #8b5cf6 100%);
+                padding: 15px 20px;
+                border-radius: 10px;
+                margin-bottom: 20px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }}
+            .nav-title {{
+                font-size: 1.25rem;
+                font-weight: 600;
+                color: #ffffff;
+            }}
+            .nav-button {{
+                background: rgba(255, 255, 255, 0.2);
+                color: #ffffff;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 6px;
+                cursor: pointer;
+                text-decoration: none;
+                transition: all 0.2s;
+            }}
+            .nav-button:hover {{
+                background: rgba(255, 255, 255, 0.3);
+            }}
+            .header {{
+                text-align: center;
+                margin-bottom: 30px;
+                padding: 20px;
+                background: #1f2937;
+                border-radius: 10px;
+            }}
+            .header h1 {{
+                margin: 0 0 10px 0;
+                color: #8b5cf6;
+            }}
+            .query-box {{
+                background: #111827;
+                padding: 15px;
+                border-radius: 8px;
+                margin-top: 10px;
+                border-left: 4px solid #8b5cf6;
+            }}
+            .metrics {{
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                gap: 15px;
+                margin-bottom: 30px;
+            }}
+            .metric-card {{
+                background: #1f2937;
+                padding: 20px;
+                border-radius: 10px;
+                border: 1px solid #374151;
+                text-align: center;
+            }}
+            .metric-value {{
+                font-size: 2rem;
+                font-weight: 600;
+                margin-bottom: 5px;
+            }}
+            .metric-label {{
+                color: #9ca3af;
+                font-size: 0.875rem;
+            }}
+            .winner-badge {{
+                background: {winner_color};
+                color: #ffffff;
+                padding: 5px 15px;
+                border-radius: 20px;
+                font-size: 0.75rem;
+                font-weight: 600;
+                margin-top: 10px;
+                display: inline-block;
+            }}
+            .comparison-grid {{
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 20px;
+                margin-bottom: 30px;
+            }}
+            .backend-section {{
+                background: #1f2937;
+                padding: 20px;
+                border-radius: 10px;
+                border-top: 4px solid;
+            }}
+            .backend-section.qdrant {{
+                border-top-color: #0ea5e9;
+            }}
+            .backend-section.postgres {{
+                border-top-color: #10b981;
+            }}
+            .backend-header {{
+                font-size: 1.5rem;
+                font-weight: 600;
+                margin-bottom: 15px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }}
+            .backend-time {{
+                font-size: 1rem;
+                color: #9ca3af;
+            }}
+            .result-card {{
+                background: #111827;
+                padding: 15px;
+                border-radius: 8px;
+                margin-bottom: 10px;
+                border: 1px solid #374151;
+            }}
+            .result-rank {{
+                display: inline-block;
+                background: #374151;
+                color: #e5e7eb;
+                padding: 2px 8px;
+                border-radius: 4px;
+                font-size: 0.75rem;
+                font-weight: 600;
+            }}
+            .result-score {{
+                display: inline-block;
+                color: #ffffff;
+                padding: 2px 8px;
+                border-radius: 4px;
+                font-size: 0.75rem;
+                font-weight: 600;
+                margin-left: 5px;
+            }}
+            .result-content {{
+                margin: 10px 0;
+                line-height: 1.6;
+                color: #d1d5db;
+            }}
+            .result-meta {{
+                font-size: 0.875rem;
+                color: #6b7280;
+            }}
+            .insights {{
+                background: #1f2937;
+                padding: 20px;
+                border-radius: 10px;
+                border-left: 4px solid #f59e0b;
+            }}
+            .insights h3 {{
+                color: #f59e0b;
+                margin-top: 0;
+            }}
+            .insights ul {{
+                line-height: 1.8;
+            }}
+            @media (max-width: 768px) {{
+                .comparison-grid {{
+                    grid-template-columns: 1fr;
+                }}
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="nav-bar">
+                <div class="nav-title">⚖️ Comparación de Backends</div>
+                <a href="/" class="nav-button">← Volver al Inicio</a>
+            </div>
+            
+            <div class="header">
+                <h1>Qdrant vs PgVector</h1>
+                <div class="query-box">
+                    <strong>Consulta:</strong> {comparison["query"]}
+                </div>
+            </div>
+            
+            <div class="metrics">
+                <div class="metric-card">
+                    <div class="metric-value" style="color: #0ea5e9;">{timing["qdrant_ms"]} ms</div>
+                    <div class="metric-label">Qdrant</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value" style="color: #10b981;">{timing["postgres_ms"]} ms</div>
+                    <div class="metric-label">PgVector</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value" style="color: {winner_color};">🏆 {timing["faster"]}</div>
+                    <div class="metric-label">Más Rápido</div>
+                    <div class="winner-badge">{timing["difference_ms"]} ms más rápido</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value" style="color: #8b5cf6;">{overlap["percentage"]}%</div>
+                    <div class="metric-label">Coincidencia de Resultados</div>
+                    <div class="metric-label" style="margin-top: 5px;">{overlap["count"]} de {comparison["k"]} documentos</div>
+                </div>
+            </div>
+            
+            <div class="comparison-grid">
+                <div class="backend-section qdrant">
+                    <div class="backend-header">
+                        <span>🔷 Qdrant</span>
+                        <span class="backend-time">{timing["qdrant_ms"]} ms</span>
+                    </div>
+                    {qdrant_html}
+                </div>
+                
+                <div class="backend-section postgres">
+                    <div class="backend-header">
+                        <span>🐘 PgVector</span>
+                        <span class="backend-time">{timing["postgres_ms"]} ms</span>
+                    </div>
+                    {postgres_html}
+                </div>
+            </div>
+            
+            <div class="insights">
+                <h3>💡 Insights</h3>
+                <ul>
+                    <li><strong>Velocidad:</strong> {timing["faster"]} es {timing["difference_ms"]:.2f} ms más rápido en esta consulta ({round(timing["difference_ms"] / max(timing["qdrant_ms"], timing["postgres_ms"]) * 100, 1)}% más rápido)</li>
+                    <li><strong>Consistencia:</strong> {overlap["percentage"]}% de los resultados coinciden entre ambos backends, indicando {"alta" if overlap["percentage"] > 70 else "moderada" if overlap["percentage"] > 40 else "baja"} consistencia</li>
+                    <li><strong>Recomendación:</strong> {"Qdrant es generalmente más rápido para búsquedas vectoriales en producción" if timing["faster"] == "Qdrant" else "PgVector es excelente cuando ya usas PostgreSQL y quieres simplicidad"}</li>
+                    <li><strong>Uso de Casos:</strong> Qdrant para sistemas dedicados de búsqueda semántica a gran escala. PgVector para integración simple con bases de datos relacionales existentes.</li>
+                </ul>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
 
 
 @app.get("/manual/embed", response_class=HTMLResponse)
@@ -558,6 +912,12 @@ def advanced_multi_query(
     """
     if multi_query_search is None:
         return render_pretty_json({"error": "Advanced RAG features not available"})
+
+    # Validate and normalize backend
+    if backend.lower() in ['n/a', 'na', 'none', '']:
+        backend = "qdrant"
+    if backend not in ["qdrant", "pgvector"]:
+        backend = "qdrant"
 
     try:
         filters = {}
@@ -987,6 +1347,235 @@ def demo_similarity(
 
     except Exception as e:
         return render_pretty_json({"error": str(e), "text1": text1, "text2": text2})
+
+
+# ================================
+# VECTOR SPACE VISUALIZATION
+# ================================
+
+@app.get("/visualize/vectors", response_class=HTMLResponse)
+def visualize_vector_space(
+    query: Optional[str] = Query(
+        None, description="Optional search query to visualize"),
+    collection: str = Query("course_docs_clean_cosine_hnsw",
+                            description="Collection to visualize"),
+    document: str = Query("all", description="Filter by specific document"),
+    limit: int = Query(5000, description="Max number of points to visualize"),
+    method: str = Query(
+        "umap", description="Reduction method: 'umap' or 'tsne'")
+):
+    """
+    🎯 Vector Space Visualization
+
+    Visualize document embeddings in 2D space to understand:
+    - How chunks are distributed across vector space
+    - Which documents cluster together (similar content)
+    - Document boundaries and overlap
+    - Where search queries land relative to chunks
+
+    This helps understand where information is indexed and how similarity search works.
+    """
+    try:
+        from app.vector_visualization import (
+            fetch_embeddings_from_qdrant,
+            create_visualization_data,
+            generate_scatter_plot_html,
+            get_available_collections
+        )
+
+        logger.info(f"Fetching embeddings from collection: {collection}")
+
+        # Get available collections
+        available_collections = get_available_collections()
+
+        # Fetch embeddings from Qdrant
+        embeddings, metadata, available_documents = fetch_embeddings_from_qdrant(
+            collection_name=collection,
+            limit=limit,
+            document_filter=document if document != "all" else None
+        )
+
+        if len(embeddings) == 0:
+            return HTMLResponse(f"""
+                <html>
+                <head>
+                    <style>
+                        body {{ background: #111827; color: #e5e7eb; font-family: sans-serif; padding: 40px; text-align: center; }}
+                        a {{ color: #8b5cf6; text-decoration: none; }}
+                        a:hover {{ text-decoration: underline; }}
+                    </style>
+                </head>
+                <body>
+                    <h1 style="color: #ef4444;">⚠️ No Data Available</h1>
+                    <p>No embeddings found in collection: <code>{collection}</code></p>
+                    <p>Make sure the collection exists and has data indexed.</p>
+                    <a href="/">← Back to Home</a>
+                </body>
+                </html>
+            """)
+
+        # Get query embedding if query provided
+        query_embedding = None
+        if query and embed_e5:
+            try:
+                emb_result = embed_e5([query], is_query=True)
+                # Convert to numpy array (embed_e5 returns list format)
+                if isinstance(emb_result, list):
+                    if len(emb_result) > 0 and isinstance(emb_result[0], list):
+                        query_embedding = np.array(emb_result[0])
+                    elif len(emb_result) > 0:
+                        query_embedding = np.array(emb_result)
+                elif isinstance(emb_result, np.ndarray):
+                    query_embedding = emb_result[0] if len(
+                        emb_result.shape) > 1 else emb_result
+            except Exception as e:
+                logger.warning(f"Could not embed query: {e}")
+
+        # Create visualization data
+        viz_data = create_visualization_data(
+            embeddings=embeddings,
+            metadata=metadata,
+            query_embedding=query_embedding,
+            query_text=query,
+            method=method
+        )
+
+        if "error" in viz_data:
+            return HTMLResponse(f"""
+                <html>
+                <head>
+                    <style>
+                        body {{ background: #111827; color: #e5e7eb; padding: 40px; }}
+                        a {{ color: #8b5cf6; }}
+                    </style>
+                </head>
+                <body>
+                    <h1 style="color: #ef4444;">Error</h1>
+                    <p>{viz_data['error']}</p>
+                    <a href="/">← Back to Home</a>
+                </body>
+                </html>
+            """)
+
+        # Generate HTML with Plotly visualization
+        html = generate_scatter_plot_html(
+            viz_data,
+            title=f"Vector Space: {collection}",
+            available_collections=available_collections,
+            current_collection=collection,
+            available_documents=available_documents,
+            current_document=document,
+            current_method=method
+        )
+
+        return HTMLResponse(html)
+
+    except Exception as e:
+        logger.error(f"Visualization error: {e}", exc_info=True)
+        return HTMLResponse(f"""
+            <html>
+            <body style="background: #111827; color: #e5e7eb; font-family: sans-serif; padding: 40px;">
+                <h1 style="color: #ef4444;">⚠️ Visualization Error</h1>
+                <p>{str(e)}</p>
+                <p>Make sure UMAP or scikit-learn is installed:</p>
+                <pre style="background: #1f2937; padding: 20px; border-radius: 8px;">
+pip install umap-learn scikit-learn
+# or
+pip install scikit-learn  # for t-SNE fallback
+                </pre>
+                <a href="/" style="color: #0ea5e9;">← Back to Home</a>
+            </body>
+            </html>
+        """)
+
+
+@app.get("/visualize/search", response_class=HTMLResponse)
+def visualize_search_result(
+    q: str = Query(..., description="Search query"),
+    backend: str = Query("qdrant", description="Backend: qdrant or pgvector"),
+    k: int = Query(10, description="Number of results"),
+    method: str = Query(
+        "umap", description="Visualization method: umap or tsne")
+):
+    """
+    🔍 Search Visualization
+
+    Perform a search and visualize where results land in vector space.
+    Shows the query point and retrieved chunks highlighted.
+    """
+    try:
+        from app.vector_visualization import (
+            fetch_embeddings_from_qdrant,
+            create_visualization_data,
+            generate_scatter_plot_html
+        )
+
+        # Perform search
+        search_result = search_knowledge_base(q, backend=backend, k=k)
+
+        if "error" in search_result:
+            return HTMLResponse(f"<h1>Search Error</h1><p>{search_result['error']}</p>")
+
+        # Get collection name from backend
+        collection = "course_docs_clean_cosine_hnsw" if backend == "qdrant" else None
+
+        if not collection:
+            return HTMLResponse("<h1>Visualization only available for Qdrant backend</h1>")
+
+        # Fetch all embeddings for context
+        embeddings, metadata, available_documents = fetch_embeddings_from_qdrant(
+            collection_name=collection,
+            limit=500
+        )
+
+        # Get query embedding
+        query_embedding = None
+        if embed_e5:
+            # embed_e5 returns list of lists for multiple texts, single list for one text
+            emb_result = embed_e5([q], is_query=True)
+            # Convert to numpy array (embed_e5 returns list format)
+            if isinstance(emb_result, list):
+                if len(emb_result) > 0 and isinstance(emb_result[0], list):
+                    # List of embeddings - take first one
+                    query_embedding = np.array(emb_result[0])
+                elif len(emb_result) > 0 and isinstance(emb_result[0], (int, float)):
+                    # Single embedding as flat list
+                    query_embedding = np.array(emb_result)
+            elif isinstance(emb_result, np.ndarray):
+                query_embedding = emb_result[0] if len(
+                    emb_result.shape) > 1 else emb_result
+
+        # Create visualization
+        viz_data = create_visualization_data(
+            embeddings=embeddings,
+            metadata=metadata,
+            query_embedding=query_embedding,
+            query_text=q,
+            method=method
+        )
+
+        html = generate_scatter_plot_html(
+            viz_data,
+            title=f"Search: {q[:50]}",
+            available_collections=[collection],
+            current_collection=collection,
+            available_documents=available_documents,
+            current_document="all",
+            current_method=method
+        )
+
+        return HTMLResponse(html)
+
+    except Exception as e:
+        logger.error(f"Search visualization error: {e}", exc_info=True)
+        return HTMLResponse(f"""
+            <html>
+            <body style="background: #111827; color: #e5e7eb; padding: 40px;">
+                <h1 style="color: #ef4444;">Error</h1>
+                <p>{str(e)}</p>
+            </body>
+            </html>
+        """)
 
 
 # ================================

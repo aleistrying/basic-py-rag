@@ -9,6 +9,9 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r requirements.txt
 
 # Copy the rest of the application
+# Use build arg to bust cache when needed
+ARG CACHE_BUST
+RUN echo "Cache bust: $CACHE_BUST"
 COPY . .
 
 EXPOSE 8080

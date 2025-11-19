@@ -14,7 +14,7 @@ def get_available_collection():
     """Determine which collection to use - prefer algorithm-specific collections"""
     # Default algorithm-specific collection (cosine + hnsw is most common)
     default_collection = f"{CLEAN_COLLECTION}_cosine_hnsw"
-    
+
     try:
         # Try the default algorithm-specific collection first
         client.get_collection(default_collection)
@@ -28,7 +28,7 @@ def get_available_collection():
                     return collection.name
         except:
             pass
-        
+
         # Fall back to base collection name (though it probably won't exist)
         return CLEAN_COLLECTION
 

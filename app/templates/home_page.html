@@ -520,6 +520,10 @@
         <button class="search-btn" onclick="searchWithAI()" id="searchButton">
             {{ get_svg_icon("robot", "18", "#ffffff") }} AI Search
         </button>
+        <button class="search-btn" onclick="visualizeSearch()" id="visualizeButton"
+            style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); margin-left: 10px;">
+            {{ get_svg_icon("trending-up", "18", "#ffffff") }} Visualizar
+        </button>
     </div>
 
     <!-- Loading indicator -->
@@ -588,24 +592,6 @@
             <div class="action-description">Compara rendimiento entre Qdrant y PgVector</div>
         </div>
 
-        <div class="action-card"
-            onclick="navigateWithLoading('/manual/embed?text=PostgreSQL+con+pgvector', 'Cargando demostración...')">
-            <div class="action-icon">
-                {{ get_svg_icon("layers", "24", "#ffffff") }}
-            </div>
-            <div class="action-title">Demo Embedding</div>
-            <div class="action-description">Visualiza cómo se convierten textos en vectores</div>
-        </div>
-
-        <div class="action-card"
-            onclick="navigateWithLoading('/manual/search?q=vectores+similitud', 'Preparando demo...')">
-            <div class="action-icon">
-                {{ get_svg_icon("target", "24", "#ffffff") }}
-            </div>
-            <div class="action-title">Demo Búsqueda</div>
-            <div class="action-description">Demostración paso a paso del proceso de búsqueda vectorial</div>
-        </div>
-
         <div class="action-card" onclick="navigateWithLoading('/gpu-status', 'Verificando estado...')">
             <div class="action-icon">
                 {{ get_svg_icon("cpu", "24", "#ffffff") }}
@@ -633,31 +619,14 @@
             </div>
         </div>
 
-        <div class="action-card" onclick="navigateWithLoading('/pipeline/stats', 'Cargando estadísticas...')">
-            <div class="action-icon">
-                {{ get_svg_icon("bar-chart", "24", "#ffffff") }}
-            </div>
-            <div class="action-title">{{ get_svg_icon("chart", "20", "#8b5cf6") }} Estadísticas del Sistema</div>
-            <div class="action-description">Métricas detalladas de documentos, embeddings y rendimiento del pipeline
-            </div>
-        </div>
-
-        <div class="action-card" onclick="navigateWithLoading('/visualizations', 'Cargando visualizaciones...')">
+        <div class="action-card"
+            onclick="navigateWithLoading('/visualize/vectors', 'Generando visualización del espacio vectorial...')">
             <div class="action-icon">
                 {{ get_svg_icon("trending-up", "24", "#ffffff") }}
             </div>
-            <div class="action-title">{{ get_svg_icon("bar-chart-2", "20", "#8b5cf6") }} Visualizaciones Avanzadas</div>
-            <div class="action-description">Scatter plots, mapas de vectores, matrices de similitud y filtros por
-                colección. Análisis completo de datos vectoriales.</div>
-        </div>
-
-        <div class="action-card"
-            onclick="navigateWithLoading('/pipeline/visualization', 'Generando visualizaciones...')">
-            <div class="action-icon">
-                {{ get_svg_icon("pie-chart", "24", "#ffffff") }}
-            </div>
-            <div class="action-title">{{ get_svg_icon("trending-up", "20", "#8b5cf6") }} Visualizaciones</div>
-            <div class="action-description">Gráficos interactivos de similitud vectorial y métricas del pipeline</div>
+            <div class="action-title">{{ get_svg_icon("bar-chart-2", "20", "#8b5cf6") }} Espacio Vectorial 2D</div>
+            <div class="action-description">Visualiza la distribución real de chunks y documentos en el espacio
+                vectorial. Observa clusters, overlaps y cómo la similitud funciona geométricamente.</div>
         </div>
 
         <div class="action-card" onclick="navigateWithLoading('/filters/examples', 'Cargando ejemplos...')">
@@ -763,12 +732,6 @@
             <div class="api-description">Documentación interactiva de la API</div>
         </div>
 
-        <div class="api-card" onclick="navigateWithLoading('/manual/embedding?text=test', 'Cargando demo...')">
-            <div class="api-method get">GET</div>
-            <div class="api-endpoint">/manual/embedding</div>
-            <div class="api-description">Demostración de embedding manual</div>
-        </div>
-
         <div class="api-card" onclick="navigateWithLoading('/gpu-status', 'Verificando sistema...')">
             <div class="api-method get">GET</div>
             <div class="api-endpoint">/gpu-status</div>
@@ -779,12 +742,6 @@
             <div class="api-method get">GET</div>
             <div class="api-endpoint">/pipeline/stats</div>
             <div class="api-description">Estadísticas del pipeline y documentos</div>
-        </div>
-
-        <div class="api-card" onclick="navigateWithLoading('/pipeline/visualization', 'Generando gráficos...')">
-            <div class="api-method get">GET</div>
-            <div class="api-endpoint">/pipeline/visualization</div>
-            <div class="api-description">Visualizaciones interactivas del pipeline</div>
         </div>
 
         <div class="api-card" onclick="navigateWithLoading('/demo/pipeline', 'Cargando demo completo...')">
@@ -828,6 +785,18 @@
             // Small delay to show animation before redirect
             setTimeout(() => {
                 window.location.href = `/ai?q=${encodeURIComponent(query.trim())}`;
+            }, 300);
+        }
+    }
+
+    function visualizeSearch() {
+        const query = document.getElementById('searchInput').value;
+        if (query.trim()) {
+            showSearchLoading();
+            showLoading('Generando visualización del espacio vectorial...');
+            // Small delay to show animation before redirect
+            setTimeout(() => {
+                window.location.href = `/visualize/search?q=${encodeURIComponent(query.trim())}&backend=qdrant&k=10`;
             }, 300);
         }
     }

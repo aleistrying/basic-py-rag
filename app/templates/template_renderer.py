@@ -315,6 +315,7 @@ def render_general_response(data: dict, title: str = "Sistema RAG", title_color:
         'page_title': title,
         'title_color': title_color,
         'json_data': json.dumps(data, indent=2, ensure_ascii=False),
+        'config': {},  # Add empty config to avoid template errors
         **data  # Spread the original data fields
     }
 

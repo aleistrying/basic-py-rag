@@ -41,4 +41,5 @@ kaleido
 matplotlib
 seaborn
 scikit-learn
+umap-learn  # For better dimensionality reduction
 numpy

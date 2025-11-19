@@ -596,10 +596,12 @@
         <div class="filter-group">
             <label for="collectionFilter">Filtrar por Colección:</label>
             <select id="collectionFilter" onchange="updateVisualization()">
-                <option value="all" {% if config.collection_type=="all" %}selected{% endif %}>Todas las Colecciones
+                <option value="all" {% if config and config.collection_type=="all" %}selected{% endif %}>Todas las
+                    Colecciones
                 </option>
                 {% for collection in available_collections %}
-                <option value="{{ collection }}" {% if config.collection_type==collection %}selected{% endif %}>{{
+                <option value="{{ collection }}" {% if config and config.collection_type==collection %}selected{% endif
+                    %}>{{
                     collection[:30] }}...</option>
                 {% endfor %}
             </select>
@@ -610,7 +612,8 @@
             <label for="fileTypeFilter">Filtrar por Tipo de Archivo:</label>
             <select id="fileTypeFilter" onchange="updateVisualization()">
                 {% for file_type in file_type_filters %}
-                <option value="{{ file_type }}" {% if config.file_type_filter==file_type %}selected{% endif %}>{{
+                <option value="{{ file_type }}" {% if config and config.file_type_filter==file_type %}selected{% endif
+                    %}>{{
                     file_type|upper }}</option>
                 {% endfor %}
             </select>
@@ -622,8 +625,8 @@
     {% if available_types %}
     <div class="viz-type-buttons">
         {% for viz_type in available_types %}
-        <a href="/visualizations?chart_type={{ viz_type }}&collection_type={{ config.collection_type or 'all' }}&file_type_filter={{ config.file_type_filter or 'all' }}"
-            class="viz-type-btn {% if config.chart_type == viz_type %}active{% endif %}">
+        <a href="/visualizations?chart_type={{ viz_type }}&collection_type={{ config.collection_type if config else 'all' }}&file_type_filter={{ config.file_type_filter if config else 'all' }}"
+            class="viz-type-btn {% if config and config.chart_type == viz_type %}active{% endif %}">
             {{ viz_type|title }}
         </a>
         {% endfor %}
@@ -893,14 +896,14 @@
     function updateVisualization() {
         const collectionFilter = document.getElementById('collectionFilter')?.value || 'all';
         const fileTypeFilter = document.getElementById('fileTypeFilter')?.value || 'all';
-        const currentChartType = '{{ config.chart_type or "overview" }}';
+        const currentChartType = '{{ (config.chart_type if config else "overview") | default("overview") }}';
 
         const params = new URLSearchParams({
             chart_type: currentChartType,
             collection_type: collectionFilter,
             file_type_filter: fileTypeFilter,
-            distance_metric: '{{ config.distance_metric or "cosine" }}',
-            index_algorithm: '{{ config.index_algorithm or "hnsw" }}'
+            distance_metric: '{{ (config.distance_metric if config else "cosine") | default("cosine") }}',
+            index_algorithm: '{{ (config.index_algorithm if config else "hnsw") | default("hnsw") }}'
         });
 
         window.location.href = `/visualizations?${params.toString()}`;
