@@ -387,6 +387,94 @@ def render_manual_search(search_result: dict, query: str) -> str:
 
 
 def render_pretty_json(data: dict) -> str:
+    """Render JSON data with pretty formatting and syntax highlighting"""
+    if not data:
+        return "No data available"
+
+    try:
+        import json
+        json_str = json.dumps(data, indent=2, ensure_ascii=False)
+        return format_json_highlight(json_str)
+    except Exception:
+        return str(data)
+
+
+def render_pipeline_demo(demo_steps: list, query: str, model: str = "phi3:mini",
+                         storage_type: str = "both", distance_metric: str = "cosine",
+                         index_algorithm: str = "hnsw") -> str:
+    """Render pipeline demo using proper templates"""
+    # For now, return a simple HTML structure since we need proper template files
+    # This should be replaced with actual Jinja2 template rendering
+
+    from markupsafe import Markup
+    import json
+
+    # Simple template structure
+    html = f'''
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pipeline RAG Demo - {query}</title>
+    <link rel="stylesheet" href="/static/css/demo.css">
+</head>
+<body>
+    <div class="demo-container">
+        <h1>Pipeline RAG Demo</h1>
+        <div class="config-info">
+            <p><strong>Query:</strong> {query}</p>
+            <p><strong>Model:</strong> {model}</p>
+            <p><strong>Storage:</strong> {storage_type}</p>
+            <p><strong>Distance:</strong> {distance_metric}</p>
+            <p><strong>Algorithm:</strong> {index_algorithm}</p>
+        </div>
+        
+        <div class="steps-container">
+    '''
+
+    for i, step in enumerate(demo_steps, 1):
+        html += f'''
+            <div class="step" id="step-{i}">
+                <h2>Step {i}: {step.get('step', 'Unknown Step')}</h2>
+                <p class="description">{step.get('description', '')}</p>
+                
+                <div class="step-content">
+                    <div class="input-output">
+                        <div class="input-section">
+                            <h3>Input</h3>
+                            <pre>{json.dumps(step.get('input', {}), indent=2, ensure_ascii=False)}</pre>
+                        </div>
+                        <div class="output-section">
+                            <h3>Output</h3>
+                            <pre>{json.dumps(step.get('output', {}), indent=2, ensure_ascii=False)}</pre>
+                        </div>
+                    </div>
+                    
+                    {f"<div class='explanation'><h3>Explanation</h3><p>{step.get('explanation', '')}</p></div>" if step.get('explanation') else ""}
+                    
+                    {f"<div class='code-example'><h3>Code Example</h3><pre><code>{step.get('code_example', '')}</code></pre></div>" if step.get('code_example') else ""}
+                </div>
+            </div>
+        '''
+
+    html += '''
+        </div>
+    </div>
+    
+    <style>
+        .demo-container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .step { margin-bottom: 30px; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
+        .input-output { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .explanation, .code-example { margin-top: 20px; }
+        pre { background: #f5f5f5; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        .config-info { background: #e3f2fd; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+    </style>
+</body>
+</html>
+    '''
+
+    return html
     """Render JSON data in a pretty format"""
     import json
     try:
