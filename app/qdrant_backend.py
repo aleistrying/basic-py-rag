@@ -61,12 +61,13 @@ def search_qdrant(query_emb, k=5, where=None, collection_suffix=None):
             pass
 
     try:
-        res = client.search(
+        from qdrant_client.models import QueryRequest
+        res = client.query_points(
             collection_name=collection,
-            query_vector=query_emb,
+            query=query_emb,
             limit=k,
             query_filter=where
-        )
+        ).points
 
         results = []
         for r in res:

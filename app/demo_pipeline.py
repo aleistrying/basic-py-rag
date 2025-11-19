@@ -1531,22 +1531,22 @@ Desventajas vs Qdrant:
 
             # ANN Search with HNSW
             start_ann = time.time()
-            ann_results = client.search(
+            ann_results = client.query_points(
                 collection_name=collection_name,
-                query_vector=query_embedding,
+                query=query_embedding,
                 limit=5,
                 search_params={"hnsw_ef": 128}  # Search quality parameter
-            )
+            ).points
             ann_time = (time.time() - start_ann) * 1000  # ms
 
             # Exact Search (disable HNSW)
             start_exact = time.time()
-            exact_results = client.search(
+            exact_results = client.query_points(
                 collection_name=collection_name,
-                query_vector=query_embedding,
+                query=query_embedding,
                 limit=5,
                 search_params={"exact": True}  # Force exact search
-            )
+            ).points
             exact_time = (time.time() - start_exact) * 1000  # ms
 
             # Compare results
@@ -1584,20 +1584,20 @@ from qdrant_client import QdrantClient
 client = QdrantClient("localhost", 6333)
 
 # Búsqueda ANN con HNSW (rápida, aproximada)
-ann_results = client.search(
+ann_results = client.query_points(
     collection_name="demo_collection",
-    query_vector=query_embedding,
+    query=query_embedding,
     limit=5,
     search_params={"hnsw_ef": 128}  # Mayor = más preciso
-)
+).points
 
 # Búsqueda Exacta (lenta, precisa al 100%)
-exact_results = client.search(
+exact_results = client.query_points(
     collection_name="demo_collection", 
-    query_vector=query_embedding,
+    query=query_embedding,
     limit=5,
     search_params={"exact": True}
-)
+).points
 """,
                 "explanation": """
 🚀 ANN (Approximate Nearest Neighbor):
