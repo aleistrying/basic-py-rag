@@ -625,6 +625,74 @@ class UnifiedEmbeddingProcessor:
 
         return True
 
+    def process_chunks_file(self, chunks_file_path: Path, clear_first: bool = False):
+        """Process a single chunks file and add to vector databases"""
+        logger.info(
+            f"🔄 Processing single chunks file: {chunks_file_path.name}")
+
+        start_time = time.time()
+
+        # Initialize backends
+        if USE_QDRANT:
+            self.setup_qdrant()
+        if USE_PGVECTOR:
+            self.setup_pgvector()
+
+        # Clear existing data if requested (usually False for uploads)
+        if clear_first:
+            self.clear_databases()
+            if USE_QDRANT:
+                self.setup_qdrant()
+            if USE_PGVECTOR:
+                self.setup_pgvector()
+
+        # Process chunks in batches
+        batch = []
+        total_processed = 0
+        batch_num = 0
+
+        try:
+            # Stream chunks from the single file
+            with open(chunks_file_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    if line.strip():
+                        try:
+                            record = json.loads(line.strip())
+                            batch.append(record)
+
+                            if len(batch) >= self.batch_size:
+                                batch_num += 1
+                                logger.info(
+                                    f"📦 Processing batch {batch_num} ({len(batch)} chunks)")
+
+                                self.process_batch(batch)
+                                total_processed += len(batch)
+                                batch = []
+
+                        except json.JSONDecodeError:
+                            logger.warning(
+                                f"Skipping invalid JSON line in {chunks_file_path.name}")
+                            continue
+
+                # Process final partial batch
+                if batch:
+                    batch_num += 1
+                    logger.info(
+                        f"📦 Processing final batch {batch_num} ({len(batch)} chunks)")
+                    self.process_batch(batch)
+                    total_processed += len(batch)
+
+            elapsed = time.time() - start_time
+            logger.info(f"✅ Single file processing complete!")
+            logger.info(f"📊 Total chunks processed: {total_processed}")
+            logger.info(f"⏱️  Processing time: {elapsed:.1f} seconds")
+
+            return True
+
+        except Exception as e:
+            logger.error(f"❌ Single file processing failed: {e}")
+            return False
+
     def _verify_final_counts(self):
         """Verify final database counts"""
         logger.info("\n📊 Verifying final database counts...")

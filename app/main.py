@@ -6,6 +6,11 @@ import logging
 import pandas as pd
 import subprocess
 import os
+import sys
+import shutil
+import json
+import tempfile
+import time
 from pathlib import Path
 import numpy as np
 from app.rag import search_knowledge_base, generate_llm_answer
@@ -79,6 +84,28 @@ try:
 except ImportError as e:
     print(f"⚠️  Template import error: {e}")
 
+# Import upload processing dependencies
+try:
+    # Add scripts directory to path for imports
+    scripts_dir = Path(__file__).parent.parent / "scripts"
+    if str(scripts_dir) not in sys.path:
+        sys.path.append(str(scripts_dir))
+
+    # Import after adding path
+    from pdf_processing import UnifiedPDFProcessor
+    from chunker import chunk_single_file
+    from embedding_database import UnifiedEmbeddingProcessor
+    from ingest_config import RAW_DIR, CLEAN_DIR, MIN_CHARS
+    print("✅ Upload processing dependencies loaded successfully")
+except ImportError as e:
+    print(f"⚠️  Upload processing import error: {e}")
+    UnifiedPDFProcessor = None
+    chunk_single_file = None
+    UnifiedEmbeddingProcessor = None
+    RAW_DIR = "/app/data/raw"
+    CLEAN_DIR = "/app/data/clean"
+    MIN_CHARS = 50
+
 # Setup logger
 logger = logging.getLogger(__name__)
 
@@ -86,8 +113,141 @@ app = FastAPI(title="RAG Demo - Qdrant vs PGvector Postgres")
 
 
 # ================================
+# UPLOAD FILE MANAGEMENT ROUTES
+# ================================
+
+@app.post("/upload")
+async def upload_document(file: UploadFile = File(...)):
+    """Upload and save a document (PDF, TXT, MD, YAML)"""
+    try:
+        # Validate file type
+        allowed_extensions = {'.pdf', '.txt', '.md', '.yaml', '.yml'}
+        file_ext = Path(file.filename).suffix.lower()
+
+        if file_ext not in allowed_extensions:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": f"Tipo de archivo no permitido. Permitidos: {', '.join(allowed_extensions)}"}
+            )
+
+        # Check file size (10MB limit)
+        content = await file.read()
+        if len(content) > 10 * 1024 * 1024:  # 10MB
+            return JSONResponse(
+                status_code=400,
+                content={"error": "Archivo muy grande. Máximo 10MB."}
+            )
+
+        # Ensure raw directory exists
+        raw_dir = Path("/app/data/raw")
+        raw_dir.mkdir(parents=True, exist_ok=True)
+
+        # Save file to raw directory
+        file_path = raw_dir / file.filename
+        with open(file_path, "wb") as f:
+            f.write(content)
+
+        logger.info(f"✅ File uploaded: {file.filename} ({len(content)} bytes)")
+
+        return JSONResponse(content={
+            "success": True,
+            "filename": file.filename,
+            "file_size": len(content),
+            "message": "Archivo guardado exitosamente.",
+            "saved_path": str(file_path),
+            "instructions": "Para procesarlo y añadirlo a la base vectorial, use el pipeline."
+        })
+
+    except Exception as e:
+        logger.error(f"Upload error: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Error guardando archivo: {str(e)}"}
+        )
+
+
+@app.get("/upload/list")
+async def list_uploaded_files():
+    """List all uploaded files in /app/data/raw"""
+    try:
+        raw_dir = Path("/app/data/raw")
+        if not raw_dir.exists():
+            return JSONResponse(content={"files": [], "total": 0})
+
+        files = []
+        for file_path in raw_dir.iterdir():
+            if file_path.is_file():
+                stat = file_path.stat()
+                files.append({
+                    "filename": file_path.name,
+                    "size": stat.st_size,
+                    "size_mb": round(stat.st_size / 1024 / 1024, 2),
+                    "created": stat.st_ctime,
+                    "modified": stat.st_mtime,
+                    "extension": file_path.suffix.lower()
+                })
+
+        files.sort(key=lambda x: x["modified"], reverse=True)
+        return JSONResponse(content={
+            "success": True,
+            "files": files,
+            "total": len(files)
+        })
+
+    except Exception as e:
+        logger.error(f"List files error: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Error listando archivos: {str(e)}"}
+        )
+
+
+@app.delete("/upload/{filename}")
+async def delete_uploaded_file(filename: str):
+    """Delete an uploaded file from /app/data/raw"""
+    try:
+        raw_dir = Path("/app/data/raw")
+        file_path = raw_dir / filename
+
+        if not file_path.exists():
+            return JSONResponse(
+                status_code=404,
+                content={"error": f"Archivo {filename} no encontrado"}
+            )
+
+        if not file_path.is_file():
+            return JSONResponse(
+                status_code=400,
+                content={"error": f"{filename} no es un archivo válido"}
+            )
+
+        # Get file info before deletion
+        stat = file_path.stat()
+        file_size = stat.st_size
+
+        # Delete the file
+        file_path.unlink()
+
+        logger.info(f"✅ File deleted: {filename} ({file_size} bytes)")
+
+        return JSONResponse(content={
+            "success": True,
+            "message": f"Archivo {filename} eliminado exitosamente",
+            "filename": filename,
+            "size_deleted": file_size
+        })
+
+    except Exception as e:
+        logger.error(f"Delete file error: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Error eliminando archivo: {str(e)}"}
+        )
+# ================================
 # ROUTE HANDLERS
 # ================================
+
 
 @app.get("/ask", response_class=HTMLResponse)
 def ask(

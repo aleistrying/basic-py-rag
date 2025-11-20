@@ -421,6 +421,146 @@
         line-height: 1.4;
     }
 
+    /* Upload section styling */
+    .upload-section {
+        background: linear-gradient(135deg, #1e3a8a 0%, #3730a3 50%, #6366f1 100%);
+        border-radius: 20px;
+        padding: 40px 30px;
+        margin: 30px 0;
+        text-align: center;
+        box-shadow: 0 20px 40px rgba(30, 58, 138, 0.3);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .upload-title {
+        font-size: 24px;
+        font-weight: 700;
+        color: white;
+        margin-bottom: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+    }
+
+    .upload-area {
+        background: rgba(255, 255, 255, 0.1);
+        border: 2px dashed rgba(255, 255, 255, 0.4);
+        border-radius: 16px;
+        padding: 40px 20px;
+        margin: 20px 0;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        backdrop-filter: blur(10px);
+    }
+
+    .upload-area:hover {
+        background: rgba(255, 255, 255, 0.15);
+        border-color: rgba(255, 255, 255, 0.6);
+        transform: translateY(-2px);
+    }
+
+    .upload-area.dragover {
+        background: rgba(139, 92, 246, 0.3);
+        border-color: #8b5cf6;
+        transform: scale(1.02);
+    }
+
+    .upload-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 20px;
+    }
+
+    .upload-icon {
+        opacity: 0.8;
+        transition: all 0.3s ease;
+    }
+
+    .upload-area:hover .upload-icon {
+        opacity: 1;
+        transform: scale(1.1);
+    }
+
+    .upload-text h4 {
+        color: white;
+        margin: 0 0 10px 0;
+        font-size: 18px;
+        font-weight: 600;
+    }
+
+    .upload-text p {
+        color: rgba(255, 255, 255, 0.8);
+        margin: 0;
+        font-size: 14px;
+    }
+
+    .upload-progress {
+        margin: 20px 0;
+    }
+
+    .progress-bar {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 10px;
+        height: 8px;
+        overflow: hidden;
+        margin-bottom: 10px;
+    }
+
+    .progress-fill {
+        background: linear-gradient(90deg, #10b981, #059669);
+        height: 100%;
+        width: 0%;
+        transition: width 0.3s ease;
+        border-radius: 10px;
+    }
+
+    .progress-text {
+        color: white;
+        font-size: 14px;
+        font-weight: 500;
+    }
+
+    .upload-results {
+        margin: 20px 0;
+    }
+
+    .results-list {
+        text-align: left;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 20px;
+        backdrop-filter: blur(10px);
+    }
+
+    .result-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        color: white;
+        font-size: 14px;
+    }
+
+    .result-item:last-child {
+        border-bottom: none;
+    }
+
+    .result-item.success {
+        color: #10b981;
+    }
+
+    .result-item.error {
+        color: #f87171;
+    }
+
+    .result-item.processing {
+        color: #fbbf24;
+    }
+
     /* Navigation section */
     .nav-section {
         text-align: center;
@@ -486,6 +626,18 @@
             flex-direction: column;
             align-items: center;
         }
+
+        .upload-area {
+            padding: 30px 15px;
+        }
+
+        .upload-text h4 {
+            font-size: 16px;
+        }
+
+        .upload-text p {
+            font-size: 12px;
+        }
     }
 </style>
 {% endblock %}
@@ -524,6 +676,17 @@
             style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); margin-left: 10px;">
             {{ get_svg_icon("trending-up", "18", "#ffffff") }} Visualizar
         </button>
+        <label for="fileUpload" class="search-btn"
+            style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); margin-left: 10px; cursor: pointer;">
+            {{ get_svg_icon("upload", "18", "#ffffff") }} Subir Archivo
+        </label>
+        <input type="file" id="fileUpload" accept=".pdf,.txt,.md,.yaml,.yml" style="display: none;"
+            onchange="handleFileUpload(this)">
+
+        <button class="search-btn" onclick="showFileManager()" id="fileManagerButton"
+            style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); margin-left: 10px;">
+            {{ get_svg_icon("folder", "18", "#ffffff") }} Ver Archivos
+        </button>
     </div>
 
     <!-- Loading indicator -->
@@ -560,6 +723,36 @@
                 {{ get_svg_icon("book", "16", "#ffffff") }} Similitud
             </a>
         </div>
+    </div>
+</div>
+
+<!-- Document Upload Section -->
+<div class="upload-section">
+    <div class="upload-title">
+        {{ get_svg_icon("upload-cloud", "24", "#ffffff") }} Subir Documentos
+    </div>
+    <div class="upload-area" id="uploadArea">
+        <div class="upload-content">
+            <div class="upload-icon">
+                {{ get_svg_icon("file-plus", "48", "#8b5cf6") }}
+            </div>
+            <div class="upload-text">
+                <h4>Arrastra documentos aquí o haz clic para seleccionar</h4>
+                <p>PDF, TXT, MD, YAML - Máximo 10 MB por archivo</p>
+            </div>
+            <input type="file" id="fileInput" multiple accept=".pdf,.txt,.md,.yaml,.yml" style="display: none;">
+        </div>
+    </div>
+
+    <div class="upload-progress" id="uploadProgress" style="display: none;">
+        <div class="progress-bar">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div class="progress-text" id="progressText">Subiendo archivo...</div>
+    </div>
+
+    <div class="upload-results" id="uploadResults" style="display: none;">
+        <div class="results-list" id="resultsList"></div>
     </div>
 </div>
 
@@ -812,6 +1005,62 @@
         }
     }
 
+    // File upload handler
+    function handleFileUpload(input) {
+        const file = input.files[0];
+        if (!file) return;
+
+        // Validate file type
+        const allowedTypes = ['.pdf', '.txt', '.md', '.yaml', '.yml'];
+        const fileExt = '.' + file.name.split('.').pop().toLowerCase();
+
+        if (!allowedTypes.includes(fileExt)) {
+            alert(`Tipo de archivo no permitido: ${file.name}\\nTipos permitidos: ${allowedTypes.join(', ')}`);
+            return;
+        }
+
+        // Validate file size (10MB)
+        if (file.size > 10 * 1024 * 1024) {
+            alert(`Archivo muy grande: ${file.name}\\nTamaño máximo: 10MB`);
+            return;
+        }
+
+        // Show loading
+        showLoading(`Subiendo y procesando: ${file.name}...`);
+
+        // Create form data and upload
+        const formData = new FormData();
+        formData.append('file', file);
+
+        fetch('/upload', {
+            method: 'POST',
+            body: formData
+        })
+            .then(response => response.json())
+            .then(data => {
+                hideLoading();
+
+                if (data.success) {
+                    alert(`✅ ¡Archivo procesado exitosamente!\\n\\n` +
+                        `📄 Archivo: ${data.filename}\\n` +
+                        `📊 Chunks creados: ${data.chunks_created}\\n` +
+                        `💬 ${data.message}\\n\\n` +
+                        `Ya puedes buscar en este documento.`);
+                } else {
+                    alert(`❌ Error al procesar archivo:\\n\\n${data.error}`);
+                }
+            })
+            .catch(error => {
+                hideLoading();
+                console.error('Upload error:', error);
+                alert(`❌ Error de conexión:\\n\\n${error.message}`);
+            })
+            .finally(() => {
+                // Reset file input
+                input.value = '';
+            });
+    }
+
     // Add loading to feature cards
     function navigateWithLoading(url, message) {
         showLoading(message);
@@ -883,6 +1132,485 @@
         }
 
         setInterval(cycleExamples, 3000);
+
+        // Upload functionality
+        setupUploadArea();
     });
+
+    // File upload functionality
+    function setupUploadArea() {
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const progressDiv = document.getElementById('uploadProgress');
+        const resultsDiv = document.getElementById('uploadResults');
+        const resultsList = document.getElementById('resultsList');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+
+        // Click to select files
+        uploadArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        // File selection handler
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+
+        // Drag and drop handlers
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        function handleFiles(files) {
+            if (files.length === 0) return;
+
+            // Validate files
+            const allowedTypes = ['.pdf', '.txt', '.md', '.yaml', '.yml'];
+            const maxSize = 10 * 1024 * 1024; // 10MB
+            const validFiles = [];
+
+            for (let file of files) {
+                const fileExt = '.' + file.name.split('.').pop().toLowerCase();
+                if (!allowedTypes.includes(fileExt)) {
+                    alert(`Tipo de archivo no permitido: ${file.name}\nTipos permitidos: ${allowedTypes.join(', ')}`);
+                    continue;
+                }
+                if (file.size > maxSize) {
+                    alert(`Archivo muy grande: ${file.name}\nTamaño máximo: 10MB`);
+                    continue;
+                }
+                validFiles.push(file);
+            }
+
+            if (validFiles.length === 0) return;
+
+            // Upload files
+            uploadFiles(validFiles);
+        }
+
+        async function uploadFiles(files) {
+            progressDiv.style.display = 'block';
+            resultsDiv.style.display = 'block';
+            resultsList.innerHTML = '';
+
+            let completed = 0;
+            const total = files.length;
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+
+                // Add processing item
+                const resultItem = document.createElement('div');
+                resultItem.className = 'result-item processing';
+                resultItem.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 6v6l4 2"/>
+                    </svg>
+                    Procesando: ${file.name}
+                `;
+                resultsList.appendChild(resultItem);
+
+                try {
+                    const formData = new FormData();
+                    formData.append('file', file);
+
+                    progressText.textContent = `Subiendo ${file.name}... (${i + 1}/${total})`;
+
+                    const response = await fetch('/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const result = await response.json();
+
+                    // Update result item
+                    if (response.ok) {
+                        resultItem.className = 'result-item success';
+                        resultItem.innerHTML = `
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M20 6L9 17l-5-5"/>
+                            </svg>
+                            ✅ ${file.name} - ${result.chunks_created || 0} chunks creados
+                        `;
+                    } else {
+                        resultItem.className = 'result-item error';
+                        resultItem.innerHTML = `
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <line x1="15" y1="9" x2="9" y2="15"/>
+                                <line x1="9" y1="9" x2="15" y2="15"/>
+                            </svg>
+                            ❌ Error en ${file.name}: ${result.error || 'Error desconocido'}
+                        `;
+                    }
+                } catch (error) {
+                    resultItem.className = 'result-item error';
+                    resultItem.innerHTML = `
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="15" y1="9" x2="9" y2="15"/>
+                            <line x1="9" y1="9" x2="15" y2="15"/>
+                        </svg>
+                        ❌ Error de conexión: ${file.name}
+                    `;
+                }
+
+                completed++;
+                const progress = (completed / total) * 100;
+                progressFill.style.width = `${progress}%`;
+
+                if (completed === total) {
+                    progressText.textContent = `Completado: ${total} archivo${total > 1 ? 's' : ''} procesado${total > 1 ? 's' : ''}`;
+
+                    // Auto-hide progress after 3 seconds
+                    setTimeout(() => {
+                        progressDiv.style.display = 'none';
+                    }, 3000);
+                }
+            }
+
+            // Reset file input
+            fileInput.value = '';
+        }
+    }
+
+    // ================================
+    // FILE MANAGER FUNCTIONALITY
+    // ================================
+
+    function showFileManager() {
+        const modal = document.getElementById('fileManagerModal');
+        modal.style.display = 'flex';
+        loadFileList();
+    }
+
+    function hideFileManager() {
+        const modal = document.getElementById('fileManagerModal');
+        modal.style.display = 'none';
+    }
+
+    async function loadFileList() {
+        const fileList = document.getElementById('fileList');
+        fileList.innerHTML = '<p>Cargando archivos...</p>';
+
+        try {
+            const response = await fetch('/upload/list');
+            const data = await response.json();
+
+            if (data.success && data.files.length > 0) {
+                const fileItems = data.files.map(file => `
+                    <div class="file-item" data-filename="${file.filename}">
+                        <div class="file-info">
+                            <div class="file-name">${file.filename}</div>
+                            <div class="file-details">
+                                <span class="file-size">${file.size_mb} MB</span>
+                                <span class="file-type">${file.extension.toUpperCase()}</span>
+                                <span class="file-date">${new Date(file.modified * 1000).toLocaleDateString()}</span>
+                            </div>
+                        </div>
+                        <button class="delete-btn" onclick="deleteFile('${file.filename}')" 
+                                title="Eliminar archivo">
+                            🗑️
+                        </button>
+                    </div>
+                `).join('');
+
+                fileList.innerHTML = `
+                    <div class="files-header">
+                        <h4>📁 Archivos Subidos (${data.total})</h4>
+                        <p>Total: ${data.total_size_mb || 0} MB</p>
+                    </div>
+                    <div class="files-container">${fileItems}</div>
+                `;
+            } else {
+                fileList.innerHTML = '<p class="no-files">📭 No hay archivos subidos aún.</p>';
+            }
+        } catch (error) {
+            console.error('Error loading files:', error);
+            fileList.innerHTML = '<p class="error">❌ Error cargando archivos.</p>';
+        }
+    }
+
+    async function deleteFile(filename) {
+        if (!confirm(`¿Seguro que desea eliminar "${filename}"?`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/upload/${filename}`, {
+                method: 'DELETE'
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                // Refresh file list
+                loadFileList();
+
+                // Show success message
+                const fileList = document.getElementById('fileList');
+                const successMsg = document.createElement('div');
+                successMsg.className = 'success-message';
+                successMsg.innerHTML = `✅ ${data.message}`;
+                fileList.prepend(successMsg);
+
+                setTimeout(() => successMsg.remove(), 3000);
+            } else {
+                alert(`Error: ${data.error}`);
+            }
+        } catch (error) {
+            console.error('Error deleting file:', error);
+            alert('Error eliminando archivo');
+        }
+    }
 </script>
+
+<!-- File Manager Modal -->
+<div id="fileManagerModal" class="file-modal">
+    <div class="file-modal-content">
+        <div class="modal-header">
+            <h3>📂 Gestión de Archivos</h3>
+            <button class="close-btn" onclick="hideFileManager()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div id="fileList">
+                <p>Cargando archivos...</p>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-secondary" onclick="hideFileManager()">Cerrar</button>
+            <button class="btn-primary" onclick="loadFileList()">Actualizar Lista</button>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* File Manager Modal Styles */
+    .file-modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.8);
+        justify-content: center;
+        align-items: center;
+        z-index: 10001;
+        backdrop-filter: blur(5px);
+    }
+
+    .file-modal-content {
+        background: white;
+        border-radius: 15px;
+        max-width: 700px;
+        width: 90%;
+        max-height: 80vh;
+        overflow: hidden;
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+        animation: modalSlideIn 0.3s ease-out;
+    }
+
+    @keyframes modalSlideIn {
+        from {
+            transform: translateY(-50px);
+            opacity: 0;
+        }
+
+        to {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    }
+
+    .modal-header {
+        background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+        color: white;
+        padding: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .modal-header h3 {
+        margin: 0;
+        font-size: 20px;
+    }
+
+    .close-btn {
+        background: none;
+        border: none;
+        color: white;
+        font-size: 24px;
+        cursor: pointer;
+        padding: 0;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.3s;
+    }
+
+    .close-btn:hover {
+        background: rgba(255, 255, 255, 0.2);
+    }
+
+    .modal-body {
+        padding: 20px;
+        max-height: 400px;
+        overflow-y: auto;
+    }
+
+    .modal-footer {
+        padding: 15px 20px;
+        border-top: 1px solid #e5e7eb;
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+    }
+
+    .btn-primary,
+    .btn-secondary {
+        padding: 8px 16px;
+        border-radius: 8px;
+        border: none;
+        cursor: pointer;
+        font-size: 14px;
+        transition: all 0.3s;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+        color: white;
+    }
+
+    .btn-primary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+    }
+
+    .btn-secondary {
+        background: #f3f4f6;
+        color: #374151;
+    }
+
+    .btn-secondary:hover {
+        background: #e5e7eb;
+    }
+
+    .files-header {
+        background: #f9fafb;
+        padding: 15px;
+        border-radius: 10px;
+        margin-bottom: 15px;
+        text-align: center;
+    }
+
+    .files-header h4 {
+        margin: 0 0 5px 0;
+        color: #374151;
+    }
+
+    .files-header p {
+        margin: 0;
+        color: #6b7280;
+        font-size: 14px;
+    }
+
+    .file-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        margin-bottom: 8px;
+        background: #fafafa;
+        transition: all 0.3s;
+    }
+
+    .file-item:hover {
+        background: #f3f4f6;
+        border-color: #8b5cf6;
+    }
+
+    .file-info {
+        flex: 1;
+    }
+
+    .file-name {
+        font-weight: 600;
+        color: #374151;
+        margin-bottom: 4px;
+    }
+
+    .file-details {
+        display: flex;
+        gap: 10px;
+        font-size: 12px;
+        color: #6b7280;
+    }
+
+    .file-size,
+    .file-type,
+    .file-date {
+        background: #e5e7eb;
+        padding: 2px 6px;
+        border-radius: 4px;
+    }
+
+    .delete-btn {
+        background: #fee2e2;
+        border: 1px solid #fecaca;
+        color: #dc2626;
+        padding: 6px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: all 0.3s;
+    }
+
+    .delete-btn:hover {
+        background: #fecaca;
+        transform: scale(1.05);
+    }
+
+    .no-files,
+    .error {
+        text-align: center;
+        padding: 40px 20px;
+        color: #6b7280;
+        font-style: italic;
+    }
+
+    .error {
+        color: #dc2626;
+    }
+
+    .success-message {
+        background: #d1fae5;
+        color: #065f46;
+        padding: 10px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        text-align: center;
+        border: 1px solid #a7f3d0;
+    }
+</style>
+
 {% endblock %}

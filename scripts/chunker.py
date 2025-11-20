@@ -243,6 +243,32 @@ def chunk_jsonl(clean_jsonl_path: Path) -> Path:
         raise
 
 
+def chunk_single_file(clean_file_path: str) -> str:
+    """
+    Chunk a single clean JSONL file
+    Returns path to the chunks file
+    """
+    clean_file = Path(clean_file_path)
+
+    if not clean_file.exists():
+        raise FileNotFoundError(f"Clean file not found: {clean_file_path}")
+
+    try:
+        chunk_file = chunk_jsonl(clean_file)
+
+        # Verify chunks were created
+        with open(chunk_file, "r") as f:
+            file_chunks = sum(1 for _ in f)
+
+        if file_chunks == 0:
+            raise ValueError("No chunks were generated")
+
+        return str(chunk_file)
+
+    except Exception as e:
+        raise RuntimeError(f"Failed to chunk file {clean_file.name}: {e}")
+
+
 def chunk_all_clean_files():
     """Chunk all clean JSONL files"""
     clean_path = Path(CLEAN_DIR)
