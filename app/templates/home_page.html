@@ -676,16 +676,14 @@
             style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); margin-left: 10px;">
             {{ get_svg_icon("trending-up", "18", "#ffffff") }} Visualizar
         </button>
-        <label for="fileUpload" class="search-btn"
-            style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); margin-left: 10px; cursor: pointer;">
-            {{ get_svg_icon("upload", "18", "#ffffff") }} Subir Archivo
-        </label>
-        <input type="file" id="fileUpload" accept=".pdf,.txt,.md,.yaml,.yml" style="display: none;"
-            onchange="handleFileUpload(this)">
+        <button class="search-btn" onclick="navigateWithLoading('/files/manager', 'Cargando gestión de archivos...')"
+            style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); margin-left: 10px;">
+            {{ get_svg_icon("folder-open", "18", "#ffffff") }} Gestión de Archivos
+        </button>
 
-        <button class="search-btn" onclick="showFileManager()" id="fileManagerButton"
-            style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); margin-left: 10px;">
-            {{ get_svg_icon("folder", "18", "#ffffff") }} Ver Archivos
+        <button class="search-btn" onclick="showPipelineProcessor()" id="pipelineButton"
+            style="background: linear-gradient(135deg, #059669 0%, #065f46 100%); margin-left: 10px;">
+            {{ get_svg_icon("cpu", "18", "#ffffff") }} Procesar Archivos
         </button>
     </div>
 
@@ -726,33 +724,34 @@
     </div>
 </div>
 
-<!-- Document Upload Section -->
+<!-- File Management Section -->
 <div class="upload-section">
     <div class="upload-title">
-        {{ get_svg_icon("upload-cloud", "24", "#ffffff") }} Subir Documentos
+        {{ get_svg_icon("folder-open", "24", "#ffffff") }} Gestión de Documentos
     </div>
-    <div class="upload-area" id="uploadArea">
+    <div class="upload-area" onclick="navigateWithLoading('/files/manager', 'Cargando gestión de archivos...')"
+        style="cursor: pointer;">
         <div class="upload-content">
             <div class="upload-icon">
-                {{ get_svg_icon("file-plus", "48", "#8b5cf6") }}
+                {{ get_svg_icon("settings", "48", "#8b5cf6") }}
             </div>
             <div class="upload-text">
-                <h4>Arrastra documentos aquí o haz clic para seleccionar</h4>
-                <p>PDF, TXT, MD, YAML - Máximo 10 MB por archivo</p>
+                <h4>Accede a la Gestión Completa de Archivos</h4>
+                <p>Sube, administra y procesa documentos • Configura el pipeline • Visualiza estadísticas</p>
             </div>
-            <input type="file" id="fileInput" multiple accept=".pdf,.txt,.md,.yaml,.yml" style="display: none;">
         </div>
     </div>
 
-    <div class="upload-progress" id="uploadProgress" style="display: none;">
-        <div class="progress-bar">
-            <div class="progress-fill" id="progressFill"></div>
-        </div>
-        <div class="progress-text" id="progressText">Subiendo archivo...</div>
-    </div>
-
-    <div class="upload-results" id="uploadResults" style="display: none;">
-        <div class="results-list" id="resultsList"></div>
+    <div style="text-align: center; margin: 20px 0;">
+        <p style="color: rgba(255, 255, 255, 0.8); margin-bottom: 15px;">
+            🚀 <strong>Funcionalidades Completas:</strong> Upload masivo, configuración de algoritmos,
+            procesamiento con todos los parámetros, visualización de chunks y estadísticas en tiempo real
+        </p>
+        <button onclick="navigateWithLoading('/files/manager', 'Cargando...')" style="background: linear-gradient(135deg, #10b981, #059669); color: white; border: none; 
+                       border-radius: 12px; padding: 15px 30px; font-weight: 600; cursor: pointer; 
+                       transition: all 0.3s ease;">
+            🗂️ Abrir Gestión de Archivos
+        </button>
     </div>
 </div>
 
@@ -800,6 +799,15 @@
             <div class="action-title">Pipeline RAG Completo</div>
             <div class="action-description">Demostración paso a paso de todo el pipeline RAG desde texto a respuesta
             </div>
+        </div>
+
+        <div class="action-card" onclick="navigateWithLoading('/files/manager', 'Cargando gestión de archivos...')">
+            <div class="action-icon">
+                {{ get_svg_icon("folder-open", "24", "#ffffff") }}
+            </div>
+            <div class="action-title">📁 Gestión de Archivos</div>
+            <div class="action-description">Administra documentos, configura pipeline y procesa archivos con todas las
+                opciones disponibles</div>
         </div>
 
         <div class="action-card" onclick="navigateWithLoading('/pipeline', 'Cargando gestión de pipeline...')">
@@ -1025,8 +1033,11 @@
             return;
         }
 
-        // Show loading
-        showLoading(`Subiendo y procesando: ${file.name}...`);
+        // Show loading overlay
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const loadingText = document.querySelector('#loadingOverlay .loading-text');
+        loadingText.textContent = `Subiendo: ${file.name}...`;
+        loadingOverlay.classList.add('active');
 
         // Create form data and upload
         const formData = new FormData();
@@ -1038,22 +1049,30 @@
         })
             .then(response => response.json())
             .then(data => {
-                hideLoading();
+                // Hide loading overlay
+                loadingOverlay.classList.remove('active');
 
                 if (data.success) {
-                    alert(`✅ ¡Archivo procesado exitosamente!\\n\\n` +
+                    // Show success message
+                    alert(`✅ ¡Archivo subido exitosamente!\\n\\n` +
                         `📄 Archivo: ${data.filename}\\n` +
-                        `📊 Chunks creados: ${data.chunks_created}\\n` +
+                        `📂 Tamaño: ${(data.file_size / 1024 / 1024).toFixed(2)} MB\\n` +
                         `💬 ${data.message}\\n\\n` +
-                        `Ya puedes buscar en este documento.`);
+                        `El archivo está guardado y listo para ser procesado.`);
+
+                    // Automatically show file manager to see the uploaded file
+                    setTimeout(() => {
+                        showFileManager();
+                    }, 500);
                 } else {
-                    alert(`❌ Error al procesar archivo:\\n\\n${data.error}`);
+                    alert(`❌ Error al subir archivo:\\n\\n${data.error}`);
                 }
             })
             .catch(error => {
-                hideLoading();
+                // Hide loading overlay
+                loadingOverlay.classList.remove('active');
                 console.error('Upload error:', error);
-                alert(`❌ Error de conexión:\\n\\n${error.message}`);
+                alert(`❌ Error de conexión:\\n\\n${error.message || error}`);
             })
             .finally(() => {
                 // Reset file input
@@ -1315,17 +1334,23 @@
                 const fileItems = data.files.map(file => `
                     <div class="file-item" data-filename="${file.filename}">
                         <div class="file-info">
-                            <div class="file-name">${file.filename}</div>
+                            <div class="file-name">📄 ${file.filename}</div>
                             <div class="file-details">
-                                <span class="file-size">${file.size_mb} MB</span>
-                                <span class="file-type">${file.extension.toUpperCase()}</span>
-                                <span class="file-date">${new Date(file.modified * 1000).toLocaleDateString()}</span>
+                                <span class="file-size">📊 ${file.size_mb} MB</span>
+                                <span class="file-type">🏷️ ${file.extension.toUpperCase()}</span>
+                                <span class="file-date">📅 ${new Date(file.modified * 1000).toLocaleDateString()}</span>
                             </div>
                         </div>
-                        <button class="delete-btn" onclick="deleteFile('${file.filename}')" 
-                                title="Eliminar archivo">
-                            🗑️
-                        </button>
+                        <div class="file-actions">
+                            <button class="action-btn view-btn" onclick="viewFileDetails('${file.filename}', ${file.size}, '${file.extension}')" 
+                                    title="Ver detalles del archivo">
+                                👁️ Ver
+                            </button>
+                            <button class="action-btn delete-btn" onclick="deleteFile('${file.filename}')" 
+                                    title="Eliminar archivo">
+                                🗑️ Eliminar
+                            </button>
+                        </div>
                     </div>
                 `).join('');
 
@@ -1342,6 +1367,127 @@
         } catch (error) {
             console.error('Error loading files:', error);
             fileList.innerHTML = '<p class="error">❌ Error cargando archivos.</p>';
+        }
+    }
+
+    function viewFileDetails(filename, size, extension) {
+        const sizeInMB = (size / 1024 / 1024).toFixed(2);
+        const details = `📋 **Detalles del Archivo**\n\n` +
+            `📄 **Nombre:** ${filename}\n` +
+            `📊 **Tamaño:** ${sizeInMB} MB (${size.toLocaleString()} bytes)\n` +
+            `🏷️ **Tipo:** ${extension.toUpperCase()}\n` +
+            `📁 **Ubicación:** /app/data/raw/\n\n` +
+            `💡 **Nota:** Para procesar este archivo y añadirlo a la búsqueda vectorial, use el botón "Procesar Archivos".`;
+
+        alert(details);
+    }
+
+    function showPipelineProcessor() {
+        const modal = document.getElementById('pipelineModal');
+        modal.style.display = 'flex';
+        checkPipelineStatus();
+    }
+
+    function hidePipelineProcessor() {
+        const modal = document.getElementById('pipelineModal');
+        modal.style.display = 'none';
+    }
+
+    async function checkPipelineStatus() {
+        const statusDiv = document.getElementById('pipelineStatus');
+        statusDiv.innerHTML = '🔍 Verificando archivos...';
+
+        try {
+            const response = await fetch('/upload/list');
+            const data = await response.json();
+
+            if (data.success && data.files.length > 0) {
+                statusDiv.innerHTML = `📁 ${data.files.length} archivo(s) disponible(s) para procesar (${data.total_size_mb || 0} MB total)`;
+            } else {
+                statusDiv.innerHTML = '📭 No hay archivos para procesar. Suba archivos primero.';
+            }
+        } catch (error) {
+            statusDiv.innerHTML = '❌ Error verificando archivos.';
+        }
+    }
+
+    async function runPipeline() {
+        const form = document.getElementById('pipelineForm');
+        const formData = new FormData(form);
+
+        // Build pipeline command from form data
+        let commandArgs = [];
+
+        if (formData.get('clearDatabases')) commandArgs.push('--clear');
+        if (formData.get('forceReprocess')) commandArgs.push('--force');
+        if (formData.get('basicExtraction')) commandArgs.push('--basic');
+        if (formData.get('memorySafe')) commandArgs.push('--memory-safe');
+        if (formData.get('largeDocs')) commandArgs.push('--large-docs');
+        if (formData.get('parallelProcessing')) commandArgs.push('--parallel');
+        if (formData.get('singleCombination')) commandArgs.push('--single-combination');
+
+        const batchSize = formData.get('batchSize');
+        if (batchSize) {
+            commandArgs.push('--batch-size');
+            commandArgs.push(batchSize);
+        }
+
+        const workers = formData.get('workers');
+        if (workers) {
+            commandArgs.push('--workers');
+            commandArgs.push(workers);
+        }
+
+        const distanceMetric = formData.get('distanceMetric');
+        if (distanceMetric && distanceMetric !== 'cosine') {
+            commandArgs.push('--distance-metric');
+            commandArgs.push(distanceMetric);
+        }
+
+        const indexAlgorithm = formData.get('indexAlgorithm');
+        if (indexAlgorithm && indexAlgorithm !== 'hnsw') {
+            commandArgs.push('--index-algorithm');
+            commandArgs.push(indexAlgorithm);
+        }
+
+        // Show loading
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const loadingText = document.querySelector('#loadingOverlay .loading-text');
+        loadingText.textContent = '🔄 Ejecutando pipeline de procesamiento...';
+        loadingOverlay.classList.add('active');
+
+        try {
+            // Use the existing pipeline execution endpoint
+            const response = await fetch('/demo/pipeline', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    args: commandArgs,
+                    command: 'main_pipeline.py'
+                })
+            });
+
+            const result = await response.json();
+
+            loadingOverlay.classList.remove('active');
+
+            if (response.ok) {
+                alert(`✅ Pipeline ejecutado exitosamente!\n\n📊 Resultados:\n${result.message || 'Procesamiento completado'}\n\n🔍 Los archivos han sido procesados y están disponibles para búsqueda.`);
+                hidePipelineProcessor();
+
+                // Refresh file list to show processing status
+                if (document.getElementById('fileManagerModal').style.display === 'flex') {
+                    loadFileList();
+                }
+            } else {
+                alert(`❌ Error en el pipeline:\n\n${result.error || 'Error desconocido'}`);
+            }
+        } catch (error) {
+            loadingOverlay.classList.remove('active');
+            console.error('Pipeline error:', error);
+            alert(`❌ Error de conexión:\n\n${error.message}\n\n💡 Tip: También puede ejecutar manualmente:\npython scripts/main_pipeline.py ${commandArgs.join(' ')}`);
         }
     }
 
@@ -1393,6 +1539,120 @@
         <div class="modal-footer">
             <button class="btn-secondary" onclick="hideFileManager()">Cerrar</button>
             <button class="btn-primary" onclick="loadFileList()">Actualizar Lista</button>
+        </div>
+    </div>
+</div>
+
+<!-- Pipeline Processor Modal -->
+<div id="pipelineModal" class="file-modal pipeline-modal">
+    <div class="file-modal-content pipeline-modal-content">
+        <div class="modal-header">
+            <h3>⚙️ Procesador de Pipeline RAG</h3>
+            <button class="close-btn" onclick="hidePipelineProcessor()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div id="pipelineStatus" class="pipeline-status">
+                🔍 Verificando archivos...
+            </div>
+
+            <form id="pipelineForm" class="pipeline-form">
+                <div class="form-section">
+                    <h4>🗄️ Configuración de Base de Datos</h4>
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="clearDatabases" checked>
+                        <span class="checkmark"></span>
+                        Limpiar bases de datos antes de procesar
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="forceReprocess">
+                        <span class="checkmark"></span>
+                        Forzar reprocesamiento de archivos existentes
+                    </label>
+                </div>
+
+                <div class="form-section">
+                    <h4>🔧 Configuración de Extracción</h4>
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="basicExtraction">
+                        <span class="checkmark"></span>
+                        Usar extracción básica (más rápida, menos precisa)
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="memorySafe" checked>
+                        <span class="checkmark"></span>
+                        Modo seguro de memoria (recomendado)
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="largeDocs">
+                        <span class="checkmark"></span>
+                        Optimizar para documentos grandes (>100MB)
+                    </label>
+                </div>
+
+                <div class="form-section">
+                    <h4>⚡ Configuración de Rendimiento</h4>
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="parallelProcessing">
+                        <span class="checkmark"></span>
+                        Procesamiento paralelo (más rápido)
+                    </label>
+
+                    <div class="form-row">
+                        <label>Tamaño de lote:</label>
+                        <input type="number" name="batchSize" min="1" max="2048" placeholder="512" class="form-input">
+                    </div>
+
+                    <div class="form-row">
+                        <label>Trabajadores paralelos:</label>
+                        <input type="number" name="workers" min="1" max="16" placeholder="4" class="form-input">
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h4>🎯 Configuración de Algoritmos</h4>
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="singleCombination">
+                        <span class="checkmark"></span>
+                        Solo una combinación (más rápido)
+                    </label>
+
+                    <div class="form-row">
+                        <label>Métrica de distancia:</label>
+                        <select name="distanceMetric" class="form-select">
+                            <option value="cosine" selected>Coseno (recomendado)</option>
+                            <option value="euclidean">Euclidiana</option>
+                            <option value="dot_product">Producto punto</option>
+                            <option value="manhattan">Manhattan</option>
+                        </select>
+                    </div>
+
+                    <div class="form-row">
+                        <label>Algoritmo de índice:</label>
+                        <select name="indexAlgorithm" class="form-select">
+                            <option value="hnsw" selected>HNSW (recomendado)</option>
+                            <option value="ivfflat">IVFFlat</option>
+                            <option value="scalar_quantization">Quantización escalar</option>
+                            <option value="exact">Exacto (lento)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="pipeline-info">
+                    <h4>ℹ️ Información</h4>
+                    <p>Este pipeline procesará los archivos subidos através de:</p>
+                    <ul>
+                        <li>🧹 <strong>Limpieza:</strong> Extracción y normalización de texto</li>
+                        <li>✂️ <strong>Chunking:</strong> División en fragmentos semánticos</li>
+                        <li>🧠 <strong>Embeddings:</strong> Conversión a vectores E5 multilingües</li>
+                        <li>🗄️ <strong>Indexación:</strong> Almacenamiento en Qdrant y PostgreSQL</li>
+                    </ul>
+                    <p><strong>Tiempo estimado:</strong> 1-5 minutos por archivo dependiendo del tamaño.</p>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-secondary" onclick="hidePipelineProcessor()">Cancelar</button>
+            <button class="btn-pipeline" onclick="runPipeline()">🚀 Ejecutar Pipeline</button>
         </div>
     </div>
 </div>
@@ -1610,6 +1870,196 @@
         margin-bottom: 10px;
         text-align: center;
         border: 1px solid #a7f3d0;
+    }
+
+    /* Enhanced file item styles */
+    .file-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .action-btn {
+        padding: 6px 12px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 12px;
+        transition: all 0.3s;
+        font-weight: 500;
+    }
+
+    .view-btn {
+        background: #e0f2fe;
+        color: #0277bd;
+        border: 1px solid #b3e5fc;
+    }
+
+    .view-btn:hover {
+        background: #b3e5fc;
+        transform: translateY(-1px);
+    }
+
+    .delete-btn {
+        background: #fee2e2;
+        color: #dc2626;
+        border: 1px solid #fecaca;
+    }
+
+    .delete-btn:hover {
+        background: #fecaca;
+        transform: translateY(-1px);
+    }
+
+    /* Pipeline Modal Styles */
+    .pipeline-modal .file-modal-content {
+        max-width: 800px;
+        max-height: 90vh;
+    }
+
+    .pipeline-modal-content {
+        overflow-y: auto;
+    }
+
+    .pipeline-status {
+        background: #f8fafc;
+        border: 2px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 15px;
+        margin-bottom: 20px;
+        font-weight: 500;
+        text-align: center;
+        color: #475569;
+    }
+
+    .pipeline-form {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .form-section {
+        background: #f9fafb;
+        border-radius: 10px;
+        padding: 15px;
+        border: 1px solid #e5e7eb;
+    }
+
+    .form-section h4 {
+        margin: 0 0 12px 0;
+        color: #374151;
+        font-size: 16px;
+        font-weight: 600;
+    }
+
+    .checkbox-label {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 8px;
+        cursor: pointer;
+        font-size: 14px;
+        color: #374151;
+    }
+
+    .checkbox-label input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        accent-color: #8b5cf6;
+    }
+
+    .form-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 10px;
+    }
+
+    .form-row label {
+        min-width: 140px;
+        font-size: 14px;
+        font-weight: 500;
+        color: #374151;
+    }
+
+    .form-input,
+    .form-select {
+        flex: 1;
+        padding: 8px 12px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        font-size: 14px;
+    }
+
+    .form-input:focus,
+    .form-select:focus {
+        outline: none;
+        border-color: #8b5cf6;
+        box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+    }
+
+    .pipeline-info {
+        background: linear-gradient(135deg, #ede9fe 0%, #f3f4f6 100%);
+        border-radius: 10px;
+        padding: 15px;
+        border: 1px solid #c4b5fd;
+    }
+
+    .pipeline-info h4 {
+        margin: 0 0 10px 0;
+        color: #7c3aed;
+        font-size: 16px;
+    }
+
+    .pipeline-info p {
+        margin: 0 0 8px 0;
+        color: #374151;
+        font-size: 14px;
+    }
+
+    .pipeline-info ul {
+        margin: 10px 0;
+        padding-left: 20px;
+    }
+
+    .pipeline-info li {
+        margin-bottom: 4px;
+        color: #374151;
+        font-size: 14px;
+    }
+
+    .btn-pipeline {
+        background: linear-gradient(135deg, #059669 0%, #065f46 100%);
+        color: white;
+        padding: 10px 20px;
+        border-radius: 8px;
+        border: none;
+        cursor: pointer;
+        font-size: 16px;
+        font-weight: 600;
+        transition: all 0.3s;
+    }
+
+    .btn-pipeline:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(5, 150, 105, 0.4);
+    }
+
+    /* Responsive design for smaller screens */
+    @media (max-width: 768px) {
+        .pipeline-modal .file-modal-content {
+            max-width: 95%;
+            margin: 10px;
+        }
+
+        .form-row {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .form-row label {
+            min-width: auto;
+        }
     }
 </style>
 

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Query, HTTPException, File, Form, UploadFile
+from fastapi import FastAPI, Query, HTTPException, File, Form, UploadFile, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from typing import Optional, List
@@ -169,38 +169,293 @@ async def upload_document(file: UploadFile = File(...)):
 
 @app.get("/upload/list")
 async def list_uploaded_files():
-    """List all uploaded files in /app/data/raw"""
+    """List all uploaded files in /app/data/raw with chunk information"""
     try:
         raw_dir = Path("/app/data/raw")
+        clean_dir = Path("/app/data/clean")
         if not raw_dir.exists():
-            return JSONResponse(content={"files": [], "total": 0})
+            return JSONResponse(content={
+                "success": True,
+                "files": [],
+                "total": 0,
+                "total_size_mb": 0.0,
+                "total_chunks": 0,
+                "processed_files": 0
+            })
 
         files = []
+        total_size = 0
+        total_chunks = 0
+
         for file_path in raw_dir.iterdir():
-            if file_path.is_file():
+            if file_path.is_file() and not file_path.name.startswith('.'):
                 stat = file_path.stat()
+                file_size = stat.st_size
+                total_size += file_size
+
+                # Check for corresponding chunks file - handle different naming formats
+                chunks_count = 0
+                processed = False
+                base_name = file_path.stem  # Get filename without extension
+
+                # Try different chunk file naming patterns
+                possible_chunk_files = [
+                    clean_dir / f"{base_name}.chunks.jsonl",
+                    # Full filename + .chunks.jsonl
+                    clean_dir / f"{file_path.name}.chunks.jsonl",
+                    clean_dir / f"{base_name}.chunks.jsonl"
+                ]
+
+                chunks_file = None
+                for possible_file in possible_chunk_files:
+                    if possible_file.exists():
+                        chunks_file = possible_file
+                        break
+
+                if chunks_file and chunks_file.exists():
+                    processed = True
+                    try:
+                        with open(chunks_file, 'r', encoding='utf-8') as f:
+                            chunks_count = sum(1 for line in f if line.strip())
+                            total_chunks += chunks_count
+                    except Exception as e:
+                        logger.warning(
+                            f"Error reading chunks file {chunks_file}: {e}")
+
                 files.append({
                     "filename": file_path.name,
-                    "size": stat.st_size,
-                    "size_mb": round(stat.st_size / 1024 / 1024, 2),
+                    "size": file_size,
+                    "size_mb": round(file_size / 1024 / 1024, 2),
                     "created": stat.st_ctime,
                     "modified": stat.st_mtime,
-                    "extension": file_path.suffix.lower()
+                    "extension": file_path.suffix.lower(),
+                    "path": str(file_path),
+                    "chunks": chunks_count,
+                    "processed": processed,
+                    "chunks_file": str(chunks_file) if chunks_file.exists() else None
                 })
 
         files.sort(key=lambda x: x["modified"], reverse=True)
         return JSONResponse(content={
             "success": True,
             "files": files,
-            "total": len(files)
+            "total": len(files),
+            "total_size_mb": round(total_size / 1024 / 1024, 2),
+            "total_chunks": total_chunks,
+            "processed_files": sum(1 for f in files if f['processed'])
         })
 
     except Exception as e:
         logger.error(f"List files error: {e}")
-        return JSONResponse(
-            status_code=500,
-            content={"error": f"Error listando archivos: {str(e)}"}
-        )
+
+
+@app.get("/pipeline/stats")
+async def get_pipeline_stats(format: str = Query("json", description="Response format: json or html")):
+    """Get comprehensive pipeline statistics including collections and embeddings"""
+    try:
+        from app.qdrant_backend import get_qdrant_client
+        from app.pgvector_backend import get_database_connection
+
+        # Get Qdrant stats
+        qdrant_collections = []
+        total_qdrant_points = 0
+
+        try:
+            client = get_qdrant_client()
+            collections_response = client.get_collections()
+
+            for collection in collections_response.collections:
+                collection_info = client.get_collection(collection.name)
+                points_count = collection_info.points_count or 0
+                total_qdrant_points += points_count
+
+                qdrant_collections.append({
+                    "name": collection.name,
+                    "points": points_count,
+                    "vector_size": collection_info.config.params.vectors.size if collection_info.config.params.vectors else 0
+                })
+        except Exception as e:
+            logger.warning(f"Error getting Qdrant stats: {e}")
+
+        # Get PostgreSQL stats
+        pg_tables = []
+        total_pg_rows = 0
+
+        try:
+            conn = get_database_connection()
+            cursor = conn.cursor()
+
+            # Get all tables starting with 'docs_'
+            cursor.execute("""
+                SELECT tablename FROM pg_tables 
+                WHERE tablename LIKE 'docs_%' AND schemaname = 'public'
+            """)
+
+            for (table_name,) in cursor.fetchall():
+                cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
+                row_count = cursor.fetchone()[0]
+                total_pg_rows += row_count
+
+                pg_tables.append({
+                    "name": table_name,
+                    "rows": row_count
+                })
+
+            cursor.close()
+            conn.close()
+
+        except Exception as e:
+            logger.warning(f"Error getting PostgreSQL stats: {e}")
+
+        # Count total files and processed files
+        raw_dir = Path("/app/data/raw")
+        clean_dir = Path("/app/data/clean")
+
+        total_docs = 0
+        total_chunks = 0
+
+        if raw_dir.exists():
+            total_docs = len([f for f in raw_dir.iterdir()
+                             if f.is_file() and not f.name.startswith('.')])
+
+        if clean_dir.exists():
+            for chunks_file in clean_dir.glob("*.chunks.jsonl"):
+                try:
+                    with open(chunks_file, 'r', encoding='utf-8') as f:
+                        total_chunks += sum(1 for line in f if line.strip())
+                except Exception:
+                    continue
+
+        stats = {
+            "total_docs": total_docs,
+            "total_chunks": total_chunks,
+            "total_embeddings": total_qdrant_points + total_pg_rows,
+            "processing_time": 0,  # This would need to be tracked separately
+            "collections": qdrant_collections,
+            "tables": pg_tables,
+            "qdrant_points": total_qdrant_points,
+            "postgres_rows": total_pg_rows
+        }
+
+        if format == "html":
+            from app.templates.template_renderer import render_pretty_json
+            return HTMLResponse(content=render_pretty_json(stats))
+
+        return JSONResponse(stats)
+
+    except Exception as e:
+        logger.error(f"Error getting pipeline stats: {e}")
+        error_stats = {
+            "error": str(e),
+            "total_docs": 0,
+            "total_chunks": 0,
+            "total_embeddings": 0,
+            "processing_time": 0,
+            "collections": [],
+            "tables": []
+        }
+        return JSONResponse(error_stats, status_code=500)
+
+
+@app.post("/pipeline/clear")
+async def clear_pipeline_data():
+    """Clear all pipeline data including databases and processed files"""
+    try:
+        results = {
+            "qdrant_cleared": False,
+            "postgres_cleared": False,
+            "files_cleared": False,
+            "errors": []
+        }
+
+        # Clear Qdrant collections
+        try:
+            from app.qdrant_backend import get_qdrant_client
+            client = get_qdrant_client()
+            collections_response = client.get_collections()
+
+            for collection in collections_response.collections:
+                try:
+                    client.delete_collection(collection.name)
+                    logger.info(
+                        f"Deleted Qdrant collection: {collection.name}")
+                except Exception as e:
+                    results["errors"].append(
+                        f"Error deleting Qdrant collection {collection.name}: {str(e)}")
+
+            results["qdrant_cleared"] = True
+
+        except Exception as e:
+            results["errors"].append(f"Error clearing Qdrant: {str(e)}")
+
+        # Clear PostgreSQL tables
+        try:
+            from app.pgvector_backend import get_database_connection
+            conn = get_database_connection()
+            cursor = conn.cursor()
+
+            # Get all tables starting with 'docs_'
+            cursor.execute("""
+                SELECT tablename FROM pg_tables 
+                WHERE tablename LIKE 'docs_%' AND schemaname = 'public'
+            """)
+
+            for (table_name,) in cursor.fetchall():
+                try:
+                    cursor.execute(
+                        f"DROP TABLE IF EXISTS {table_name} CASCADE")
+                    logger.info(f"Dropped PostgreSQL table: {table_name}")
+                except Exception as e:
+                    results["errors"].append(
+                        f"Error dropping table {table_name}: {str(e)}")
+
+            conn.commit()
+            cursor.close()
+            conn.close()
+
+            results["postgres_cleared"] = True
+
+        except Exception as e:
+            results["errors"].append(f"Error clearing PostgreSQL: {str(e)}")
+
+        # Clear processed files (keep originals in /app/data/raw)
+        try:
+            clean_dir = Path("/app/data/clean")
+            if clean_dir.exists():
+                for file_path in clean_dir.iterdir():
+                    if file_path.is_file() and file_path.suffix in ['.jsonl', '.json']:
+                        try:
+                            file_path.unlink()
+                            logger.info(
+                                f"Deleted processed file: {file_path.name}")
+                        except Exception as e:
+                            results["errors"].append(
+                                f"Error deleting file {file_path.name}: {str(e)}")
+
+            results["files_cleared"] = True
+
+        except Exception as e:
+            results["errors"].append(
+                f"Error clearing processed files: {str(e)}")
+
+        # Summary
+        cleared_count = sum(
+            [results["qdrant_cleared"], results["postgres_cleared"], results["files_cleared"]])
+
+        return JSONResponse({
+            "success": cleared_count > 0,
+            "message": f"Pipeline data cleared successfully. {cleared_count}/3 systems cleared.",
+            "results": results,
+            "note": "Original files in /app/data/raw were preserved."
+        })
+
+    except Exception as e:
+        logger.error(f"Error clearing pipeline data: {e}")
+        return JSONResponse({
+            "success": False,
+            "error": str(e),
+            "message": "Failed to clear pipeline data"
+        }, status_code=500)
 
 
 @app.delete("/upload/{filename}")
@@ -244,6 +499,84 @@ async def delete_uploaded_file(filename: str):
             status_code=500,
             content={"error": f"Error eliminando archivo: {str(e)}"}
         )
+
+
+@app.post("/pipeline/run")
+async def run_pipeline_process(request: dict):
+    """
+    Execute the main pipeline with specified arguments
+    """
+    try:
+        import subprocess
+        import asyncio
+        from pathlib import Path
+
+        # Get command arguments from request
+        args = request.get('args', [])
+
+        # Build the full command
+        script_path = Path("/app/scripts/main_pipeline.py")
+        if not script_path.exists():
+            return JSONResponse(
+                status_code=404,
+                content={"error": "Pipeline script not found"}
+            )
+
+        cmd = ["python", str(script_path)] + args
+
+        logger.info(f"🔄 Running pipeline: {' '.join(cmd)}")
+
+        # Execute the pipeline asynchronously
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd="/app"
+        )
+
+        # Wait for completion with timeout (30 minutes)
+        try:
+            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=1800)
+        except asyncio.TimeoutError:
+            process.kill()
+            return JSONResponse(
+                status_code=408,
+                content={"error": "Pipeline execution timed out (30 minutes)"}
+            )
+
+        # Decode output
+        stdout_text = stdout.decode('utf-8', errors='ignore')
+        stderr_text = stderr.decode('utf-8', errors='ignore')
+
+        if process.returncode == 0:
+            logger.info(f"✅ Pipeline completed successfully")
+            return JSONResponse(content={
+                "success": True,
+                "message": "Pipeline ejecutado exitosamente",
+                # Last 1000 chars
+                "output": stdout_text[-1000:] if stdout_text else "Sin salida",
+                "command": ' '.join(cmd),
+                "return_code": process.returncode
+            })
+        else:
+            logger.error(f"❌ Pipeline failed with code {process.returncode}")
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "error": f"Pipeline falló con código {process.returncode}",
+                    "output": stderr_text[-1000:] if stderr_text else "Sin error específico",
+                    "command": ' '.join(cmd)
+                }
+            )
+
+    except Exception as e:
+        logger.error(f"Pipeline execution error: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Error ejecutando pipeline: {str(e)}"}
+        )
+
+
 # ================================
 # ROUTE HANDLERS
 # ================================
@@ -1275,6 +1608,99 @@ def root(response_format: str = Query("html", description="Formato: 'json' o 'ht
                 <a href="/ai?q=test" style="color: #4CAF50; margin: 0 10px;">🤖 AI Search</a>
             </div>
         </div>
+        """)
+
+
+@app.get("/files/manager", response_class=HTMLResponse)
+def file_manager_page():
+    """Comprehensive file management and pipeline configuration page"""
+    try:
+        # Read the template file directly
+        template_path = Path(__file__).parent / \
+            "templates" / "file_manager.html"
+
+        if not template_path.exists():
+            raise FileNotFoundError(f"Template not found: {template_path}")
+
+        with open(template_path, 'r', encoding='utf-8') as f:
+            template_content = f.read()
+
+        # Simple template variable replacement
+        from app.templates.template_renderer import get_svg_icon
+
+        # Replace template variables with actual values
+        html_content = template_content
+
+        # Replace SVG icon calls (simple regex replacement)
+        import re
+        icon_pattern = r'\{\{\s*get_svg_icon\(["\']([^"\']*)["\'],[\s]*["\']([^"\']*)["\'],[\s]*["\']([^"\']*)["\']*\)\s*\}\}'
+
+        def icon_replacer(match):
+            icon_name = match.group(1)
+            size = match.group(2)
+            color = match.group(3)
+            return str(get_svg_icon(icon_name, size, color))
+
+        html_content = re.sub(icon_pattern, icon_replacer, html_content)
+
+        # Replace block extends and includes with empty strings for now
+        html_content = re.sub(r'\{%.*?%\}', '', html_content, flags=re.DOTALL)
+
+        return HTMLResponse(content=html_content)
+
+    except Exception as e:
+        logger.error(f"Error rendering file manager: {e}")
+        # Fallback to basic HTML with all functionality
+        return HTMLResponse(content=f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <title>File Manager - Gestión de Documentos</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {{ font-family: Arial, sans-serif; background: #0f172a; color: white; margin: 0; padding: 20px; }}
+        .container {{ max-width: 1200px; margin: 0 auto; }}
+        .header {{ text-align: center; margin-bottom: 30px; }}
+        .section {{ background: #1e293b; border-radius: 12px; padding: 20px; margin-bottom: 20px; }}
+        .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }}
+        .card {{ background: #374151; border-radius: 8px; padding: 15px; }}
+        .btn {{ padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer; }}
+        .btn:hover {{ background: #2563eb; }}
+        .error {{ color: #ef4444; background: #1f1f1f; padding: 15px; border-radius: 6px; margin: 10px 0; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🗃️ Gestión de Documentos y Pipeline</h1>
+            <p>Error cargando template: {str(e)}</p>
+        </div>
+        
+        <div class="section">
+            <h2>📁 Navegación</h2>
+            <div style="text-align: center;">
+                <a href="/" class="btn" style="margin: 5px; text-decoration: none;">🏠 Inicio</a>
+                <a href="/upload/list" class="btn" style="margin: 5px; text-decoration: none;">📋 Ver Archivos (JSON)</a>
+                <a href="/pipeline/stats" class="btn" style="margin: 5px; text-decoration: none;">📊 Estadísticas Pipeline</a>
+                <a href="/docs" class="btn" style="margin: 5px; text-decoration: none;">📚 API Docs</a>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h3>🔧 Funcionalidad Básica Disponible</h3>
+            <p>Mientras se resuelve el error del template, puedes usar:</p>
+            <ul>
+                <li>📤 <strong>Subir archivos:</strong> Usa el botón de upload en la página principal</li>
+                <li>📋 <strong>Ver archivos:</strong> <a href="/upload/list" style="color: #10b981;">Lista de archivos cargados</a></li>
+                <li>🗑️ <strong>Eliminar archivos:</strong> DELETE /upload/filename</li>
+                <li>⚙️ <strong>Pipeline:</strong> POST /pipeline/run con configuración</li>
+                <li>📊 <strong>Estadísticas:</strong> <a href="/pipeline/stats" style="color: #10b981;">Ver stats del pipeline</a></li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>
         """)
 
 
