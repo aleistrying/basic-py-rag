@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}File Manager - Gestión de Documentos y Pipeline{% endblock %}
+{% block title %}Gestión de Documentos y Pipeline{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -8,33 +8,53 @@
         max-width: 1600px;
         margin: 0 auto;
         padding: 20px;
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-        min-height: 100vh;
     }
 
+    /* Section styling matching home page */
     .section-card {
-        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
-        border-radius: 16px;
+        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+        border-radius: 15px;
         padding: 30px;
         margin-bottom: 30px;
-        border: 1px solid #475569;
-        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+        border: 2px solid transparent;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
         transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .section-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(135deg, transparent 0%, rgba(139, 92, 246, 0.1) 50%, transparent 100%);
+        opacity: 0;
+        transition: opacity 0.3s ease;
     }
 
     .section-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 12px 35px rgba(0, 0, 0, 0.4);
+        transform: translateY(-5px);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+        border-color: #8b5cf6;
+    }
+
+    .section-card:hover::before {
+        opacity: 1;
     }
 
     .section-title {
-        color: #3b82f6;
+        color: #1f2937;
         font-size: 24px;
         font-weight: 700;
         margin-bottom: 20px;
         display: flex;
         align-items: center;
         gap: 12px;
+        position: relative;
+        z-index: 1;
     }
 
     .stats-grid {
@@ -45,71 +65,75 @@
     }
 
     .stat-card {
-        background: linear-gradient(135deg, #374151 0%, #4b5563 100%);
+        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
         border-radius: 12px;
         padding: 25px;
         text-align: center;
-        border: 1px solid #6b7280;
+        border: 1px solid #cbd5e1;
         transition: all 0.3s ease;
     }
 
     .stat-card:hover {
         transform: translateY(-3px);
-        box-shadow: 0 8px 25px rgba(59, 130, 246, 0.3);
-        border-color: #3b82f6;
+        box-shadow: 0 8px 25px rgba(139, 92, 246, 0.2);
+        border-color: #8b5cf6;
     }
 
     .stat-value {
         font-size: 32px;
         font-weight: 700;
-        color: #3b82f6;
+        color: #8b5cf6;
         margin-bottom: 8px;
     }
 
     .stat-label {
-        color: #d1d5db;
+        color: #64748b;
         font-size: 14px;
         font-weight: 500;
     }
 
     .upload-area {
-        border: 3px dashed #6b7280;
+        border: 3px dashed #a78bfa;
         border-radius: 16px;
         padding: 50px 30px;
         text-align: center;
         cursor: pointer;
         transition: all 0.3s ease;
-        background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(16, 185, 129, 0.1) 100%);
+        background: linear-gradient(135deg, rgba(139, 92, 246, 0.05) 0%, rgba(163, 139, 250, 0.05) 100%);
         margin-bottom: 30px;
+        position: relative;
+        z-index: 1;
     }
 
     .upload-area:hover {
-        border-color: #3b82f6;
-        background: linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(16, 185, 129, 0.2) 100%);
+        border-color: #8b5cf6;
+        background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(163, 139, 250, 0.1) 100%);
         transform: translateY(-3px);
+        box-shadow: 0 10px 25px rgba(139, 92, 246, 0.2);
     }
 
     .upload-area.dragover {
-        border-color: #10b981;
-        background: linear-gradient(135deg, rgba(16, 185, 129, 0.3) 0%, rgba(59, 130, 246, 0.3) 100%);
+        border-color: #6366f1;
+        background: linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(99, 102, 241, 0.15) 100%);
         transform: scale(1.02);
+        box-shadow: 0 15px 35px rgba(139, 92, 246, 0.25);
     }
 
     .upload-icon {
         font-size: 64px;
-        color: #6b7280;
+        color: #8b5cf6;
         margin-bottom: 20px;
     }
 
     .upload-text {
-        color: #d1d5db;
+        color: #1f2937;
         font-size: 18px;
         font-weight: 600;
         margin-bottom: 10px;
     }
 
     .upload-subtext {
-        color: #9ca3af;
+        color: #64748b;
         font-size: 14px;
     }
 
@@ -121,11 +145,11 @@
     }
 
     .file-card {
-        background: linear-gradient(135deg, #374151 0%, #4b5563 100%);
-        border-radius: 12px;
-        padding: 20px;
-        border: 1px solid #6b7280;
-        transition: all 0.3s ease;
+        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+        border-radius: 15px;
+        padding: 25px;
+        border: 2px solid transparent;
+        transition: all 0.4s ease;
         position: relative;
         overflow: hidden;
     }
@@ -137,13 +161,13 @@
         left: 0;
         right: 0;
         height: 4px;
-        background: linear-gradient(90deg, #3b82f6, #10b981);
+        background: linear-gradient(90deg, #8b5cf6, #a78bfa);
     }
 
     .file-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
-        border-color: #3b82f6;
+        transform: translateY(-8px);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+        border-color: #8b5cf6;
     }
 
     .file-header {
@@ -158,7 +182,7 @@
     }
 
     .file-name {
-        color: #f3f4f6;
+        color: #1f2937;
         font-weight: 600;
         font-size: 16px;
         margin-bottom: 8px;
@@ -176,12 +200,12 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
-        color: #9ca3af;
+        color: #6b7280;
         font-size: 12px;
     }
 
     .meta-value {
-        color: #d1d5db;
+        color: #374151;
         font-weight: 500;
     }
 
@@ -478,15 +502,15 @@
     }
 
     .modal-content {
-        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+        background: white;
         border-radius: 16px;
         padding: 30px;
         max-width: 600px;
         width: 90%;
         max-height: 80vh;
         overflow-y: auto;
-        border: 1px solid #475569;
-        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        border: 1px solid #e5e7eb;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
     }
 
     .modal-header {
@@ -495,11 +519,11 @@
         align-items: center;
         margin-bottom: 20px;
         padding-bottom: 15px;
-        border-bottom: 1px solid #475569;
+        border-bottom: 1px solid #e5e7eb;
     }
 
     .modal-title {
-        color: #3b82f6;
+        color: #1f2937;
         font-size: 20px;
         font-weight: 700;
     }
@@ -507,7 +531,7 @@
     .modal-close {
         background: none;
         border: none;
-        color: #9ca3af;
+        color: #6b7280;
         font-size: 24px;
         cursor: pointer;
         padding: 0;
@@ -521,8 +545,8 @@
     }
 
     .modal-close:hover {
-        background: #374151;
-        color: white;
+        background: #f3f4f6;
+        color: #1f2937;
     }
 
     .no-files {
@@ -718,9 +742,9 @@
                         {{ get_svg_icon("users", "16", "#ffffff") }}
                         Trabajadores Paralelos
                     </div>
-                    <div class="config-description">Número de procesos paralelos</div>
-                    <input type="number" class="config-input" name="workers" id="workers" placeholder="Auto-detect"
-                        min="1" max="16">
+                    <div class="config-description">Número de procesos CPU paralelos (auto-detecta si vacío)</div>
+                    <input type="number" class="config-input" name="workers" id="workers" placeholder="Auto (CPU cores)"
+                        min="1" max="16" value="">
                 </div>
 
                 <div class="config-group">
@@ -728,9 +752,9 @@
                         {{ get_svg_icon("package", "16", "#ffffff") }}
                         Tamaño de Lote
                     </div>
-                    <div class="config-description">Documentos a procesar por lote</div>
-                    <input type="number" class="config-input" name="batchSize" id="batchSize" placeholder="50 (default)"
-                        min="1" max="500">
+                    <div class="config-description">Chunks a procesar por lote (más = más memoria)</div>
+                    <input type="number" class="config-input" name="batchSize" id="batchSize" placeholder="50" min="1"
+                        max="500" value="50">
                 </div>
 
                 <div class="config-group">
@@ -738,45 +762,50 @@
                         {{ get_svg_icon("file-text", "16", "#ffffff") }}
                         Directorio de Salida
                     </div>
-                    <div class="config-description">Carpeta para archivos procesados</div>
+                    <div class="config-description">Carpeta donde se guardan archivos procesados</div>
                     <input type="text" class="config-input" name="outputDir" id="outputDir"
-                        placeholder="/app/data/clean">
+                        placeholder="/app/data/clean" value="/app/data/clean">
                 </div>
             </div>
 
             <!-- Processing Options -->
-            <div class="checkbox-group">
-                <div class="checkbox-item">
-                    <input type="checkbox" name="clearDatabases" id="clearDatabases">
-                    <label for="clearDatabases">Limpiar bases de datos primero</label>
-                </div>
-                <div class="checkbox-item">
-                    <input type="checkbox" name="forceReprocess" id="forceReprocess">
-                    <label for="forceReprocess">Forzar re-procesamiento</label>
-                </div>
-                <div class="checkbox-item">
-                    <input type="checkbox" name="basicExtraction" id="basicExtraction">
-                    <label for="basicExtraction">Extracción básica (legacy)</label>
-                </div>
-                <div class="checkbox-item">
-                    <input type="checkbox" name="memorySafe" id="memorySafe" checked>
-                    <label for="memorySafe">Modo seguro de memoria</label>
-                </div>
-                <div class="checkbox-item">
-                    <input type="checkbox" name="largeDocs" id="largeDocs">
-                    <label for="largeDocs">Optimizar para docs grandes</label>
-                </div>
-                <div class="checkbox-item">
-                    <input type="checkbox" name="parallelProcessing" id="parallelProcessing">
-                    <label for="parallelProcessing">Procesamiento paralelo</label>
-                </div>
-                <div class="checkbox-item">
-                    <input type="checkbox" name="singleCombination" id="singleCombination">
-                    <label for="singleCombination">Solo una combinación</label>
-                </div>
-                <div class="checkbox-item">
-                    <input type="checkbox" name="noSkip" id="noSkip">
-                    <label for="noSkip">No omitir archivos existentes</label>
+            <div class="config-group" style="grid-column: 1 / -1;">
+                <div class="config-label">⚙️ Opciones de Procesamiento</div>
+                <div class="config-description">Configura el comportamiento del pipeline</div>
+
+                <div class="checkbox-group">
+                    <div class="checkbox-item" title="Elimina todos los datos existentes antes de procesar">
+                        <input type="checkbox" name="clearDatabases" id="clearDatabases">
+                        <label for="clearDatabases">🗑️ Limpiar bases primero</label>
+                    </div>
+                    <div class="checkbox-item" title="Re-procesa archivos aunque ya existan en la base">
+                        <input type="checkbox" name="forceReprocess" id="forceReprocess">
+                        <label for="forceReprocess">🔄 Forzar re-proceso</label>
+                    </div>
+                    <div class="checkbox-item" title="Usa método de extracción simple y rápido">
+                        <input type="checkbox" name="basicExtraction" id="basicExtraction">
+                        <label for="basicExtraction">📄 Extracción básica</label>
+                    </div>
+                    <div class="checkbox-item" title="Reduce uso de memoria durante procesamiento (recomendado)">
+                        <input type="checkbox" name="memorySafe" id="memorySafe" checked>
+                        <label for="memorySafe">💾 Modo seguro memoria</label>
+                    </div>
+                    <div class="checkbox-item" title="Optimiza para documentos de más de 100 páginas">
+                        <input type="checkbox" name="largeDocs" id="largeDocs">
+                        <label for="largeDocs">📚 Docs grandes</label>
+                    </div>
+                    <div class="checkbox-item" title="Procesa múltiples archivos simultáneamente">
+                        <input type="checkbox" name="parallelProcessing" id="parallelProcessing">
+                        <label for="parallelProcessing">⚡ Procesamiento paralelo</label>
+                    </div>
+                    <div class="checkbox-item" title="Procesa solo una combinación métrica/algoritmo">
+                        <input type="checkbox" name="singleCombination" id="singleCombination">
+                        <label for="singleCombination">🎯 Una sola combinación</label>
+                    </div>
+                    <div class="checkbox-item" title="No omite archivos aunque ya estén procesados">
+                        <input type="checkbox" name="noSkip" id="noSkip">
+                        <label for="noSkip">⚠️ No omitir existentes</label>
+                    </div>
                 </div>
             </div>
 
@@ -962,28 +991,50 @@
     async function loadFilesList() {
         try {
             const response = await fetch('/upload/list');
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
             const data = await response.json();
 
-            filesList = data.files || [];
+            console.log('Files data:', data); // Debug log
+
+            if (data && data.files && Array.isArray(data.files)) {
+                filesList = data.files;
+            } else {
+                filesList = [];
+            }
+
             renderFilesList();
             updateStats(data);
 
         } catch (error) {
             console.error('Error loading files:', error);
-            document.getElementById('filesGrid').innerHTML =
-                '<div class="error-message">Error cargando archivos: ' + error.message + '</div>';
+            filesList = [];
+            const filesGrid = document.getElementById('filesGrid');
+            if (filesGrid) {
+                filesGrid.innerHTML =
+                    `<div style="text-align: center; padding: 40px; color: #ef4444;">
+                        ❌ Error cargando archivos: ${error.message}<br>
+                        <small style="color: #6b7280;">Verifica que el servidor esté funcionando correctamente</small>
+                    </div>`;
+            }
+            // Still update stats with empty data
+            updateStats({ total: 0, processed_files: 0, total_chunks: 0, total_size_mb: 0 });
         }
-    }
-
-    function renderFilesList() {
+    } function renderFilesList() {
         const filesGrid = document.getElementById('filesGrid');
 
         if (filesList.length === 0) {
-            filesGrid.innerHTML = '<div class="no-files">📂 No hay archivos subidos</div>';
+            filesGrid.innerHTML = '<div style="text-align: center; padding: 40px; color: #64748b;">📂 No hay archivos subidos. Arrastra archivos aquí o usa el área de carga arriba.</div>';
             return;
         }
 
-        filesGrid.innerHTML = filesList.map(file => `
+        filesGrid.innerHTML = filesList.map(file => {
+            const chunks = file.chunks || 0;
+            const isProcessed = chunks > 0;
+            const sizeMB = typeof file.size_mb === 'number' ? file.size_mb.toFixed(2) : file.size_mb;
+
+            return `
             <div class="file-card">
                 <div class="file-header">
                     <div class="file-info">
@@ -991,7 +1042,7 @@
                         <div class="file-meta">
                             <div class="meta-item">
                                 <span>Tamaño:</span>
-                                <span class="meta-value">${file.size_mb} MB</span>
+                                <span class="meta-value">${sizeMB} MB</span>
                             </div>
                             <div class="meta-item">
                                 <span>Tipo:</span>
@@ -999,12 +1050,12 @@
                             </div>
                             <div class="meta-item">
                                 <span>Chunks:</span>
-                                <span class="meta-value">${file.chunks || 0}</span>
+                                <span class="meta-value">${chunks}</span>
                             </div>
                             <div class="meta-item">
                                 <span>Estado:</span>
-                                <span class="processing-status ${file.processed ? 'status-processed' : 'status-pending'}">
-                                    ${file.processed ? '✅ Procesado' : '⏳ Pendiente'}
+                                <span class="processing-status ${isProcessed ? 'status-processed' : 'status-pending'}">
+                                    ${isProcessed ? '✅ Procesado' : '⏳ Pendiente'}
                                 </span>
                             </div>
                         </div>
@@ -1019,14 +1070,20 @@
                     </button>
                 </div>
             </div>
-        `).join('');
+            `;
+        }).join('');
     }
 
     function updateStats(data) {
+        // File statistics
         document.getElementById('totalFiles').textContent = data.total || 0;
         document.getElementById('processedFiles').textContent = data.processed_files || 0;
         document.getElementById('totalChunks').textContent = data.total_chunks || 0;
-        document.getElementById('totalSizeMB').textContent = (data.total_size_mb || 0) + ' MB';
+        document.getElementById('totalSizeMB').textContent = (data.total_size_mb || 0).toFixed(2) + ' MB';
+
+        // These will be updated by loadPipelineStats
+        // document.getElementById('totalCollections').textContent = '...';
+        // document.getElementById('totalEmbeddings').textContent = '...';
     }
 
     async function viewFileDetails(filename) {
@@ -1037,11 +1094,11 @@
         const content = document.getElementById('fileDetailsContent');
 
         content.innerHTML = `
-            <div style="color: #d1d5db; line-height: 1.6;">
-                <h4 style="color: #3b82f6; margin-bottom: 15px;">📄 ${file.filename}</h4>
+            <div style="color: #374151; line-height: 1.6;">
+                <h4 style="color: #8b5cf6; margin-bottom: 15px; font-weight: 700;">📄 ${file.filename}</h4>
                 
                 <div style="margin-bottom: 15px;">
-                    <strong>📊 Información General:</strong><br>
+                    <strong style="color: #1f2937;">📊 Información General:</strong><br>
                     • Tamaño: ${file.size_mb} MB (${file.size.toLocaleString()} bytes)<br>
                     • Tipo: ${file.extension.toUpperCase()}<br>
                     • Creado: ${new Date(file.created * 1000).toLocaleString()}<br>
@@ -1049,27 +1106,27 @@
                 </div>
 
                 <div style="margin-bottom: 15px;">
-                    <strong>⚙️ Procesamiento:</strong><br>
+                    <strong style="color: #1f2937;">⚙️ Procesamiento:</strong><br>
                     • Estado: ${file.processed ? '✅ Procesado' : '⏳ Pendiente'}<br>
                     • Chunks generados: ${file.chunks || 0}<br>
                     ${file.chunks_file ? `• Archivo chunks: ${file.chunks_file.split('/').pop()}` : '• Sin archivo de chunks'}
                 </div>
 
                 <div style="margin-bottom: 15px;">
-                    <strong>📁 Ubicación:</strong><br>
-                    • Archivo original: ${file.path}
-                    ${file.chunks_file ? `<br>• Chunks: ${file.chunks_file}` : ''}
+                    <strong style="color: #1f2937;">📁 Ubicación:</strong><br>
+                    • Archivo original: <span style="font-size: 11px; color: #6b7280;">${file.path}</span>
+                    ${file.chunks_file ? `<br>• Chunks: <span style="font-size: 11px; color: #6b7280;">${file.chunks_file}</span>` : ''}
                 </div>
 
                 ${file.processed ? `
-                <div style="margin-top: 20px; padding: 15px; background: rgba(16, 185, 129, 0.2); border-radius: 8px; border-left: 4px solid #10b981;">
-                    <strong>✨ Archivo listo para búsquedas</strong><br>
-                    Este documento ha sido procesado y está disponible para búsquedas semánticas.
+                <div style="margin-top: 20px; padding: 15px; background: rgba(16, 185, 129, 0.1); border-radius: 8px; border-left: 4px solid #10b981;">
+                    <strong style="color: #059669;">✨ Archivo listo para búsquedas</strong><br>
+                    <span style="color: #047857;">Este documento ha sido procesado y está disponible para búsquedas semánticas.</span>
                 </div>
                 ` : `
-                <div style="margin-top: 20px; padding: 15px; background: rgba(245, 158, 11, 0.2); border-radius: 8px; border-left: 4px solid #f59e0b;">
-                    <strong>⏳ Pendiente de procesamiento</strong><br>
-                    Ejecuta el pipeline para procesar este documento y generar embeddings.
+                <div style="margin-top: 20px; padding: 15px; background: rgba(245, 158, 11, 0.1); border-radius: 8px; border-left: 4px solid #f59e0b;">
+                    <strong style="color: #d97706;">⏳ Pendiente de procesamiento</strong><br>
+                    <span style="color: #b45309;">Ejecuta el pipeline para procesar este documento y generar embeddings.</span>
                 </div>
                 `}
             </div>
@@ -1243,17 +1300,45 @@
             const response = await fetch('/pipeline/stats');
             const stats = await response.json();
 
-            document.getElementById('totalCollections').textContent = stats.collections?.length || 0;
-            document.getElementById('totalEmbeddings').textContent = stats.total_embeddings || 0;
+            console.log('Pipeline stats:', stats); // Debug log
+
+            // Update collection count from both backends
+            let collectionsCount = 0;
+            if (stats.qdrant && stats.qdrant.collections) {
+                collectionsCount += stats.qdrant.collections.length;
+            }
+            if (stats.postgres && stats.postgres.tables) {
+                collectionsCount += stats.postgres.tables.length;
+            }
+            document.getElementById('totalCollections').textContent = collectionsCount;
+
+            // Calculate total embeddings from all collections
+            let totalEmbeddings = 0;
+
+            // Add Qdrant points
+            if (stats.qdrant && stats.qdrant.collections) {
+                stats.qdrant.collections.forEach(collection => {
+                    totalEmbeddings += collection.points || 0;
+                });
+            }
+
+            // Add PostgreSQL rows
+            if (stats.postgres && stats.postgres.tables) {
+                stats.postgres.tables.forEach(table => {
+                    totalEmbeddings += table.rows || 0;
+                });
+            }
+
+            document.getElementById('totalEmbeddings').textContent = totalEmbeddings.toLocaleString();
 
             pipelineStats = stats;
 
         } catch (error) {
             console.error('Error loading pipeline stats:', error);
+            document.getElementById('totalCollections').textContent = '0';
+            document.getElementById('totalEmbeddings').textContent = '0';
         }
-    }
-
-    function updateConfigurationDisplay() {
+    } function updateConfigurationDisplay() {
         const distanceMetric = document.getElementById('distanceMetric').value;
         const indexAlgorithm = document.getElementById('indexAlgorithm').value;
         const backend = document.getElementById('backend').value;

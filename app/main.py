@@ -78,7 +78,8 @@ try:
         render_home_page,
         render_manual_embedding,
         render_manual_search,
-        render_pretty_json
+        render_pretty_json,
+        render_file_manager
     )
     print("✅ New Jinja2 template imports successful")
 except ImportError as e:
@@ -171,8 +172,10 @@ async def upload_document(file: UploadFile = File(...)):
 async def list_uploaded_files():
     """List all uploaded files in /app/data/raw with chunk information"""
     try:
+        from pathlib import Path
         raw_dir = Path("/app/data/raw")
         clean_dir = Path("/app/data/clean")
+
         if not raw_dir.exists():
             return JSONResponse(content={
                 "success": True,
@@ -188,54 +191,67 @@ async def list_uploaded_files():
         total_chunks = 0
 
         for file_path in raw_dir.iterdir():
-            if file_path.is_file() and not file_path.name.startswith('.'):
-                stat = file_path.stat()
-                file_size = stat.st_size
-                total_size += file_size
+            try:
+                if file_path.is_file() and not file_path.name.startswith('.'):
+                    stat = file_path.stat()
+                    file_size = stat.st_size
+                    total_size += file_size
 
-                # Check for corresponding chunks file - handle different naming formats
-                chunks_count = 0
-                processed = False
-                base_name = file_path.stem  # Get filename without extension
+                    # Check for corresponding chunks file - handle different naming formats
+                    chunks_count = 0
+                    processed = False
+                    base_name = file_path.stem  # Get filename without extension
 
-                # Try different chunk file naming patterns
-                possible_chunk_files = [
-                    clean_dir / f"{base_name}.chunks.jsonl",
-                    # Full filename + .chunks.jsonl
-                    clean_dir / f"{file_path.name}.chunks.jsonl",
-                    clean_dir / f"{base_name}.chunks.jsonl"
-                ]
+                    # Try different chunk file naming patterns
+                    possible_chunk_files = [
+                        clean_dir / f"{base_name}.chunks.jsonl",
+                        # Full filename + .chunks.jsonl
+                        clean_dir / f"{file_path.name}.chunks.jsonl"
+                    ]
 
-                chunks_file = None
-                for possible_file in possible_chunk_files:
-                    if possible_file.exists():
-                        chunks_file = possible_file
-                        break
+                    chunks_file = None
+                    for possible_file in possible_chunk_files:
+                        try:
+                            if possible_file and possible_file.exists():
+                                chunks_file = possible_file
+                                break
+                        except Exception as file_check_error:
+                            logger.warning(
+                                f"Error checking file {possible_file}: {file_check_error}")
+                            continue
 
-                if chunks_file and chunks_file.exists():
-                    processed = True
-                    try:
-                        with open(chunks_file, 'r', encoding='utf-8') as f:
-                            chunks_count = sum(1 for line in f if line.strip())
-                            total_chunks += chunks_count
-                    except Exception as e:
-                        logger.warning(
-                            f"Error reading chunks file {chunks_file}: {e}")
+                    if chunks_file and chunks_file.exists():
+                        processed = True
+                        try:
+                            with open(chunks_file, 'r', encoding='utf-8') as f:
+                                chunks_count = sum(
+                                    1 for line in f if line.strip())
+                                total_chunks += chunks_count
+                        except Exception as e:
+                            logger.warning(
+                                f"Error reading chunks file {chunks_file}: {e}")
 
-                files.append({
-                    "filename": file_path.name,
-                    "size": file_size,
-                    "size_mb": round(file_size / 1024 / 1024, 2),
-                    "created": stat.st_ctime,
-                    "modified": stat.st_mtime,
-                    "extension": file_path.suffix.lower(),
-                    "path": str(file_path),
-                    "chunks": chunks_count,
-                    "processed": processed,
-                    "chunks_file": str(chunks_file) if chunks_file.exists() else None
-                })
+                    # Add file info regardless of whether it has chunks or not
+                    files.append({
+                        "filename": file_path.name,
+                        "size": file_size,
+                        "size_mb": round(file_size / 1024 / 1024, 2),
+                        "created": stat.st_ctime,
+                        "modified": stat.st_mtime,
+                        "extension": file_path.suffix.lower(),
+                        "path": str(file_path),
+                        "chunks": chunks_count,
+                        "processed": processed,
+                        "chunks_file": str(chunks_file) if chunks_file and chunks_file.exists() else None
+                    })
+
+            except Exception as file_error:
+                logger.warning(
+                    f"Error processing file {file_path}: {file_error}")
+                continue
 
         files.sort(key=lambda x: x["modified"], reverse=True)
+
         return JSONResponse(content={
             "success": True,
             "files": files,
@@ -246,22 +262,37 @@ async def list_uploaded_files():
         })
 
     except Exception as e:
+        import traceback
         logger.error(f"List files error: {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error": str(e),
+                "files": [],
+                "total": 0,
+                "total_size_mb": 0.0,
+                "total_chunks": 0,
+                "processed_files": 0
+            }
+        )
 
 
 @app.get("/pipeline/stats")
 async def get_pipeline_stats(format: str = Query("json", description="Response format: json or html")):
     """Get comprehensive pipeline statistics including collections and embeddings"""
     try:
-        from app.qdrant_backend import get_qdrant_client
-        from app.pgvector_backend import get_database_connection
+        from app.qdrant_backend import client as qdrant_client
+        from app.pgvector_backend import get_connection
 
         # Get Qdrant stats
         qdrant_collections = []
         total_qdrant_points = 0
 
         try:
-            client = get_qdrant_client()
+            client = qdrant_client
             collections_response = client.get_collections()
 
             for collection in collections_response.collections:
@@ -282,7 +313,7 @@ async def get_pipeline_stats(format: str = Query("json", description="Response f
         total_pg_rows = 0
 
         try:
-            conn = get_database_connection()
+            conn = get_connection()
             cursor = conn.cursor()
 
             # Get all tables starting with 'docs_'
@@ -370,8 +401,8 @@ async def clear_pipeline_data():
 
         # Clear Qdrant collections
         try:
-            from app.qdrant_backend import get_qdrant_client
-            client = get_qdrant_client()
+            from app.qdrant_backend import client as qdrant_client
+            client = qdrant_client
             collections_response = client.get_collections()
 
             for collection in collections_response.collections:
@@ -390,8 +421,8 @@ async def clear_pipeline_data():
 
         # Clear PostgreSQL tables
         try:
-            from app.pgvector_backend import get_database_connection
-            conn = get_database_connection()
+            from app.pgvector_backend import get_connection
+            conn = get_connection()
             cursor = conn.cursor()
 
             # Get all tables starting with 'docs_'
@@ -1615,37 +1646,8 @@ def root(response_format: str = Query("html", description="Formato: 'json' o 'ht
 def file_manager_page():
     """Comprehensive file management and pipeline configuration page"""
     try:
-        # Read the template file directly
-        template_path = Path(__file__).parent / \
-            "templates" / "file_manager.html"
-
-        if not template_path.exists():
-            raise FileNotFoundError(f"Template not found: {template_path}")
-
-        with open(template_path, 'r', encoding='utf-8') as f:
-            template_content = f.read()
-
-        # Simple template variable replacement
-        from app.templates.template_renderer import get_svg_icon
-
-        # Replace template variables with actual values
-        html_content = template_content
-
-        # Replace SVG icon calls (simple regex replacement)
-        import re
-        icon_pattern = r'\{\{\s*get_svg_icon\(["\']([^"\']*)["\'],[\s]*["\']([^"\']*)["\'],[\s]*["\']([^"\']*)["\']*\)\s*\}\}'
-
-        def icon_replacer(match):
-            icon_name = match.group(1)
-            size = match.group(2)
-            color = match.group(3)
-            return str(get_svg_icon(icon_name, size, color))
-
-        html_content = re.sub(icon_pattern, icon_replacer, html_content)
-
-        # Replace block extends and includes with empty strings for now
-        html_content = re.sub(r'\{%.*?%\}', '', html_content, flags=re.DOTALL)
-
+        # Use proper Jinja2 template rendering
+        html_content = render_file_manager()
         return HTMLResponse(content=html_content)
 
     except Exception as e:

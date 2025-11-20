@@ -481,3 +481,19 @@ def render_pipeline_demo(demo_steps: list, query: str, model: str = "phi3:mini",
         return json.dumps(data, indent=2, ensure_ascii=False)
     except Exception:
         return str(data)
+
+
+def render_file_manager() -> str:
+    """Render file manager page with proper Jinja2 template rendering"""
+    from jinja2 import Environment, FileSystemLoader, select_autoescape
+    import os
+
+    template_dir = os.path.join(os.path.dirname(__file__))
+    env = Environment(
+        loader=FileSystemLoader(template_dir),
+        autoescape=select_autoescape(['html', 'xml'])
+    )
+    env.globals['get_svg_icon'] = get_svg_icon
+
+    template = env.get_template('file_manager.html')
+    return template.render()
