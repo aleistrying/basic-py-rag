@@ -40,11 +40,22 @@ def get_model():
             import torch
             import os
 
-            # Detect GPU availability
-            device = "cuda" if torch.cuda.is_available() else "cpu"
+            # Force CPU mode for embedding model to avoid GPU memory competition with Ollama
+            device = "cpu"
+
+            # Clear any GPU cache before loading
+            if torch.cuda.is_available():
+                try:
+                    torch.cuda.empty_cache()
+                    if not hasattr(get_model, '_already_printed'):
+                        print("🧹 Cleared GPU cache to preserve memory for Ollama")
+                except Exception:
+                    pass
+
             # Only print during model loading, not during normal usage
             if not hasattr(get_model, '_already_printed'):
-                print(f"🔧 Loading embedding model on: {device}")
+                print(
+                    f"🔧 Loading embedding model on: {device} (Preserving GPU for Ollama)")
                 get_model._already_printed = True
 
             # Docker-safe PyTorch configuration
@@ -53,24 +64,12 @@ def get_model():
             # Environment setup for containers
             os.environ['TOKENIZERS_PARALLELISM'] = 'false'
 
-            # Load model with device optimization (PyTorch 2.8+ compatible)
+            # Load model with device optimization - keep on CPU to avoid GPU memory conflict
             _model = SentenceTransformer(
                 EMBED_MODEL,
-                device="cpu",  # Always load on CPU first
+                device="cpu",
                 trust_remote_code=False
             )
-
-            # Move to CUDA safely after loading (PyTorch 2.8+ compatible)
-            if device == "cuda":
-                try:
-                    # Use the newer PyTorch 2.8+ method for CUDA placement
-                    _model = _model.to("cuda")
-                    if not hasattr(get_model, '_already_printed'):
-                        print("🚀 Model loaded with GPU acceleration")
-                except Exception as cuda_error:
-                    print(f"⚠️ CUDA placement failed, using CPU: {cuda_error}")
-                    device = "cpu"
-                    _model = _model.to("cpu")
 
             if device == "cpu":
                 if not hasattr(get_model, '_already_printed'):

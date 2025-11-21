@@ -1,6 +1,11 @@
+from app.pgvector_backend import search_pgvector
+from app.qdrant_backend import search_qdrant
 from typing import List
 import logging
 import os
+
+# Initialize logger
+logger = logging.getLogger(__name__)
 
 # Import clean pipeline embedder and query utilities (consolidated)
 try:
@@ -12,8 +17,6 @@ except ImportError:
     def expand_query(x): return x
     embed_query_clean = None
 
-from app.qdrant_backend import search_qdrant
-from app.pgvector_backend import search_pgvector
 
 try:
     from app.rerank import mmr, build_context as build_context_enhanced
@@ -568,7 +571,13 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
         return response_data
 
     except Exception as e:
-        logging.error(f"Ollama API error: {e}")
+        try:
+            logger.error(f"Ollama API error: {e}")
+        except NameError:
+            # Fallback if logger is not available in this context
+            import logging
+            logging.error(f"Ollama API error: {e}")
+
         # Calculate time even for error case
         total_time_ms = round((time.time() - start_time) * 1000, 1)
 
