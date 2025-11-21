@@ -775,12 +775,16 @@
 
                 <div class="checkbox-group">
                     <div class="checkbox-item" title="Elimina todos los datos existentes antes de procesar">
-                        <input type="checkbox" name="clearDatabases" id="clearDatabases">
-                        <label for="clearDatabases">🗑️ Limpiar bases primero</label>
+                        <input type="checkbox" name="clear_first" id="clear_first">
+                        <label for="clear_first">🗑️ Limpiar bases primero</label>
                     </div>
                     <div class="checkbox-item" title="Re-procesa archivos aunque ya existan en la base">
-                        <input type="checkbox" name="forceReprocess" id="forceReprocess">
-                        <label for="forceReprocess">🔄 Forzar re-proceso</label>
+                        <input type="checkbox" name="force_reprocess" id="force_reprocess">
+                        <label for="force_reprocess">🔄 Forzar re-proceso</label>
+                    </div>
+                    <div class="checkbox-item" title="Procesa todas las 16 combinaciones de métricas y algoritmos">
+                        <input type="checkbox" name="all_combinations" id="all_combinations" checked>
+                        <label for="all_combinations">🔗 Todas las combinaciones</label>
                     </div>
                     <div class="checkbox-item" title="Usa método de extracción simple y rápido">
                         <input type="checkbox" name="basicExtraction" id="basicExtraction">
@@ -1185,12 +1189,79 @@
 
             updatePipelineProgress(10, '🚀 Iniciando pipeline...');
 
+            // Start progress monitoring via SSE
+            let eventSource;
+            try {
+                eventSource = new EventSource('/pipeline/progress');
+                let lastProgressTime = Date.now();
+
+                eventSource.onmessage = function (event) {
+                    const data = JSON.parse(event.data);
+                    lastProgressTime = Date.now();
+
+                    if (data.type === 'progress') {
+                        // Extract progress information from log messages
+                        let progressMsg = data.message;
+                        let progressPercent = 50; // Default progress
+
+                        // Parse different types of progress messages
+                        if (progressMsg.includes('Processing PDF:')) {
+                            progressPercent = 20;
+                            updatePipelineProgress(progressPercent, `📄 ${progressMsg}`);
+                        } else if (progressMsg.includes('Processed') && progressMsg.includes('pages')) {
+                            // Extract page progress
+                            const match = progressMsg.match(/Processed (\d+)\/(\d+) pages/);
+                            if (match) {
+                                const current = parseInt(match[1]);
+                                const total = parseInt(match[2]);
+                                progressPercent = Math.min(20 + (current / total) * 40, 60);
+                                updatePipelineProgress(progressPercent, `📖 Procesando páginas: ${current}/${total}`);
+                            }
+                        } else if (progressMsg.includes('Completed:') && progressMsg.includes('jsonl')) {
+                            progressPercent = 70;
+                            updatePipelineProgress(progressPercent, '✅ Extracción completada, iniciando chunking...');
+                        } else if (progressMsg.includes('chunks')) {
+                            progressPercent = 85;
+                            updatePipelineProgress(progressPercent, '🔗 Creando chunks y embeddings...');
+                        } else if (progressMsg.includes('✅')) {
+                            progressPercent = 95;
+                            updatePipelineProgress(progressPercent, progressMsg);
+                        }
+
+                        // Update console with progress
+                        statusConsole.textContent += `\n${progressMsg}`;
+                        statusConsole.scrollTop = statusConsole.scrollHeight;
+                    }
+                };
+
+                eventSource.onerror = function (error) {
+                    console.log('SSE error:', error);
+                    if (eventSource) {
+                        eventSource.close();
+                    }
+                };
+
+                // Close SSE connection after 5 minutes if no progress
+                setTimeout(() => {
+                    if (Date.now() - lastProgressTime > 300000) { // 5 minutes
+                        if (eventSource) eventSource.close();
+                    }
+                }, 300000);
+            } catch (sseError) {
+                console.log('SSE not supported, using fallback progress');
+            }
+
             const response = await fetch('/pipeline/run', {
                 method: 'POST',
                 body: formData
             });
 
             const result = await response.json();
+
+            // Close SSE connection when done
+            if (eventSource) {
+                eventSource.close();
+            }
 
             if (response.ok) {
                 updatePipelineProgress(100, '✅ Pipeline completado exitosamente!');

@@ -8,9 +8,24 @@ Perfecto para cursos académicos o para aprender sobre bases de datos vectoriale
 
 ## Inicio Rápido (5 minutos)
 
-Choose your preferred approach:
-
 ### 🐳 Opción A: Solo Docker + Interfaz Web (Recomendado)
+
+#### ✅ Prerequisitos: Solo Docker
+
+**¿Tienes Docker instalado?** Verifica rápido:
+
+```bash
+docker --version
+# Si ves algo como "Docker version 20.x" → ✅ Estás listo
+```
+
+**❌ ¿No tienes Docker?** Instala en 2 minutos:
+
+- **Windows:** [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/) (incluye WSL2 automático)
+- **Mac:** [Docker Desktop](https://docs.docker.com/desktop/setup/install/mac-install/)
+- **Linux:** `curl -fsSL https://get.docker.com | sh`
+
+**🚀 ¡Listo!** Ya puedes continuar con el siguiente comando.
 
 **¿Sin Python local? ¡Perfecto! Todo funciona desde el navegador.**
 

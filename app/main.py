@@ -533,7 +533,15 @@ async def delete_uploaded_file(filename: str):
 
 
 @app.post("/pipeline/run")
-async def run_pipeline_process(request: dict):
+async def run_pipeline_process(
+    distanceMetric: str = Form("cosine"),
+    indexAlgorithm: str = Form("hnsw"),
+    backend: str = Form("both"),
+    workers: Optional[str] = Form(None),
+    clear_first: bool = Form(False),
+    force_reprocess: bool = Form(False),
+    all_combinations: bool = Form(True)
+):
     """
     Execute the main pipeline with specified arguments
     """
@@ -542,8 +550,29 @@ async def run_pipeline_process(request: dict):
         import asyncio
         from pathlib import Path
 
-        # Get command arguments from request
-        args = request.get('args', [])
+        # Build command arguments from form data
+        args = [
+            "--distance-metric", distanceMetric,
+            "--index-algorithm", indexAlgorithm
+        ]
+
+        # Add workers if specified
+        if workers and workers.strip():
+            args.extend(["--workers", workers.strip()])
+
+        # Add clear flag if requested
+        if clear_first:
+            args.append("--clear")
+
+        # Add force flag if requested
+        if force_reprocess:
+            args.append("--force")
+
+        # Choose between all combinations or single combination
+        if all_combinations:
+            args.append("--all-combinations")
+        else:
+            args.append("--single-combination")
 
         # Build the full command
         script_path = Path("/app/scripts/main_pipeline.py")
@@ -563,9 +592,7 @@ async def run_pipeline_process(request: dict):
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             cwd="/app"
-        )
-
-        # Wait for completion with timeout (30 minutes)
+        )        # Wait for completion with timeout (30 minutes)
         try:
             stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=1800)
         except asyncio.TimeoutError:
@@ -606,6 +633,108 @@ async def run_pipeline_process(request: dict):
             status_code=500,
             content={"error": f"Error ejecutando pipeline: {str(e)}"}
         )
+
+
+@app.get("/pipeline/progress")
+async def pipeline_progress():
+    """Stream pipeline progress via Server-Sent Events"""
+    async def generate_progress():
+        import asyncio
+        import json
+
+        # Send initial connection message
+        yield f"data: {json.dumps({'type': 'connected', 'message': 'Connected to pipeline progress stream'})}\n\n"
+
+        # Monitor pipeline logs for progress
+        try:
+            while True:
+                # Check if pipeline is running
+                result = await asyncio.create_subprocess_exec(
+                    "docker", "logs", "app", "--tail", "5", "--since", "10s",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                stdout, _ = await result.communicate()
+                logs = stdout.decode('utf-8')
+
+                # Parse for progress information
+                for line in logs.split('\n'):
+                    if any(keyword in line for keyword in ['Processing', 'Completed', 'pages', 'chunks', '✅', '🔄']):
+                        progress_data = {
+                            'type': 'progress',
+                            'message': line.strip(),
+                            'timestamp': str(asyncio.get_event_loop().time())
+                        }
+                        yield f"data: {json.dumps(progress_data)}\n\n"
+
+                await asyncio.sleep(2)  # Check every 2 seconds
+
+        except Exception as e:
+            error_data = {
+                'type': 'error',
+                'message': str(e)
+            }
+            yield f"data: {json.dumps(error_data)}\n\n"
+
+    return StreamingResponse(
+        generate_progress(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive"
+        }
+    )
+
+
+@app.get("/pipeline/progress")
+async def pipeline_progress():
+    """Stream pipeline progress via Server-Sent Events"""
+    async def generate_progress():
+        import asyncio
+        import json
+
+        # Send initial connection message
+        yield f"data: {json.dumps({'type': 'connected', 'message': 'Connected to pipeline progress stream'})}\n\n"
+
+        # Monitor pipeline logs for progress
+        try:
+            while True:
+                # Check if pipeline is running by looking at recent logs
+                result = await asyncio.create_subprocess_exec(
+                    "docker", "logs", "app", "--tail", "10", "--since", "10s",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                stdout, _ = await result.communicate()
+                logs = stdout.decode('utf-8')
+
+                # Parse for progress information
+                for line in logs.split('\n'):
+                    if any(keyword in line for keyword in ['Processing', 'Completed', 'pages', 'chunks', '✅', '🔄']):
+                        progress_data = {
+                            'type': 'progress',
+                            'message': line.strip(),
+                            'timestamp': str(asyncio.get_event_loop().time())
+                        }
+                        yield f"data: {json.dumps(progress_data)}\n\n"
+
+                await asyncio.sleep(2)  # Check every 2 seconds
+
+        except Exception as e:
+            error_data = {
+                'type': 'error',
+                'message': str(e)
+            }
+            yield f"data: {json.dumps(error_data)}\n\n"
+
+    return StreamingResponse(
+        generate_progress(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive"
+        }
+    )
 
 
 # ================================
@@ -2527,71 +2656,6 @@ async def upload_documents(files: List[UploadFile] = File(...)):
 
     except Exception as e:
         logger.error(f"Error uploading files: {e}")
-        return JSONResponse(
-            status_code=500,
-            content={"error": str(e)}
-        )
-
-
-@app.post("/pipeline/run")
-async def run_pipeline(
-    distance_metric: str = Form("cosine"),
-    index_algorithm: str = Form("hnsw"),
-    clear_first: bool = Form(True)
-):
-    """Run the complete RAG pipeline with specified algorithms"""
-    try:
-        import subprocess
-        import sys
-        from pathlib import Path
-
-        # Build command for main pipeline
-        script_path = Path("scripts/main_pipeline.py")
-        cmd = [
-            sys.executable, str(script_path),
-            "--distance-metric", distance_metric,
-            "--index-algorithm", index_algorithm
-        ]
-
-        if clear_first:
-            cmd.append("--clear")
-
-        # Run pipeline process
-        process = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=600  # 10 minute timeout
-        )
-
-        if process.returncode == 0:
-            return JSONResponse({
-                "success": True,
-                "message": "Pipeline completed successfully",
-                "output": process.stdout,
-                "config": {
-                    "distance_metric": distance_metric,
-                    "index_algorithm": index_algorithm,
-                    "collection_suffix": f"_{distance_metric}_{index_algorithm}"
-                }
-            })
-        else:
-            return JSONResponse(
-                status_code=500,
-                content={
-                    "error": f"Pipeline failed with return code {process.returncode}",
-                    "stdout": process.stdout,
-                    "stderr": process.stderr
-                }
-            )
-
-    except subprocess.TimeoutExpired:
-        return JSONResponse(
-            status_code=500,
-            content={"error": "Pipeline execution timed out"}
-        )
-    except Exception as e:
-        logger.error(f"Error running pipeline: {e}")
         return JSONResponse(
             status_code=500,
             content={"error": str(e)}
