@@ -57,11 +57,26 @@ else
     warn "Package manager not recognised — you may need to install curl and python3 manually."
 fi
 
-# Check for NVIDIA GPU
+# Check for NVIDIA GPU and driver health
 GPU_INFO=""
+NVIDIA_NEEDS_DRIVER=false
 if command -v nvidia-smi &>/dev/null && nvidia-smi &>/dev/null 2>&1; then
     GPU_INFO=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 || true)
-    success "NVIDIA GPU detected: ${GPU_INFO} — Ollama will use CUDA automatically."
+    DRIVER_VER=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -1 || echo "0")
+    DRIVER_MAJOR=$(echo "$DRIVER_VER" | cut -d. -f1)
+    success "NVIDIA GPU detected: ${GPU_INFO} (driver ${DRIVER_VER})"
+    # Blackwell (RTX 50-series) and recent GPUs need driver 565+
+    # PyTorch CUDA libraries also require a recent driver
+    if [[ "$DRIVER_MAJOR" -lt 565 ]]; then
+        warn "Driver ${DRIVER_VER} is outdated — PyTorch/CUDA may not work correctly."
+        NVIDIA_NEEDS_DRIVER=true
+    else
+        success "NVIDIA driver is up to date — Ollama will use CUDA automatically."
+    fi
+elif lspci 2>/dev/null | grep -qi nvidia; then
+    warn "NVIDIA GPU found in hardware but nvidia-smi is not working — driver may be missing."
+    GPU_INFO="NVIDIA (driver not installed)"
+    NVIDIA_NEEDS_DRIVER=true
 elif [[ -d /dev/dri ]] && ls /dev/dri/renderD* &>/dev/null 2>&1; then
     success "GPU render device found — Ollama will use it via ROCm/VAAPI where supported."
 else
@@ -80,17 +95,72 @@ install_pkg() {
     esac
 }
 
+# Refresh package index — required on fresh systems before any apt installs.
+# We use || true because third-party repos may have key/404 errors that are
+# irrelevant to our packages (all of which are in the main Ubuntu archive).
+if [[ "$PKG_MANAGER" == "apt" ]]; then
+    info "Refreshing package index (sudo required)..."
+    sudo apt-get update -qq 2>&1 | grep -v "^W:\|^N:" || true
+    success "Package index refreshed"
+fi
+
+# Install essential tools (curl, git, xdg-utils for browser open)
 NEED_INSTALL=()
 for bin in curl git; do
     command -v "$bin" &>/dev/null || NEED_INSTALL+=("$bin")
 done
+command -v xdg-open &>/dev/null || NEED_INSTALL+=("xdg-utils")
 
 if [[ ${#NEED_INSTALL[@]} -gt 0 ]]; then
-    info "Installing: ${NEED_INSTALL[*]}"
+    info "Installing system tools: ${NEED_INSTALL[*]}"
     install_pkg "${NEED_INSTALL[@]}"
-    success "System tools ready"
-else
-    success "curl and git already present"
+fi
+success "System tools ready"
+
+# ─── 2b. NVIDIA driver (if needed) ───────────────────────────────────────────
+if [[ "$NVIDIA_NEEDS_DRIVER" == "true" && "$PKG_MANAGER" == "apt" ]]; then
+    echo ""
+    warn "An outdated or missing NVIDIA driver was detected."
+    warn "The system needs driver 565+ for CUDA and Ollama GPU acceleration."
+    echo ""
+    ask "Install/upgrade to the latest recommended NVIDIA driver now? [Y/n]: "
+    read -r DRIVER_CHOICE
+    DRIVER_CHOICE="${DRIVER_CHOICE:-Y}"
+
+    if [[ "$DRIVER_CHOICE" =~ ^[Yy]$ ]]; then
+        info "Adding nvidia-driver PPA and installing latest recommended driver..."
+        # ubuntu-drivers-common provides 'ubuntu-drivers autoinstall' which picks
+        # the correct driver version for the detected GPU automatically.
+        sudo apt-get install -y ubuntu-drivers-common &>/dev/null
+        info "Detecting best driver for your GPU..."
+        RECOMMENDED=$(ubuntu-drivers devices 2>/dev/null | grep "recommended" | awk '{print $3}' | head -1 || true)
+        if [[ -n "$RECOMMENDED" ]]; then
+            info "Installing recommended driver: ${RECOMMENDED}"
+            sudo apt-get install -y "$RECOMMENDED"
+        else
+            info "Running ubuntu-drivers autoinstall..."
+            sudo ubuntu-drivers autoinstall
+        fi
+        success "NVIDIA driver installed."
+        warn "A system reboot is required to activate the new driver."
+        warn "After rebooting, re-run  ./install_linux.sh  to complete setup."
+        echo ""
+        ask "Reboot now? [y/N]: "
+        read -r REBOOT_NOW
+        REBOOT_NOW="${REBOOT_NOW:-N}"
+        if [[ "$REBOOT_NOW" =~ ^[Yy]$ ]]; then
+            info "Rebooting in 5 seconds... (re-run install_linux.sh after boot)"
+            sleep 5; sudo reboot
+        else
+            warn "Continuing without reboot — GPU may not be active until next restart."
+        fi
+    else
+        warn "Skipping driver install. Models will run on CPU until driver is updated."
+    fi
+elif [[ "$NVIDIA_NEEDS_DRIVER" == "true" && "$PKG_MANAGER" == "dnf" ]]; then
+    warn "Outdated NVIDIA driver detected. Install manually:"
+    warn "  sudo dnf install akmod-nvidia   (Fedora/RPM Fusion)"
+    warn "Then reboot and re-run this installer."
 fi
 
 # ─── 3. Python ───────────────────────────────────────────────────────────────
@@ -116,9 +186,11 @@ if [[ -z "$PYTHON" ]]; then
         apt)
             sudo apt-get install -y python3.11 python3.11-venv python3-pip
             PYTHON="python3.11"
+            # Re-run the apt update guard in case we skipped it (shouldn't happen but safe)
+            sudo apt-get update -qq &>/dev/null || true
             ;;
         dnf)
-            sudo dnf install -y python3.11
+            sudo dnf install -y python3.11 python3-pip
             PYTHON="python3.11"
             ;;
         pacman)
@@ -133,14 +205,18 @@ if [[ -z "$PYTHON" ]]; then
     success "Python installed"
 fi
 
-# Ensure python3-venv is available (Ubuntu/Debian split it out)
+# Ensure python3-venv and pip are available.
+# Ubuntu/Debian split these into separate packages (python3.X-venv, python3-pip).
 if [[ "$PKG_MANAGER" == "apt" ]]; then
     PYVER=$("$PYTHON" --version 2>&1 | awk '{print $2}' | cut -d. -f1,2)
     PKG_VENV="python${PYVER}-venv"
-    if ! "$PYTHON" -m venv --help &>/dev/null 2>&1; then
-        info "Installing $PKG_VENV..."
-        sudo apt-get install -y "$PKG_VENV" python3-pip || true
-    fi
+    info "Ensuring Python venv + pip packages (${PKG_VENV}, python3-pip)..."
+    sudo apt-get install -y "$PKG_VENV" python3-pip &>/dev/null || true
+    success "Python venv support ready"
+elif [[ "$PKG_MANAGER" == "dnf" ]]; then
+    sudo dnf install -y python3-pip &>/dev/null || true
+elif [[ "$PKG_MANAGER" == "pacman" ]]; then
+    sudo pacman -S --noconfirm python-pip &>/dev/null || true
 fi
 
 # ─── 4. Ollama ───────────────────────────────────────────────────────────────
@@ -186,7 +262,7 @@ echo -e "  ${DIM}  3.  gemma3:4b     (2.5 GB — Google Gemma 3 · 128K ctx · 3
 echo -e "  ${DIM}  4.  llama3.2:3b   (2.0 GB — Meta · lightweight classic · good all-round)${RESET}"
 echo -e "  ${DIM}  5.  qwen3:1.7b    (1.4 GB — ultra-light · same Qwen3 quality in tiny size)${RESET}"
 echo -e "  ${DIM}  6.  Custom — type any Ollama model name${RESET}"
-if [[ -n "$GPU_INFO" ]]; then
+if [[ -n "$GPU_INFO" && "$NVIDIA_NEEDS_DRIVER" == "false" ]]; then
     echo ""
     echo -e "  ${DIM}Tip: NVIDIA GPU detected — larger models (7b+) will work well too.${RESET}"
 fi
@@ -240,9 +316,9 @@ import sys
 try:
     from sentence_transformers import SentenceTransformer
     m = SentenceTransformer('intfloat/multilingual-e5-base', cache_folder='${MODEL_CACHE}')
-    print("  ✓  Embedding model ready")
-except Exception as e:
-    print(f"  ⚠  Will download on first use: {e}", file=sys.stderr)
+    print('  \u2713  Embedding model ready')
+except Exception as err:
+    print('  \u26a0  Will download on first use: ' + str(err), file=sys.stderr)
 PYEOF
 
 # ─── Write .env.local ────────────────────────────────────────────────────────

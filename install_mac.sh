@@ -35,8 +35,7 @@ echo ""
 header "Step 1 / 5  —  Platform"
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
-    error "This installer is for macOS only. On Linux, use Docker Compose instead:"
-    echo "       docker compose up -d"
+    error "This installer is for macOS only. On Linux use:  ./install_linux.sh"
     exit 1
 fi
 
@@ -50,23 +49,48 @@ else
     success "Intel Mac detected — models will run on CPU (slower but works)."
 fi
 
-# ─── 2. Homebrew ─────────────────────────────────────────────────────────────
-header "Step 2 / 5  —  Homebrew"
+# ─── 2. Xcode Command Line Tools ─────────────────────────────────────────────
+header "Step 2 / 6  —  Xcode Command Line Tools"
+
+if ! xcode-select -p &>/dev/null 2>&1; then
+    warn "Xcode Command Line Tools not installed (required by Homebrew and Python)."
+    warn "A system dialog will appear — click 'Install' and wait for it to finish."
+    xcode-select --install 2>/dev/null || true
+    # Poll until installed (the dialog is async)
+    info "Waiting for Xcode CLT installation to complete..."
+    until xcode-select -p &>/dev/null 2>&1; do
+        sleep 10
+        printf "."
+    done
+    echo ""
+    success "Xcode Command Line Tools installed"
+else
+    success "Xcode Command Line Tools present ($(xcode-select -p))"
+fi
+
+# ─── 3. Homebrew ─────────────────────────────────────────────────────────────
+header "Step 3 / 6  —  Homebrew"
 
 if ! command -v brew &>/dev/null; then
     warn "Homebrew not found. Installing... (you may be asked for your password)"
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    # Add brew to PATH for Apple Silicon
+    # Add brew to PATH — Apple Silicon uses /opt/homebrew, Intel uses /usr/local
     if [[ "$ARCH" == "arm64" ]] && [[ -f /opt/homebrew/bin/brew ]]; then
         eval "$(/opt/homebrew/bin/brew shellenv)"
+    elif [[ -f /usr/local/bin/brew ]]; then
+        eval "$(/usr/local/bin/brew shellenv)"
     fi
     success "Homebrew installed"
 else
     success "Homebrew already installed"
+    # Ensure brew is in PATH for Apple Silicon sessions that haven't set it up
+    if [[ "$ARCH" == "arm64" ]] && ! command -v brew &>/dev/null 2>&1; then
+        eval "$(/opt/homebrew/bin/brew shellenv)"
+    fi
 fi
 
 # ─── 3. Python ───────────────────────────────────────────────────────────────
-header "Step 3 / 5  —  Python"
+header "Step 4 / 6  —  Python"
 
 PYTHON=""
 for py in python3.13 python3.12 python3.11 python3.10 python3; do
@@ -90,7 +114,7 @@ if [[ -z "$PYTHON" ]]; then
 fi
 
 # ─── 4. Ollama ───────────────────────────────────────────────────────────────
-header "Step 4 / 5  —  Ollama (local AI engine)"
+header "Step 5 / 6  —  Ollama (local AI engine)"
 
 if ! command -v ollama &>/dev/null; then
     warn "Ollama not found. Installing via Homebrew..."
@@ -162,7 +186,7 @@ else
 fi
 
 # ─── 5. Python deps ──────────────────────────────────────────────────────────
-header "Step 5 / 5  —  Python dependencies & configuration"
+header "Step 6 / 6  —  Python dependencies & configuration"
 
 VENV_PY="$VENV_DIR/bin/python"
 
@@ -188,9 +212,9 @@ import sys
 try:
     from sentence_transformers import SentenceTransformer
     m = SentenceTransformer('intfloat/multilingual-e5-base', cache_folder='${MODEL_CACHE}')
-    print("  ✓  Embedding model ready")
-except Exception as e:
-    print(f"  ⚠  Will download on first use: {e}", file=sys.stderr)
+    print('  ✓  Embedding model ready')
+except Exception as err:
+    print('  ⚠  Will download on first use: ' + str(err), file=sys.stderr)
 PYEOF
 
 # ─── Write .env.local ────────────────────────────────────────────────────────
