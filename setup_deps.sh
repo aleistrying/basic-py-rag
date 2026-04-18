@@ -1,33 +1,51 @@
 #!/bin/bash
 # Quick setup script for clean ingest pipeline dependencies
 
+set -e
+
 echo "🚀 Setting up Clean Ingest Pipeline Dependencies"
 echo "================================================"
 
-# Check if pip3 is available
-if ! command -v pip3 &> /dev/null; then
-    echo "❌ pip3 not found - please install python3-pip first"
+MODE="ocr"
+if [[ "${1:-}" == "--full" ]]; then
+    MODE="full"
+fi
+
+# Pick installer priority: uv pip (if in uv project) -> pip -> pip3
+INSTALLER=""
+if command -v uv >/dev/null 2>&1 && [[ -d ".venv" ]]; then
+    INSTALLER="uv pip"
+elif command -v pip >/dev/null 2>&1; then
+    INSTALLER="pip"
+elif command -v pip3 >/dev/null 2>&1; then
+    INSTALLER="pip3"
+else
+    echo "❌ pip not found. Create/activate a venv first (uv venv && source .venv/bin/activate)."
     exit 1
 fi
 
+echo "🔧 Installer: ${INSTALLER}"
+echo "📦 Mode: ${MODE}"
+
 echo "📦 Installing required packages..."
 
-# Core packages for the pipeline
-pip3 install --user numpy sentence-transformers transformers torch
+# OCR/PDF processing packages (fast path, no torch)
+echo "📄 Installing OCR + PDF packages..."
+${INSTALLER} install pdfplumber PyMuPDF PyPDF2 pdf2image pytesseract pillow
 
-# Optional packages for backends
-echo "🗄️  Installing backend packages..."
-pip3 install --user qdrant-client psycopg2-binary
-
-# PDF processing packages
-echo "📄 Installing PDF processing packages..."
-pip3 install --user pdfplumber PyMuPDF PyPDF2
+if [[ "${MODE}" == "full" ]]; then
+    # Embedding + backends (includes torch, large download)
+    echo "🧠 Installing embedding + backend packages (this can take a while)..."
+    ${INSTALLER} install numpy sentence-transformers transformers torch qdrant-client psycopg2-binary
+fi
 
 echo ""
 echo "✅ Dependencies installed!"
 echo ""
 echo "🎯 Next steps:"
-echo "   1. Check setup: python3 scripts/ingest_all.py --check"
-echo "   2. Test pipeline: python3 test_clean_pipeline.py"  
-echo "   3. Run pipeline: python3 scripts/ingest_all.py"
+echo "   1. Check OCR tools: tesseract --version && pdftoppm -v"
+echo "   2. Put PDFs in data/raw"
+echo "   3. OCR process: FORCE_OCR_ALL=1 python scripts/pdf_processing.py"
+echo ""
+echo "ℹ️  For full RAG dependencies later: ./setup_deps.sh --full"
 echo ""

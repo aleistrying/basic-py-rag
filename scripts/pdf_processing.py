@@ -78,9 +78,12 @@ class UnifiedPDFProcessor:
 
     def __init__(self, max_pages_per_chunk: int = 25):
         self.max_pages_per_chunk = max_pages_per_chunk
+        self.force_ocr_all = os.getenv("FORCE_OCR_ALL", "0") == "1"
         self.available_extractors = self._check_available_extractors()
         logger.info(
             f"Available extractors: {list(self.available_extractors.keys())}")
+        if self.force_ocr_all:
+            logger.info("FORCE_OCR_ALL=1 enabled: OCR will run on every page")
 
     def _check_available_extractors(self) -> Dict[str, bool]:
         """Check which extraction libraries are available"""
@@ -314,12 +317,18 @@ class UnifiedPDFProcessor:
             normalized = self._normalize_text(page_text) if page_text else ""
             extractor_used = "pymupdf"
 
-            # If regular extraction yields minimal content, try OCR
-            if len(normalized) < 50 and OCR_AVAILABLE:
+            # If regular extraction yields minimal content, or OCR is forced, run OCR.
+            if (self.force_ocr_all or len(normalized) < 50) and OCR_AVAILABLE:
                 ocr_text = self._extract_page_with_ocr(pdf_path, page_idx)
 
                 if ocr_text:
-                    normalized = self._normalize_text(ocr_text)
+                    ocr_normalized = self._normalize_text(ocr_text)
+                    if self.force_ocr_all and normalized:
+                        # Keep both sources to maximize recall on noisy scans.
+                        combined = f"{normalized}\n\n{ocr_normalized}" if ocr_normalized else normalized
+                        normalized = self._normalize_text(combined)
+                    else:
+                        normalized = ocr_normalized
                     extractor_used = "pymupdf+ocr"
 
             # Return page data if we have enough content
