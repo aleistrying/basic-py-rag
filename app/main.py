@@ -112,6 +112,9 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="RAG Demo - Qdrant vs PGvector Postgres")
 
+# Jinja2 templates for research UI
+_research_templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+
 
 # ================================
 # UPLOAD FILE MANAGEMENT ROUTES
@@ -3795,3 +3798,180 @@ async def system_prompt_post(request: Request):
             return JSONResponse({"success": True, "message": "Reset to default.", "active_prompt": load_system_prompt()})
     except Exception as e:
         return JSONResponse({"success": False, "error": str(e)}, status_code=500)
+
+
+# ============================================================
+# RESEARCH UI  —  clean no-code interface for document search
+# ============================================================
+
+@app.get("/research", response_class=HTMLResponse)
+def research_page(request: Request):
+    """Serve the focused research UI."""
+    default_model = os.getenv("OLLAMA_MODEL", "qwen3:4b")
+    return _research_templates.TemplateResponse(
+        "research.html",
+        {"request": request, "default_model": default_model}
+    )
+
+
+@app.get("/api/research/search")
+def research_search(
+    q: str = Query(..., min_length=1),
+    method: str = Query("standard"),
+    k: int = Query(5, ge=1, le=20),
+    backend: str = Query("qdrant"),
+):
+    """
+    JSON endpoint: runs semantic/advanced search and returns normalised results.
+    Supports method = standard | multi-query | decompose | hyde | hybrid | iterative
+    """
+    import time
+    t0 = time.time()
+
+    default_model = os.getenv("OLLAMA_MODEL", "qwen3:4b")
+
+    try:
+        if method == "standard" or method not in (
+            "multi-query", "decompose", "hyde", "hybrid", "iterative"
+        ):
+            raw = search_knowledge_base(q, backend=backend, k=k)
+            results = raw.get("results", [])
+            search_ms = raw.get("backend_info", {}).get("search_time_ms")
+        else:
+            fn_map = {
+                "multi-query": multi_query_search,
+                "decompose":   decomposed_search,
+                "hyde":        hyde_search,
+                "hybrid":      hybrid_search,
+                "iterative":   iterative_retrieval,
+            }
+            fn = fn_map.get(method)
+            if fn is None:
+                raise HTTPException(status_code=503, detail=f"Advanced method '{method}' not available.")
+            raw = fn(q, backend=backend, k=k, model=default_model)
+            results = raw.get("results") or raw.get("sources") or []
+            timing = raw.get("timing", {})
+            search_ms = timing.get("total_time_ms") or timing.get("search_time_ms")
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"Research search error: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    if search_ms is None:
+        search_ms = round((time.time() - t0) * 1000, 1)
+
+    return JSONResponse({
+        "query":          q,
+        "method":         method,
+        "backend":        backend.upper(),
+        "search_time_ms": search_ms,
+        "total_results":  len(results),
+        "results":        results,
+    })
+
+
+@app.get("/api/research/ai")
+def research_ai(
+    q: str = Query(..., min_length=1),
+    model: str = Query(None),
+    method: str = Query("standard"),
+    k: int = Query(5, ge=1, le=20),
+    backend: str = Query("qdrant"),
+):
+    """
+    JSON endpoint: runs RAG + LLM and returns AI answer.
+    Uses the same model default as the research page.
+    """
+    if not model:
+        model = os.getenv("OLLAMA_MODEL", "qwen3:4b")
+
+    try:
+        data = generate_llm_answer(q, backend=backend, k=k, model=model)
+    except Exception as exc:
+        logger.error(f"Research AI error: {exc}")
+        return JSONResponse({
+            "query": q,
+            "ai_response": f"AI service error: {exc}",
+            "model": model,
+            "error": str(exc),
+        }, status_code=200)  # 200 so the UI handles the message gracefully
+
+    data["method"] = method
+    return JSONResponse(data)
+
+
+@app.get("/api/open-file")
+def open_file_native(path: str = Query(...), page: int = Query(1)):
+    """
+    Opens a document with the OS default application (macOS: open, Linux: xdg-open).
+    Only resolves paths within the project's data directory for safety.
+    """
+    import platform
+
+    # Resolve safe path: only allow files under ./data/
+    project_root = Path(__file__).parent.parent
+
+    # Normalise: strip /app prefix added by Docker, leading ./
+    clean = path.lstrip("./")
+    if clean.startswith("app/"):
+        clean = clean[4:]
+
+    candidate = (project_root / clean).resolve()
+
+    # Safety: must stay inside project root
+    try:
+        candidate.relative_to(project_root.resolve())
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Path outside project directory.")
+
+    if not candidate.is_file():
+        return JSONResponse({"success": False, "message": "File not found.", "resolved": str(candidate)})
+
+    try:
+        system = platform.system()
+        if system == "Darwin":
+            subprocess.Popen(["open", str(candidate)])
+        elif system == "Linux":
+            subprocess.Popen(["xdg-open", str(candidate)])
+        elif system == "Windows":
+            os.startfile(str(candidate))  # type: ignore[attr-defined]
+        else:
+            return JSONResponse({"success": False, "message": f"Unsupported OS: {system}"})
+        return JSONResponse({"success": True, "message": f"Opened {candidate.name}", "page_hint": page})
+    except Exception as exc:
+        logger.error(f"open-file error: {exc}")
+        return JSONResponse({"success": False, "message": str(exc)})
+
+
+@app.get("/files/serve/{filename}")
+def serve_file(filename: str):
+    """
+    Serve a raw document file for in-browser viewing.
+    Only files inside ./data/raw/ are accessible to prevent path traversal.
+    """
+    from fastapi.responses import FileResponse
+
+    # Strict filename validation — no path components allowed
+    if any(c in filename for c in ("/", "\\", "..")) or not filename:
+        raise HTTPException(status_code=400, detail="Invalid filename.")
+
+    project_root = Path(__file__).parent.parent
+    raw_dir = project_root / "data" / "raw"
+    file_path = (raw_dir / filename).resolve()
+
+    # Confirm the resolved path is inside data/raw
+    try:
+        file_path.relative_to(raw_dir.resolve())
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Access denied.")
+
+    if not file_path.is_file():
+        raise HTTPException(status_code=404, detail="File not found.")
+
+    return FileResponse(
+        path=file_path,
+        filename=filename,
+        headers={"Content-Disposition": "inline"},
+    )
