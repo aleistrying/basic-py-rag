@@ -950,6 +950,12 @@
             <div class="api-endpoint">/demo/pipeline</div>
             <div class="api-description">Demo paso a paso del pipeline RAG completo</div>
         </div>
+
+        <div class="api-card" onclick="navigateWithLoading('/settings/system-prompt', 'Cargando editor...')">
+            <div class="api-method get">GET</div>
+            <div class="api-endpoint">/settings/system-prompt</div>
+            <div class="api-description">Editar el system prompt del asistente</div>
+        </div>
     </div>
 </div>
 
@@ -960,6 +966,9 @@
         </a>
         <a href="/filter-examples" class="nav-btn-large">
             {{ get_svg_icon("settings", "20", "#ffffff") }} Ejemplos de Filtros
+        </a>
+        <a href="/settings/system-prompt" class="nav-btn-large">
+            ⚙️ System Prompt
         </a>
     </div>
 </div>

@@ -18,14 +18,15 @@ CHUNK_TOKENS = 250  # Smaller chunks ~150-200 words for better granular search
 CHUNK_OVERLAP = 50  # ~30-40 words overlap to preserve context
 MIN_CHARS = 50      # Allow shorter chunks to capture specific details
 
-# Backend configuration
+# Backend configuration (overridable via env vars / .env.local)
 USE_QDRANT = True
 USE_PGVECTOR = True
 
 # Qdrant settings
-# Use Docker service name for container networking
-QDRANT_URL = "http://qdrant:6333"
-QDRANT_COLLECTION = "course_docs_clean"
+# Local file path (set by install_mac.sh / .env.local) takes priority over URL
+QDRANT_LOCAL_PATH = os.getenv("QDRANT_LOCAL_PATH")  # e.g. ./data/qdrant_local
+QDRANT_URL = os.getenv("QDRANT_URL", "http://qdrant:6333")  # Docker default
+QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "course_docs_clean")
 QDRANT_VECTOR_SIZE = 768  # E5-base dimensions
 QDRANT_DISTANCE = "Cosine"
 
@@ -40,6 +41,12 @@ PG_DIM = 768
 
 # Build DSN
 PG_DSN = f"postgresql://{PG_USER}:{PG_PASSWORD}@{PG_HOST}:{PG_PORT}/{PG_DATABASE}"
+
+# Disable pgvector for local/offline mode
+USE_PGVECTOR = os.getenv(
+    "USE_PGVECTOR", "true").lower() not in ("false", "0", "no")
+USE_QDRANT = os.getenv(
+    "USE_QDRANT", "true").lower() not in ("false", "0", "no")
 
 # Batch processing (optimized for HIGH-PERFORMANCE hardware - 24-core i7 + RTX 5060)
 BATCH_SIZE = 512   # Aggressive batching for your powerful CPU

@@ -1,36 +1,57 @@
 from qdrant_client import QdrantClient
 import os
+import logging
 
-# Use Docker service name when running in container, localhost otherwise
-QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
-client = QdrantClient(host=QDRANT_HOST, port=6333)
+logger = logging.getLogger(__name__)
 
 # Default collection names (try clean pipeline first, fallback to legacy)
 CLEAN_COLLECTION = "course_docs_clean"
-# LEGACY_COLLECTION = "docs_qdrant"
+
+# Lazy-initialised client — avoids crashing at import time when Qdrant is
+# not yet reachable (e.g. container still starting, or local/offline mode).
+_client: QdrantClient | None = None
 
 
-def get_available_collection():
-    """Determine which collection to use - prefer algorithm-specific collections"""
-    # Default algorithm-specific collection (cosine + hnsw is most common)
+def _get_client() -> QdrantClient:
+    """Return the shared Qdrant client, creating it on first call."""
+    global _client
+    if _client is not None:
+        return _client
+
+    local_path = os.getenv("QDRANT_LOCAL_PATH")
+    if local_path:
+        # Local file-based storage — no server needed (great for macOS offline use)
+        os.makedirs(local_path, exist_ok=True)
+        logger.info(f"Qdrant: using local file storage at {local_path}")
+        _client = QdrantClient(path=local_path)
+    else:
+        host = os.getenv("QDRANT_HOST", "localhost")
+        logger.info(f"Qdrant: connecting to {host}:6333")
+        _client = QdrantClient(host=host, port=6333)
+
+    return _client
+
+
+def get_available_collection() -> str:
+    """Determine which collection to use - prefer algorithm-specific collections."""
+    client = _get_client()
     default_collection = f"{CLEAN_COLLECTION}_cosine_hnsw"
 
     try:
-        # Try the default algorithm-specific collection first
         client.get_collection(default_collection)
         return default_collection
-    except:
-        # If that doesn't work, try to find any algorithm-specific collection
-        try:
-            collections = client.get_collections()
-            for collection in collections.collections:
-                if collection.name.startswith(CLEAN_COLLECTION + "_"):
-                    return collection.name
-        except:
-            pass
+    except Exception:
+        pass
 
-        # Fall back to base collection name (though it probably won't exist)
-        return CLEAN_COLLECTION
+    try:
+        collections = client.get_collections()
+        for collection in collections.collections:
+            if collection.name.startswith(CLEAN_COLLECTION + "_"):
+                return collection.name
+    except Exception as exc:
+        logger.warning(f"Qdrant get_collections failed: {exc}")
+
+    return CLEAN_COLLECTION
 
 
 def search_qdrant(query_emb, k=5, where=None, collection_suffix=None):
@@ -48,6 +69,7 @@ def search_qdrant(query_emb, k=5, where=None, collection_suffix=None):
             - page: int (for PDFs)
             - contains: str (text must contain this string)
     """
+    client = _get_client()
     collection = get_available_collection()
 
     # Use algorithm-specific collection if suffix provided
@@ -56,9 +78,8 @@ def search_qdrant(query_emb, k=5, where=None, collection_suffix=None):
         try:
             client.get_collection(algorithm_collection)
             collection = algorithm_collection
-        except:
-            # Fall back to default collection if algorithm-specific one doesn't exist
-            pass
+        except Exception:
+            pass  # Fall back to default collection
 
     try:
         from qdrant_client.models import QueryRequest

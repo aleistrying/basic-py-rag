@@ -1,6 +1,7 @@
 from app.pgvector_backend import search_pgvector
 from app.qdrant_backend import search_qdrant
 from typing import List
+from pathlib import Path
 import logging
 import os
 
@@ -37,21 +38,53 @@ except ImportError:
 
 BACKENDS = {"qdrant": search_qdrant, "pgvector": search_pgvector}
 
-# Improved prompt: concise, focused answers without excessive citations
-PROMPT_TEMPLATE = """Eres un asistente académico. Responde de forma directa y concisa usando SOLO la información de los fragmentos.
+# ---------------------------------------------------------------------------
+# System prompt — user-editable, stored in data/system_prompt.txt
+# ---------------------------------------------------------------------------
+
+# Path to the user-editable system prompt file (relative to repo root)
+_SYSTEM_PROMPT_FILE = Path(__file__).parent.parent / \
+    "data" / "system_prompt.txt"
+
+# Default prompt used when no custom file exists
+DEFAULT_SYSTEM_PROMPT = (
+    "Eres un asistente académico. Responde de forma directa y concisa "
+    "usando SOLO la información de los fragmentos.\n\n"
+    "Instrucciones:\n"
+    "- Da una respuesta clara y directa\n"
+    "- Usa fechas, números y nombres exactos de los fragmentos\n"
+    "- Si la información no está en los fragmentos, responde: \"No está disponible.\"\n"
+    "- Solo menciona el documento si es relevante para entender la respuesta\n"
+    "- NO incluyas referencias bibliográficas completas ni autores irrelevantes\n"
+    "- Responde en el lenguaje correspondiente (Ingles, Frances, o Español), de forma natural y concisa"
+)
+
+
+def load_system_prompt() -> str:
+    """Return the active system prompt (custom file, or built-in default)."""
+    try:
+        if _SYSTEM_PROMPT_FILE.exists():
+            text = _SYSTEM_PROMPT_FILE.read_text(encoding="utf-8").strip()
+            if text:
+                return text
+    except Exception as exc:
+        logger.warning(f"Could not read system prompt file: {exc}")
+    return DEFAULT_SYSTEM_PROMPT
+
+
+def save_system_prompt(text: str) -> None:
+    """Persist a custom system prompt to disk."""
+    _SYSTEM_PROMPT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _SYSTEM_PROMPT_FILE.write_text(text.strip(), encoding="utf-8")
+
+
+# Fixed RAG structure — wraps the editable system prompt around context
+RAG_TEMPLATE = """{system_prompt}
 
 Pregunta: {q}
 
 Fragmentos relevantes:
 {sources}
-
-Instrucciones:
-- Da una respuesta clara y directa
-- Usa fechas, números y nombres exactos de los fragmentos
-- Si la información no está en los fragmentos, responde: "No está disponible."
-- Solo menciona el documento si es relevante para entender la respuesta
-- NO incluyas referencias bibliográficas completas ni autores irrelevantes
-- Responde en español, de forma natural y concisa
 
 Respuesta:
 """
@@ -438,7 +471,8 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
         sources = build_context_enhanced(reranked, max_tokens=1200)
     else:
         sources = build_context(reranked)
-    prompt = PROMPT_TEMPLATE.format(q=query, sources=sources)
+    prompt = RAG_TEMPLATE.format(
+        system_prompt=load_system_prompt(), q=query, sources=sources)
 
     try:
         # Use resilient Ollama generation with automatic retry and fallback

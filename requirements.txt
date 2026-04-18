@@ -39,6 +39,10 @@ rapidfuzz
 plotly
 kaleido
 
+# CLI tool dependencies
+questionary
+rich
+
 # Enhanced visualization libraries
 matplotlib
 seaborn

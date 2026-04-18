@@ -3614,3 +3614,184 @@ async def enhanced_visualizations_dashboard(
             data=error_data,
             title="Visualizations - Error"
         )
+
+
+# ================================
+# SYSTEM PROMPT SETTINGS
+# ================================
+
+@app.get("/settings/system-prompt", response_class=HTMLResponse)
+def system_prompt_get():
+    """Web editor for the RAG system prompt."""
+    from app.rag import load_system_prompt, DEFAULT_SYSTEM_PROMPT
+    current = load_system_prompt()
+    is_custom = current != DEFAULT_SYSTEM_PROMPT
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>System Prompt — RAG Settings</title>
+  <style>
+    body {{
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', Arial, sans-serif;
+      background: linear-gradient(135deg, #0f1629 0%, #1a1a2e 100%);
+      color: #e1e5e9;
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+    }}
+    .container {{
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 40px 24px;
+    }}
+    .header {{
+      background: linear-gradient(135deg, #4c1d95 0%, #3730a3 100%);
+      border-radius: 14px;
+      padding: 24px 28px;
+      margin-bottom: 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }}
+    .header h1 {{ margin: 0; font-size: 1.4rem; color: #fff; }}
+    .badge {{
+      font-size: 0.75rem;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-weight: 600;
+    }}
+    .badge.custom {{ background: #10b981; color: #fff; }}
+    .badge.default {{ background: #6b7280; color: #fff; }}
+    .card {{
+      background: rgba(26, 26, 46, 0.85);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 14px;
+      padding: 28px;
+      margin-bottom: 20px;
+    }}
+    label {{ display: block; margin-bottom: 10px; font-weight: 600; color: #a78bfa; }}
+    .hint {{ font-size: 0.83rem; color: #6b7280; margin-bottom: 14px; }}
+    textarea {{
+      width: 100%;
+      min-height: 320px;
+      background: #111827;
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 10px;
+      color: #e1e5e9;
+      font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+      font-size: 0.9rem;
+      line-height: 1.6;
+      padding: 16px;
+      resize: vertical;
+      box-sizing: border-box;
+      transition: border-color 0.2s;
+    }}
+    textarea:focus {{ outline: none; border-color: #8b5cf6; }}
+    .btn-row {{ display: flex; gap: 12px; margin-top: 18px; flex-wrap: wrap; }}
+    .btn {{
+      padding: 10px 22px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.9rem;
+      transition: opacity 0.2s;
+    }}
+    .btn:hover {{ opacity: 0.85; }}
+    .btn-save {{ background: #8b5cf6; color: #fff; }}
+    .btn-reset {{ background: #374151; color: #d1d5db; }}
+    .btn-back {{ background: #1f2937; color: #9ca3af; text-decoration: none; display: inline-flex; align-items: center; }}
+    #msg {{
+      display: none;
+      margin-top: 14px;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 500;
+    }}
+    .msg-ok {{ background: #064e3b; color: #6ee7b7; border: 1px solid #059669; }}
+    .msg-err {{ background: #7f1d1d; color: #fca5a5; border: 1px solid #dc2626; }}
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>⚙️ System Prompt</h1>
+    <span class="badge {'custom' if is_custom else 'default'}">{'Custom' if is_custom else 'Using default'}</span>
+  </div>
+
+  <div class="card">
+    <label for="sp">Active system prompt</label>
+    <p class="hint">
+      This text is prepended to every RAG query to set the assistant's persona and behaviour.
+      The document context and user question are always injected automatically — you don't need to add them here.
+      Leave blank to restore the built-in default.
+    </p>
+    <textarea id="sp">{current}</textarea>
+    <div class="btn-row">
+      <button class="btn btn-save" onclick="save()">💾 Save</button>
+      <button class="btn btn-reset" onclick="resetDefault()">↩ Reset to default</button>
+      <a class="btn btn-back" href="/">← Back to home</a>
+    </div>
+    <div id="msg"></div>
+  </div>
+</div>
+<script>
+  async function save() {{
+    const text = document.getElementById('sp').value;
+    const res = await fetch('/settings/system-prompt', {{
+      method: 'POST',
+      headers: {{'Content-Type': 'application/json'}},
+      body: JSON.stringify({{prompt: text}})
+    }});
+    const data = await res.json();
+    showMsg(data.success ? 'ok' : 'err', data.message || data.error);
+  }}
+  async function resetDefault() {{
+    if (!confirm('Reset to the built-in default prompt?')) return;
+    const res = await fetch('/settings/system-prompt', {{
+      method: 'POST',
+      headers: {{'Content-Type': 'application/json'}},
+      body: JSON.stringify({{prompt: ''}})
+    }});
+    const data = await res.json();
+    if (data.success) {{
+      document.getElementById('sp').value = data.active_prompt;
+      showMsg('ok', 'Reset to default.');
+    }} else showMsg('err', data.error);
+  }}
+  function showMsg(type, text) {{
+    const el = document.getElementById('msg');
+    el.className = type === 'ok' ? 'msg-ok' : 'msg-err';
+    el.textContent = text;
+    el.style.display = 'block';
+    setTimeout(() => el.style.display = 'none', 4000);
+  }}
+</script>
+</body>
+</html>"""
+    return HTMLResponse(content=html)
+
+
+@app.post("/settings/system-prompt")
+async def system_prompt_post(request: Request):
+    """Save (or reset) the RAG system prompt."""
+    from app.rag import save_system_prompt, load_system_prompt, _SYSTEM_PROMPT_FILE
+    try:
+        body = await request.json()
+        text = (body.get("prompt") or "").strip()
+        if text:
+            save_system_prompt(text)
+            return JSONResponse({"success": True, "message": "System prompt saved.", "active_prompt": text})
+        else:
+            # Empty → delete the file so default is used
+            try:
+                if _SYSTEM_PROMPT_FILE.exists():
+                    _SYSTEM_PROMPT_FILE.unlink()
+            except Exception:
+                pass
+            return JSONResponse({"success": True, "message": "Reset to default.", "active_prompt": load_system_prompt()})
+    except Exception as e:
+        return JSONResponse({"success": False, "error": str(e)}, status_code=500)

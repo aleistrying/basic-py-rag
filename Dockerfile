@@ -4,12 +4,26 @@ WORKDIR /app
 # Copy requirements first for better caching
 COPY requirements.txt .
 
-# Install dependencies with pip cache mount for faster rebuilds
-# Also install Docker CLI for container management
+# Install dependencies with pip cache mount for faster rebuilds.
+#
+# WHY CPU-only torch:
+#   All LLM inference is handled by the Ollama container over HTTP — the app
+#   container itself only runs sentence-transformers for embeddings, which run
+#   perfectly on CPU.  Pulling CUDA-enabled torch would download ~2.5 GB of
+#   NVIDIA libraries (cublas, cudnn, cusparse…) that are never used and break
+#   on Apple Silicon / ARM hosts.  CPU torch is ~200 MB and identical in
+#   behaviour for this workload.
 RUN --mount=type=cache,target=/root/.cache/pip \
     apt-get update && \
     apt-get install -y docker.io && \
-    pip install -r requirements.txt && \
+    # Install everything EXCEPT torch/torchvision/torchaudio (strip the CUDA
+    # index-url lines and torch packages so we can re-install them below).
+    grep -vE "^\s*(--index-url|torch|torchvision|torchaudio)" requirements.txt \
+        | pip install -r /dev/stdin && \
+    # Now install CPU-only PyTorch — skips all NVIDIA packages entirely.
+    pip install \
+        --index-url https://download.pytorch.org/whl/cpu \
+        "torch>=2.0.0" torchvision torchaudio && \
     rm -rf /var/lib/apt/lists/*
 
 # Pre-download embedding model for fully offline operation

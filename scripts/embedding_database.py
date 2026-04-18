@@ -9,6 +9,7 @@ from ingest_config import (
     CLEAN_DIR, EMBED_MODEL,
     USE_QDRANT, USE_PGVECTOR, BATCH_SIZE, LARGE_BATCH_SIZE,
     QDRANT_URL, QDRANT_COLLECTION, QDRANT_VECTOR_SIZE, QDRANT_DISTANCE,
+    QDRANT_LOCAL_PATH,
     PG_DSN, PG_TABLE, PG_DIM,
     E5_QUERY_PREFIX, E5_PASSAGE_PREFIX
 )
@@ -150,8 +151,14 @@ class UnifiedEmbeddingProcessor:
             if QdrantClient is None:
                 raise ImportError("qdrant-client not installed")
 
-            logger.info(f"🔗 Connecting to Qdrant at {QDRANT_URL}")
-            self.qdrant_client = QdrantClient(url=QDRANT_URL)
+            if QDRANT_LOCAL_PATH:
+                import os as _os
+                _os.makedirs(QDRANT_LOCAL_PATH, exist_ok=True)
+                logger.info(f"🗂️  Qdrant local file mode: {QDRANT_LOCAL_PATH}")
+                self.qdrant_client = QdrantClient(path=QDRANT_LOCAL_PATH)
+            else:
+                logger.info(f"🔗 Connecting to Qdrant at {QDRANT_URL}")
+                self.qdrant_client = QdrantClient(url=QDRANT_URL)
 
         # Create collections for all algorithm combinations
         distance_mapping = {

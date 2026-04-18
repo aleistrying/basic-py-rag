@@ -15,16 +15,19 @@ LIMIT %s;
 
 def get_connection():
     """Get a fresh PostgreSQL connection"""
-    # Use Docker service name when running in container, localhost otherwise
     pg_host = os.getenv("POSTGRES_HOST", "localhost")
+    pg_port = int(os.getenv("POSTGRES_PORT", "5432"))
+    pg_db = os.getenv("POSTGRES_DB",   "vectordb")
+    pg_user = os.getenv("POSTGRES_USER", "pguser")
+    pg_pass = os.getenv("POSTGRES_PASSWORD", "pgpass")
 
     try:
         conn = psycopg2.connect(
-            dbname="vectordb",
-            user="pguser",
-            password="pgpass",
+            dbname=pg_db,
+            user=pg_user,
+            password=pg_pass,
             host=pg_host,
-            port=5432
+            port=pg_port,
         )
         conn.autocommit = True
         return conn

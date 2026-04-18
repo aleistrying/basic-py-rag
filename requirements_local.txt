@@ -1,0 +1,38 @@
+# requirements_local.txt
+# macOS (Apple Silicon + Intel) — no Docker, no CUDA.
+# PyTorch from PyPI includes MPS support for Apple Silicon automatically.
+#
+# Install: pip install -r requirements_local.txt
+
+# ── Web framework ─────────────────────────────────────────────────────────────
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+python-dotenv
+python-multipart
+jinja2
+
+# ── Vector database (local file mode — no Docker) ────────────────────────────
+qdrant-client
+
+# ── Embeddings — torch from PyPI includes Apple MPS support ──────────────────
+torch>=2.0.0
+sentence-transformers
+
+# ── PDF / document processing ─────────────────────────────────────────────────
+PyPDF2
+pdfplumber
+python-docx
+
+# ── LLM (talks to local Ollama) ───────────────────────────────────────────────
+ollama
+
+# ── CLI  ──────────────────────────────────────────────────────────────────────
+questionary
+rich
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
+numpy
+rapidfuzz
+psycopg2-binary   # optional: only used if PostgreSQL is enabled
