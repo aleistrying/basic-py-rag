@@ -4,6 +4,8 @@ from typing import List
 from pathlib import Path
 import logging
 import os
+import re
+import time
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -71,14 +73,22 @@ LAW_SYSTEM_PROMPT = (
     "federalism, and the constitutional validity of legislation. "
     "The user will ask a question and you will be given relevant excerpts from a legal reference document.\n\n"
     "Rules:\n"
-    "- Start directly with your answer — no preamble\n"
+    "- Start directly with your answer — no preamble.\n"
+    "- FOR YES/NO QUESTIONS: state Oui/Non (or Yes/No) as your very first word, then justify using "
+    "the single most explicit excerpt. If 'Key propositions' are provided, anchor there first.\n"
+    "- CRITICAL DISTINCTION — 'limits on cooperative federalism' does NOT mean 'no overlap exists'. "
+    "It means overlap can exist but the constitutional division of powers is not erased by it. "
+    "Answer 'yes, overlap can exist' if the excerpts say so, even if they also mention limits.\n"
+    "- HIGHEST-EVIDENCE RULE: if an excerpt contains an explicit tabular answer or arrow-format proposition "
+    "(e.g. 'double aspect → Oui', 'POBG super-exclusif → Non'), treat that as your primary anchor "
+    "and do not contradict it with more general discussion.\n"
     "- SELF-CHECK before writing: does your answer address the EXACT case, section, or doctrine named in the question? "
     "If not, correct your focus.\n"
     "- Do NOT conflate different doctrines: validity (pith and substance) ≠ double aspect ≠ paramountcy (operability) "
     "≠ interjurisdictional immunity. Name the correct doctrine for each point.\n"
     "- Do NOT borrow legal facts or outcomes from a different case unless the excerpts explicitly connect them.\n"
     "- Use specific case names, section numbers (§), article references, and legal tests from the excerpts.\n"
-    "- Structure legal analysis: (1) identify the heads of power at issue, (2) apply the test, (3) state the outcome.\n"
+    "- Structure legal analysis: (1) identify the heads of power at issue, (2) apply the relevant test, (3) state the outcome.\n"
     "- If the excerpts are insufficient to fully answer: state what IS supported, explicitly name what is missing, "
     "and suggest which section/doctrine would cover it.\n"
     "- DO NOT list sources or references — the UI shows them separately.\n"
@@ -144,6 +154,149 @@ Relevant excerpts:
 
 Answer (direct, no source list, same language as the question):
 """
+
+# Law-mode template: surfaces decisive propositional anchors before full excerpts
+LAW_RAG_TEMPLATE = """{system_prompt}
+
+Question: {q}
+
+KEY PROPOSITIONS extracted from the excerpts (highest-evidence anchors — consult these first):
+{key_props}
+
+Full relevant excerpts:
+{sources}
+
+Answer (direct, no source list, same language as the question):
+"""
+
+
+# ---------------------------------------------------------------------------
+# Contradiction detection + symbolic boost helpers
+# ---------------------------------------------------------------------------
+
+# Signals that the model concluded "no overlap"
+_NO_OVERLAP_SIGNALS = [
+    "pas de chevauchement", "aucun chevauchement", "il n'y a pas de chevauchement",
+    "no overlap", "no chevauchement", "ne se chevauchent pas",
+    "there is no overlap", "pas d'overlap",
+]
+
+# Signals in the retrieved text that actually support overlap
+_OVERLAP_EVIDENCE = [
+    "double aspect", "situations de fait identiques",
+    "peut s'appliquer", "pas super-exclusif", "non super-exclusif",
+    "ne supprime pas", "coexister", "fédéralisme coopératif favorise",
+    "chevauchement", "souplesse et chevauchement",
+]
+
+
+def likely_contradiction(answer: str, candidates: list) -> bool:
+    """Return True when the answer denies overlap but the retrieved chunks support it."""
+    a = answer.lower()
+    if not any(sig in a for sig in _NO_OVERLAP_SIGNALS):
+        return False
+    r = " ".join((c.get('content', '') or '') for c in candidates).lower()
+    has_double_aspect = "double aspect" in r
+    has_explicit_signal = any(sig in r for sig in _OVERLAP_EVIDENCE)
+    return has_double_aspect and has_explicit_signal
+
+
+# Case → section/content markers for symbolic boost
+_CASE_BOOST_TRIGGERS: list = [
+    (["tarification", "carbone", "ltpges", "carbon"],
+     ["tarification", "S06", "S33", "S34", "ltpges"]),
+    (["sécession", "secession"], ["S03", "sécession"]),
+    (["trans mountain", "burnaby"], ["trans mountain", "burnaby"]),
+    (["sénat", "senate"], ["sénat", "senate"]),
+]
+
+# Doctrine → content markers for symbolic boost
+_DOCTRINE_BOOST_TRIGGERS: list = [
+    (["double aspect", "chevauchement"], ["double aspect"]),
+    (["prépondérance", "paramountcy", "opérabilité",
+     "operability"], ["prépondérance", "inopérant"]),
+    (["immunité interjuridictionnelle", "interjurisdictional"],
+     ["immunité interjuridictionnelle"]),
+    (["pogg", "pobg", "intérêt national"], ["pobg", "pogg", "intérêt national"]),
+    (["pith and substance", "caractère véritable", "validité"],
+     ["caractère véritable", "pith and substance"]),
+]
+
+
+def _symbolic_boost(query: str, candidate: dict) -> float:
+    """Return a score boost [0.0, 0.35] for same-case / same-doctrine alignment."""
+    ql = query.lower()
+    text = (candidate.get('content', '') or '').lower()
+    sid = (candidate.get('section_id', '') or
+           candidate.get('metadata', {}).get('section_id', '') or '').lower()
+    boost = 0.0
+    for triggers, markers in _CASE_BOOST_TRIGGERS:
+        if any(t in ql for t in triggers):
+            if any(m.lower() in text or m.lower() in sid for m in markers):
+                boost += 0.20
+                break
+    for triggers, markers in _DOCTRINE_BOOST_TRIGGERS:
+        if any(t in ql for t in triggers):
+            if any(m.lower() in text for m in markers):
+                boost += 0.15
+                break
+    return min(boost, 0.35)
+
+
+# Correction prompt fired when contradiction is detected
+CORRECTION_PROMPT = """{system_prompt}
+
+IMPORTANT — Your previous draft may conflict with the retrieved excerpts.
+Check: the excerpts explicitly support overlap via double-aspect doctrine,
+even if they also note that no *formal* concurrent jurisdiction exists.
+"No formal concurrent jurisdiction" ≠ "no overlap".
+
+Re-read the KEY PROPOSITIONS and excerpts below, then provide a corrected answer.
+
+Question: {q}
+
+KEY PROPOSITIONS (decisive anchors):
+{key_props}
+
+Full relevant excerpts:
+{sources}
+
+Corrected answer (Oui/Non first, then one sentence of justification using the most explicit excerpt):
+"""
+
+# Regex compiled once at module load
+_ARROW_PROP_RE = re.compile(
+    r'(→\s*(Oui|Non|Yes|No|Vrai|Faux|True|False)\b'           # arrow: → Oui
+    # table cell: | **Oui**
+    r'|\|\s*\*\*(Oui|Non|Yes|No)\*\*'
+    # table cell: | Oui |
+    r'|\|\s*(Oui|Non|Yes|No)\s*\|)',
+    re.IGNORECASE,
+)
+_NOTE_PROP_RE = re.compile(r'\b(NOTA|NOTE|NB)\s*[:：]', re.IGNORECASE)
+
+
+def _extract_decisive_props(hits: list) -> str:
+    """
+    Scan retrieved chunks for explicit propositional anchors:
+    - Arrow-format propositions: "double aspect → Oui", "POBG super-exclusif → Non"
+    - NOTA/NOTE/NB lines with key doctrinal statements
+    Returns a compact bullet list capped at 8 items (empty string if none found).
+    """
+    props: list = []
+    seen: set = set()
+    for hit in hits:
+        content = hit.get('content', '') or ''
+        for line in content.splitlines():
+            stripped = line.strip()
+            if not stripped:
+                continue
+            if _ARROW_PROP_RE.search(stripped) or _NOTE_PROP_RE.search(stripped):
+                key = stripped[:80]
+                if key not in seen:
+                    seen.add(key)
+                    props.append('• ' + stripped)
+    return '\n'.join(props[:8])
 
 
 def build_context(hits: List[dict]) -> str:
@@ -476,11 +629,22 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
             'content': hit['content'],
             'sim': min(max(hit['score'], 0.0), 1.0),  # Normalize score to 0-1
             'path': hit['path'],
-            'document': hit.get('document', ''),  # Include document name
+            'document': hit.get('document', ''),
             'chunk_id': _cid,
             'page': hit.get('page'),
+            'section_id': hit.get('section_id', ''),
+            'section_title': hit.get('section_title', ''),
             'metadata': hit.get('metadata', {})
         })
+
+    # Apply symbolic score boost (same-case / same-doctrine alignment) before MMR
+    if detect_law_mode(query, candidates):
+        for c in candidates:
+            boost = _symbolic_boost(query, c)
+            if boost > 0:
+                c['sim'] = min(c['sim'] + boost, 1.0)
+                logger.debug(
+                    f"Symbolic boost +{boost:.2f} → {c.get('section_id', c.get('chunk_id', ''))}")
 
     # Apply MMR reranking if available
     if mmr and len(candidates) > k:
@@ -582,19 +746,25 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
 
     # Build context for LLM using enhanced method if available
     if build_context_enhanced:
-        sources = build_context_enhanced(reranked, max_tokens=1200)
+        sources = build_context_enhanced(reranked, max_tokens=3000)
     else:
         sources = build_context(reranked)
 
-    # Choose system prompt: law-mode when query or hits indicate constitutional law
-    active_system_prompt = (
-        LAW_SYSTEM_PROMPT
-        if detect_law_mode(query, reranked)
-        else load_system_prompt()
-    )
-
-    prompt = RAG_TEMPLATE.format(
-        system_prompt=active_system_prompt, q=query, sources=sources)
+    # Choose system prompt and template: law-mode adds decisive-prop anchoring
+    if detect_law_mode(query, reranked):
+        active_system_prompt = LAW_SYSTEM_PROMPT
+        key_props = _extract_decisive_props(reranked)
+        if key_props:
+            prompt = LAW_RAG_TEMPLATE.format(
+                system_prompt=active_system_prompt, q=query,
+                key_props=key_props, sources=sources)
+        else:
+            prompt = RAG_TEMPLATE.format(
+                system_prompt=active_system_prompt, q=query, sources=sources)
+    else:
+        active_system_prompt = load_system_prompt()
+        prompt = RAG_TEMPLATE.format(
+            system_prompt=active_system_prompt, q=query, sources=sources)
 
     try:
         # Use resilient Ollama generation with automatic retry and fallback
@@ -648,7 +818,42 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
             r'(?m)^\*{0,2}(?:Fuentes consultadas|Fuentes|Sources?|Références?|References?)\*{0,2}:?\s*$[\s\S]*',
             '', enhanced_response, flags=_re.IGNORECASE
         ).rstrip()
-
+        # Contradiction check: if law mode and answer denies overlap but chunks support it,
+        # retry once with a focused correction prompt at lower temperature.
+        if enhanced_response and detect_law_mode(query, reranked):
+            if likely_contradiction(enhanced_response, reranked):
+                logger.info(
+                    "⚠️ Contradiction detected — retrying with correction prompt")
+                _key_props_corr = _extract_decisive_props(reranked)
+                correction_prompt = CORRECTION_PROMPT.format(
+                    system_prompt=LAW_SYSTEM_PROMPT,
+                    q=query,
+                    key_props=_key_props_corr or "(see excerpts below)",
+                    sources=sources,
+                )
+                try:
+                    corr_opts = {"repeat_penalty": 1.1, "temperature": 0.2,
+                                 "num_predict": 1024, "top_p": 0.85}
+                    if ollama_generate_with_retry:
+                        corr_resp = ollama_generate_with_retry(
+                            model=model, prompt=correction_prompt,
+                            max_retries=2, auto_fallback=False, auto_restart=False,
+                            options=corr_opts,
+                        )
+                    else:
+                        _client = ollama.Client(
+                            host=os.getenv("OLLAMA_HOST", "http://localhost:11434"))
+                        corr_resp = _client.generate(
+                            model=model, prompt=correction_prompt, options=corr_opts)
+                    corr_raw = corr_resp.get('response', '') if hasattr(
+                        corr_resp, 'get') else getattr(corr_resp, 'response', '')
+                    corr_raw = _re.sub(
+                        r'<think>[\s\S]*?</think>\s*', '', corr_raw).strip()
+                    if corr_raw:
+                        enhanced_response = corr_raw
+                        logger.info("✅ Contradiction corrected")
+                except Exception as _ce:
+                    logger.warning(f"Correction retry failed: {_ce}")
         # Calculate total processing time
         total_time_ms = round((time.time() - start_time) * 1000, 1)
 

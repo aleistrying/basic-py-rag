@@ -81,7 +81,7 @@ def mmr(query: str, candidates: List[Dict], lambda_: float = 0.7, top_k: int = 5
     return sorted(selected, key=lambda x: x['sim'], reverse=True)
 
 
-def build_context(hits: List[Dict], max_tokens: int = 1500) -> str:
+def build_context(hits: List[Dict], max_tokens: int = 3000) -> str:
     """
     Build context from search hits, grouping by document and limiting tokens
 
@@ -96,12 +96,12 @@ def build_context(hits: List[Dict], max_tokens: int = 1500) -> str:
     current_tokens = 0
     doc_chunks = {}  # Group by document
 
-    # Group chunks by document (max 2 per doc to avoid flooding)
+    # Group chunks by document (cap per doc to avoid flooding when many docs exist)
     for h in hits:
         doc_path = h.get('path', 'unknown')
         if doc_path not in doc_chunks:
             doc_chunks[doc_path] = []
-        if len(doc_chunks[doc_path]) < 2:  # Max 2 chunks per document
+        if len(doc_chunks[doc_path]) < 10:  # Allow up to 10 chunks per document
             doc_chunks[doc_path].append(h)
 
     # Build context
@@ -111,7 +111,7 @@ def build_context(hits: List[Dict], max_tokens: int = 1500) -> str:
             content = h.get('content', '') or ''  # Handle None content
             if not content:
                 continue
-            snippet = (content[:700] + "…") if len(content) > 700 else content
+            snippet = (content[:900] + "…") if len(content) > 900 else content
 
             # Estimate tokens (rough approximation)
             tokens = len(snippet.split())
@@ -119,8 +119,11 @@ def build_context(hits: List[Dict], max_tokens: int = 1500) -> str:
                 break
 
             chunk_id = h.get('chunk_id', h.get('page', 'unknown'))
+            section_id = h.get('section_id', '') or h.get(
+                'metadata', {}).get('section_id', '')
             doc_name = doc_path.split('/')[-1] if '/' in doc_path else doc_path
-            lines.append(f"- ({doc_name}:{chunk_id}) {snippet}")
+            loc = f"[{section_id}]" if section_id else f":{chunk_id}"
+            lines.append(f"- ({doc_name}{loc}) {snippet}")
             current_tokens += tokens
 
     return "\n".join(lines)

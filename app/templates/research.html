@@ -1666,9 +1666,11 @@
       s = s.replace(/^### (.+)$/gm, '<h3>$1</h3>');
       s = s.replace(/^## (.+)$/gm, '<h2>$1</h2>');
       s = s.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+      s = s.replace(/^---+$/gm, '<hr>');
       s = s.replace(/\*\*\*(.+?)\*\*\*/gs, '<strong><em>$1</em></strong>');
       s = s.replace(/\*\*(.+?)\*\*/gs, '<strong>$1</strong>');
       s = s.replace(/\*([^*\n]+)\*/g, '<em>$1</em>');
+      s = s.replace(/_([^_\n]+)_/g, '<em>$1</em>');
       s = s.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
       s = s.replace(/((?:^[ \t]*[-*] .+$\n?)+)/gm, block => {
         const items = block.split('\n').filter(l => l.trim()).map(l => '<li>' + l.replace(/^[ \t]*[-*] /, '') + ' </li>').join('');
@@ -1681,7 +1683,7 @@
       return s.split(/\n\n+/).map(p => {
         p = p.trim();
         if (!p) return '';
-        if (/^<(h[1-6]|ul|ol|pre|blockquote)/.test(p)) return p;
+        if (/^<(h[1-6]|ul|ol|pre|blockquote|hr)/.test(p)) return p;
         return '<p>' + p.replace(/\n/g, ' ') + '</p>';
       }).join('\n');
     }
@@ -1995,9 +1997,21 @@
     function cardClick(card) { viewDoc(card.dataset.fname, parseInt(card.dataset.page) || 1, card.dataset.chunk || '', card.dataset.snippet || '', card.dataset.sectionId || ''); }
     function viewDocBtn(btn) { viewDoc(btn.dataset.fname, parseInt(btn.dataset.page) || 1, btn.dataset.chunk || '', btn.dataset.snippet || '', btn.dataset.sectionId || ''); }
 
+    // Inline markdown helper for table cells (bold, italic, code — no block-level elements)
+    function _inlineMd(text) {
+      return text
+        .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+        .replace(/_([^_]+)_/g, '<em>$1</em>')
+        .replace(/`([^`]+)`/g, '<code>$1</code>');
+    }
+
     // md2html extended: render markdown tables too
     function mdFull(raw) {
       if (!raw) return '';
+      // Strip HTML comments (<!-- S04 --> section anchors etc.)
+      raw = raw.replace(/<!--[\s\S]*?-->/g, '');
       // Pre-process tables before md2html escaping eats the pipes
       // We handle them separately on raw text first
       let tableHtml = {};
@@ -2009,7 +2023,7 @@
           const cells = row.split('|').filter((_, ci) => ci > 0 && ci < row.split('|').length - 1);
           if (i === 1 && cells.every(c => /^[-: ]+$/.test(c))) { return; } // separator
           const tag = i === 0 ? 'th' : 'td';
-          html += '<tr>' + cells.map(c => `<${tag}>${c.trim()}</${tag}>`).join('') + '</tr>';
+          html += '<tr>' + cells.map(c => `<${tag}>${_inlineMd(c.trim())}</${tag}>`).join('') + '</tr>';
         });
         html += '</table>';
         const key = '__TABLE_' + tIdx++ + '__';
