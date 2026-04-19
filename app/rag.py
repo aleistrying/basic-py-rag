@@ -833,18 +833,18 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
                 )
                 try:
                     corr_opts = {"repeat_penalty": 1.1, "temperature": 0.2,
-                                 "num_predict": 1024, "top_p": 0.85}
+                                 "num_predict": 1024, "top_p": 0.85}  # think=False passed as kwarg below
                     if ollama_generate_with_retry:
                         corr_resp = ollama_generate_with_retry(
                             model=model, prompt=correction_prompt,
                             max_retries=2, auto_fallback=False, auto_restart=False,
-                            options=corr_opts,
+                            think=False, options=corr_opts,
                         )
                     else:
                         _client = ollama.Client(
                             host=os.getenv("OLLAMA_HOST", "http://localhost:11434"))
                         corr_resp = _client.generate(
-                            model=model, prompt=correction_prompt, options=corr_opts)
+                            model=model, prompt=correction_prompt, think=False, options=corr_opts)
                     corr_raw = corr_resp.get('response', '') if hasattr(
                         corr_resp, 'get') else getattr(corr_resp, 'response', '')
                     corr_raw = _re.sub(

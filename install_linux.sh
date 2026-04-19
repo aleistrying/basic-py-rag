@@ -32,7 +32,7 @@ echo -e "${BOLD}${CYAN}╚══════════════════
 echo ""
 
 # ─── 1. Platform check ───────────────────────────────────────────────────────
-header "Step 1 / 5  —  Platform"
+header "Step 1 / 6  —  Platform"
 
 if [[ "$(uname -s)" != "Linux" ]]; then
     error "This installer is for Linux only. On macOS use:  ./install_mac.sh"
@@ -177,6 +177,25 @@ elif [[ "$NVIDIA_NEEDS_DRIVER" == "true" && "$PKG_MANAGER" == "dnf" ]]; then
     warn "Outdated NVIDIA driver detected. To install the latest driver on Fedora:"
     warn "  sudo dnf install akmod-nvidia   (requires RPM Fusion repo)"
     warn "Then reboot and re-run this installer."
+fi
+
+# ─── GPU / CPU mode selection ────────────────────────────────────────────────
+USE_GPU=false
+if [[ -n "$GPU_INFO" && "$NVIDIA_NEEDS_DRIVER" == "false" ]]; then
+    echo ""
+    info "Working GPU detected: ${GPU_INFO}"
+    ask "Use GPU for AI inference? (faster) [Y/n]: "
+    read -r GPU_CHOICE
+    GPU_CHOICE="${GPU_CHOICE:-Y}"
+    if [[ "$GPU_CHOICE" =~ ^[Yy]$ ]]; then
+        USE_GPU=true
+        success "GPU mode enabled — Ollama and embeddings will use CUDA"
+    else
+        USE_GPU=false
+        info "CPU mode selected — models will run on CPU only"
+    fi
+else
+    info "No working GPU available — running in CPU mode"
 fi
 
 # ─── 3. Docker (optional) ────────────────────────────────────────────────────
@@ -325,31 +344,93 @@ else
 fi
 
 # ─── Model selection ─────────────────────────────────────────────────────────
+
+# Detect total RAM (integer GB)
+RAM_KB=$(awk '/^MemTotal:/{print $2}' /proc/meminfo 2>/dev/null || echo "0")
+RAM_GB=$(( RAM_KB / 1024 / 1024 ))
+success "Detected ${RAM_GB} GB RAM"
+
+# Detect VRAM if GPU mode is active
+VRAM_GB=0
+if [[ "$USE_GPU" == "true" ]] && command -v nvidia-smi &>/dev/null; then
+    VRAM_MIB=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' ' || echo "0")
+    VRAM_GB=$(( ${VRAM_MIB:-0} / 1024 ))
+    success "Detected ${VRAM_GB} GB GPU VRAM"
+fi
+
+# Pick the best default model — VRAM drives the suggestion in GPU mode, RAM in CPU mode
+if [[ "$USE_GPU" == "true" && $VRAM_GB -gt 0 ]]; then
+    _CAPACITY_LABEL="${VRAM_GB} GB VRAM"
+    if   [[ $VRAM_GB -ge 18 ]]; then
+        _DEFAULT_MODEL_NUM=7; _SUGGEST_MODEL="qwen3:14b"
+        _SUGGEST_NOTE="(best quality for legal research — 9 GB, your ${VRAM_GB} GB VRAM handles it)"
+    elif [[ $VRAM_GB -ge 8 ]]; then
+        _DEFAULT_MODEL_NUM=6; _SUGGEST_MODEL="qwen3:8b"
+        _SUGGEST_NOTE="(strong reasoning — 5 GB, fits your ${VRAM_GB} GB VRAM)"
+    elif [[ $VRAM_GB -ge 4 ]]; then
+        _DEFAULT_MODEL_NUM=1; _SUGGEST_MODEL="qwen3:4b"
+        _SUGGEST_NOTE="(best fit for ${VRAM_GB} GB VRAM — thinking mode, 256K ctx)"
+    else
+        _DEFAULT_MODEL_NUM=5; _SUGGEST_MODEL="qwen3:1.7b"
+        _SUGGEST_NOTE="(recommended for ${VRAM_GB} GB VRAM — ultra-light Qwen3 with thinking)"
+    fi
+else
+    # CPU mode — model must fit entirely in system RAM
+    _CAPACITY_LABEL="${RAM_GB} GB RAM"
+    if   [[ $RAM_GB -ge 20 ]]; then
+        _DEFAULT_MODEL_NUM=7; _SUGGEST_MODEL="qwen3:14b"
+        _SUGGEST_NOTE="(best quality for legal research — 9 GB, your ${RAM_GB} GB handles it)"
+    elif [[ $RAM_GB -ge 12 ]]; then
+        _DEFAULT_MODEL_NUM=6; _SUGGEST_MODEL="qwen3:8b"
+        _SUGGEST_NOTE="(significantly better reasoning than 4b — 5 GB, fits your ${RAM_GB} GB)"
+    elif [[ $RAM_GB -ge 7 ]]; then
+        _DEFAULT_MODEL_NUM=1; _SUGGEST_MODEL="qwen3:4b"
+        _SUGGEST_NOTE="(best fit for ${RAM_GB} GB — thinking mode, 256K ctx)"
+    elif [[ $RAM_GB -ge 4 ]]; then
+        _DEFAULT_MODEL_NUM=1; _SUGGEST_MODEL="qwen3:4b"
+        _SUGGEST_NOTE="(fits ${RAM_GB} GB — thinking mode, 256K ctx)"
+    else
+        _DEFAULT_MODEL_NUM=5; _SUGGEST_MODEL="qwen3:1.7b"
+        _SUGGEST_NOTE="(recommended for ${RAM_GB} GB — ultra-light Qwen3 with thinking)"
+    fi
+fi
+
 echo ""
-echo -e "  ${BOLD}Recommended models for document research (8 GB RAM)${RESET}"
+echo -e "  ${BOLD}Model recommendation for your machine (${_CAPACITY_LABEL}):${RESET}"
+echo -e "  ${BOLD}${GREEN}  →  ${_SUGGEST_MODEL}  ${DIM}${_SUGGEST_NOTE}${RESET}"
 echo ""
-echo -e "  ${BOLD}  1.  qwen3:4b     ${DIM}(2.5 GB — rivals models 18× its size · thinking mode · 256K ctx)${RESET}  ✓ RECOMMENDED"
+echo -e "  All options (Qwen3 family uses thinking mode for legal reasoning):"
+echo ""
+echo -e "  ${DIM}  1.  qwen3:4b     (2.5 GB — rivals models 18× its size · thinking mode · 256K ctx)${RESET}"
 echo -e "  ${DIM}  2.  phi4-mini     (2.3 GB — Microsoft Phi-4 Mini · top reasoning · multilingual)${RESET}"
 echo -e "  ${DIM}  3.  gemma3:4b     (2.5 GB — Google Gemma 3 · 128K ctx · 35M+ downloads)${RESET}"
 echo -e "  ${DIM}  4.  llama3.2:3b   (2.0 GB — Meta · lightweight classic · good all-round)${RESET}"
 echo -e "  ${DIM}  5.  qwen3:1.7b    (1.4 GB — ultra-light · same Qwen3 quality in tiny size)${RESET}"
-echo -e "  ${DIM}  6.  Custom — type any Ollama model name${RESET}"
-if [[ -n "$GPU_INFO" && "$NVIDIA_NEEDS_DRIVER" == "false" ]]; then
+echo -e "  ${DIM}  6.  qwen3:8b      (5.0 GB — noticeably stronger reasoning · needs 8 GB VRAM or 12 GB RAM)${RESET}"
+echo -e "  ${DIM}  7.  qwen3:14b     (9.0 GB — best open legal reasoning model · needs 16 GB VRAM or 20 GB RAM)${RESET}"
+echo -e "  ${DIM}  8.  Custom — type any Ollama model name${RESET}"
+if [[ "$USE_GPU" == "true" && $VRAM_GB -gt 0 ]]; then
     echo ""
-    echo -e "  ${DIM}Tip: NVIDIA GPU detected — larger models (7b+) will work well too.${RESET}"
+    echo -e "  ${DIM}Tip: GPU mode active — suggestion based on ${VRAM_GB} GB VRAM (larger models run fully on GPU).${RESET}"
+elif [[ -n "$GPU_INFO" && "$NVIDIA_NEEDS_DRIVER" == "false" ]]; then
+    echo ""
+    echo -e "  ${DIM}Tip: Running in CPU mode — suggestion based on ${RAM_GB} GB system RAM.${RESET}"
 fi
 echo ""
-ask "Choose model [1]: "
+ask "Choose model [${_DEFAULT_MODEL_NUM}]: "
 read -r MODEL_CHOICE
-MODEL_CHOICE="${MODEL_CHOICE:-1}"
+MODEL_CHOICE="${MODEL_CHOICE:-${_DEFAULT_MODEL_NUM}}"
 
 case "$MODEL_CHOICE" in
-    1|"") MODEL="qwen3:4b" ;;
+    1)    MODEL="qwen3:4b" ;;
     2)    MODEL="phi4-mini" ;;
     3)    MODEL="gemma3:4b" ;;
     4)    MODEL="llama3.2:3b" ;;
     5)    MODEL="qwen3:1.7b" ;;
-    6)    ask "Enter model name: "; read -r MODEL ;;
+    6)    MODEL="qwen3:8b" ;;
+    7)    MODEL="qwen3:14b" ;;
+    8)    ask "Enter model name: "; read -r MODEL ;;
+    "")   MODEL="$_SUGGEST_MODEL" ;;
     *)    MODEL="$MODEL_CHOICE" ;;
 esac
 
@@ -439,6 +520,14 @@ except Exception as err:
 PYEOF
 
 # ─── Write .env.local ────────────────────────────────────────────────────────
+if [[ "$USE_GPU" == "true" ]]; then
+    _EMB_DEVICE="cuda"
+    _OLLAMA_NUM_GPU="999"
+else
+    _EMB_DEVICE="cpu"
+    _OLLAMA_NUM_GPU="0"
+fi
+
 mkdir -p "$DATA_DIR/raw" "$DATA_DIR/clean" "$DATA_DIR/qdrant_local" "$DATA_DIR/models/embeddings"
 
 cat > "$ENV_FILE" <<ENVEOF
@@ -461,95 +550,95 @@ USE_QDRANT=true
 HF_HOME=${DATA_DIR}/models/huggingface
 SENTENCE_TRANSFORMERS_HOME=${DATA_DIR}/models/embeddings
 
+# GPU / CPU mode
+# EMBEDDING_DEVICE: device for the embedding model (cpu | cuda)
+# OLLAMA_NUM_GPU:   0 = CPU only, 999 = use all GPUs (Ollama default when GPU is available)
+EMBEDDING_DEVICE=${_EMB_DEVICE}
+OLLAMA_NUM_GPU=${_OLLAMA_NUM_GPU}
+
 # Web interface port
 APP_PORT=8080
 ENVEOF
 
 success "Configuration written to .env.local"
 
-# ─── Write start.sh ──────────────────────────────────────────────────────────
-cat > "$SCRIPT_DIR/start.sh" <<'STARTSCRIPT'
-#!/usr/bin/env bash
-# RAG System — one-command launcher
-set -euo pipefail
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VENV_PY="$SCRIPT_DIR/.venv/bin/python"
-ENV_FILE="$SCRIPT_DIR/.env.local"
-
-if [[ -f "$ENV_FILE" ]]; then
-    set -a; source "$ENV_FILE"; set +a
-fi
-
-OLLAMA_HOST="${OLLAMA_HOST:-http://localhost:11434}"
-APP_PORT="${APP_PORT:-8080}"
-
-# Ensure Ollama is running
-if ! curl -s --max-time 2 "$OLLAMA_HOST/api/tags" &>/dev/null; then
-    echo "  Starting Ollama..."
-    ollama serve &>/tmp/ollama_rag.log &
-    sleep 3
-fi
-
-clear
-echo ""
-echo "  ╔════════════════════════════════════╗"
-echo "  ║         RAG System                 ║"
-echo "  ╠════════════════════════════════════╣"
-echo "  ║  1.  Interactive CLI               ║"
-echo "  ║  2.  Research UI  ← for daily use  ║"
-echo "  ║  3.  Full web app  (all features)  ║"
-echo "  ╚════════════════════════════════════╝"
-echo ""
-printf "  Choose [2]: "
-read -r CHOICE
-CHOICE="${CHOICE:-2}"
-
-# Try to find a working browser opener
-open_browser() {
-    local url="$1"
-    if command -v xdg-open &>/dev/null; then
-        xdg-open "$url" &>/dev/null &
-    elif command -v sensible-browser &>/dev/null; then
-        sensible-browser "$url" &>/dev/null &
-    elif command -v gnome-open &>/dev/null; then
-        gnome-open "$url" &>/dev/null &
-    fi
-}
-
-case "$CHOICE" in
-    1)
-        exec "$VENV_PY" "$SCRIPT_DIR/cli.py" "$@"
-        ;;
-    2)
-        echo ""
-        echo "  Starting Research UI…"
-        echo "  Opening http://localhost:${APP_PORT}/research"
-        echo "  Press Ctrl+C to stop."
-        echo ""
-        (sleep 2 && open_browser "http://localhost:${APP_PORT}/research" || true) &
-        exec "$VENV_PY" -m uvicorn app.main:app \
-            --host 0.0.0.0 --port "$APP_PORT"
-        ;;
-    3)
-        echo ""
-        echo "  Starting full web app at http://localhost:${APP_PORT}"
-        echo "  Press Ctrl+C to stop."
-        echo ""
-        exec "$VENV_PY" -m uvicorn app.main:app \
-            --host 0.0.0.0 --port "$APP_PORT" --reload
-        ;;
-    *)
-        echo "  Invalid choice."
-        exit 1
-        ;;
-esac
-STARTSCRIPT
+# ─── Ensure start.sh is executable ───────────────────────────────────────────
 chmod +x "$SCRIPT_DIR/start.sh"
-success "Created start.sh"
+success "start.sh is ready"
 
 # Make install script executable (in case it wasn't)
 chmod +x "$SCRIPT_DIR/install_linux.sh"
+
+# ─── End-to-end verification ─────────────────────────────────────────────────
+header "Verification  —  sanity-checking the full installation"
+
+PASS=0; FAIL=0
+check_pass() { echo -e "    ${GREEN}✓  $*${RESET}"; PASS=$((PASS+1)); }
+check_fail() { echo -e "    ${RED}✗  $*${RESET}"; FAIL=$((FAIL+1)); }
+check_warn() { echo -e "    ${YELLOW}⚠  $*${RESET}"; }
+
+# 1. Python venv
+[[ -f "$VENV_DIR/bin/python" ]] && check_pass "Python venv present" || check_fail "Python venv missing — re-run installer"
+
+# 2. Critical packages
+"$VENV_DIR/bin/python" - <<'PYCHECK' && check_pass "Core Python packages importable" || check_fail "Some Python packages failed to import — re-run installer"
+import fastapi, qdrant_client, sentence_transformers, uvicorn, ollama
+PYCHECK
+
+# 3. .env.local written and has QDRANT_LOCAL_PATH
+if [[ -f "$ENV_FILE" ]] && grep -q "QDRANT_LOCAL_PATH" "$ENV_FILE"; then
+    check_pass ".env.local written with QDRANT_LOCAL_PATH"
+else
+    check_fail ".env.local missing or incomplete"
+fi
+
+# 4. Qdrant data directory
+[[ -d "$DATA_DIR/qdrant_local" ]] && check_pass "Qdrant local directory exists" || check_fail "Qdrant directory missing: $DATA_DIR/qdrant_local"
+
+# 5. Embedding model cached
+if ls "$DATA_DIR/models/embeddings/models--intfloat--multilingual-e5-base/snapshots" &>/dev/null 2>&1; then
+    check_pass "Embedding model cached"
+else
+    check_warn "Embedding model not yet cached — it will download on first use (~280 MB)"
+fi
+
+# 6. Ollama running + model available
+if curl -s --max-time 5 "http://localhost:11434/api/tags" &>/dev/null; then
+    check_pass "Ollama server reachable"
+    MODELS_JSON=$(curl -s --max-time 5 "http://localhost:11434/api/tags" 2>/dev/null || echo "{}")
+    if echo "$MODELS_JSON" | grep -q "\"name\""; then
+        check_pass "Ollama has at least one model loaded"
+    else
+        check_warn "Ollama running but no models listed — try:  ollama pull ${MODEL}"
+    fi
+else
+    check_warn "Ollama server not running — it will start automatically when you run start.sh"
+fi
+
+# 7. start.sh is executable and contains cd guard
+if [[ -x "$SCRIPT_DIR/start.sh" ]] && grep -q 'cd "\$SCRIPT_DIR"' "$SCRIPT_DIR/start.sh"; then
+    check_pass "start.sh is executable with working-directory guard"
+else
+    check_fail "start.sh missing or malformed"
+fi
+
+# 8. Quick app import smoke-test (no server started)
+cd "$SCRIPT_DIR"
+"$VENV_DIR/bin/python" -c "
+import sys, os
+os.environ.setdefault('QDRANT_LOCAL_PATH', '${DATA_DIR}/qdrant_local')
+from app.rag import generate_llm_answer, search_knowledge_base
+from app.pipeline_rag import pipeline_search, analyze_question
+print('ok')
+" 2>/dev/null && check_pass "App modules import cleanly" || check_warn "App import check failed (may be OK if you haven't ingested docs yet)"
+
+echo ""
+if [[ $FAIL -eq 0 ]]; then
+    echo -e "  ${BOLD}${GREEN}All checks passed${RESET} ($PASS passed, 0 failed)"
+else
+    echo -e "  ${BOLD}${YELLOW}$FAIL check(s) failed${RESET} — see items marked ✗ above"
+fi
+echo ""
 
 # ─── Summary ─────────────────────────────────────────────────────────────────
 echo ""
@@ -557,11 +646,7 @@ echo -e "${BOLD}${GREEN}╔═════════════════�
 echo -e "${BOLD}${GREEN}║            Installation complete!            ║${RESET}"
 echo -e "${BOLD}${GREEN}╚══════════════════════════════════════════════╝${RESET}"
 echo ""
-echo -e "  ${BOLD}To start the system:${RESET}"
-echo ""
-echo -e "    ${BOLD}./start.sh${RESET}"
-echo ""
-echo -e "  ${BOLD}To add your documents:${RESET}"
+echo -e "  ${BOLD}To add your documents later:${RESET}"
 echo -e "    Copy PDF or text files to  ${BOLD}./data/raw/${RESET}"
 echo -e "    Then run the CLI and choose ${BOLD}\"Ingest documents\"${RESET}"
 echo ""
@@ -569,3 +654,13 @@ echo -e "  ${DIM}Ollama model: ${MODEL}${RESET}"
 echo -e "  ${DIM}Vector DB:    local file storage (./data/qdrant_local)${RESET}"
 echo -e "  ${DIM}No Docker required.${RESET}"
 echo ""
+ask "Launch the Research UI now? [Y/n]: "
+read -r LAUNCH_NOW
+LAUNCH_NOW="${LAUNCH_NOW:-Y}"
+if [[ "$LAUNCH_NOW" =~ ^[Yy]$ ]]; then
+    exec "$SCRIPT_DIR/start.sh"
+else
+    echo ""
+    echo -e "  Run  ${BOLD}./start.sh${RESET}  whenever you're ready."
+    echo ""
+fi

@@ -5,6 +5,7 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV_PY="$SCRIPT_DIR/.venv/bin/python"
 ENV_FILE="$SCRIPT_DIR/.env.local"
+_OS="$(uname -s)"
 
 # ─── Load local overrides ─────────────────────────────────────────────────────
 if [[ -f "$ENV_FILE" ]]; then
@@ -20,10 +21,17 @@ _APP_MARKER="$HOME/.local/share/research-studio/desktop_v1"
 if [[ ! -f "$VENV_PY" ]]; then
     echo ""
     echo "  First run — installing dependencies automatically…"
-    bash "$SCRIPT_DIR/install_linux.sh" || {
-        echo "  ✗ Installation failed. Please run install_linux.sh manually."
-        exit 1
-    }
+    if [[ "$_OS" == "Darwin" ]]; then
+        bash "$SCRIPT_DIR/install_mac.sh" || {
+            echo "  ✗ Installation failed. Please run install_mac.sh manually."
+            exit 1
+        }
+    else
+        bash "$SCRIPT_DIR/install_linux.sh" || {
+            echo "  ✗ Installation failed. Please run install_linux.sh manually."
+            exit 1
+        }
+    fi
 fi
 
 # ─── Free the port (kill whatever is already using it) ───────────────────────
@@ -50,7 +58,7 @@ free_port() {
     fi
 }
 
-# ─── Desktop shortcut installer (runs once automatically) ──────────────────────
+# ─── Desktop shortcut installer (runs once automatically) ────────────────────
 _install_linux_desktop() {
     local apps_dir="$HOME/.local/share/applications"
     mkdir -p "$apps_dir"
@@ -97,7 +105,7 @@ _install_macos_app() {
     mkdir -p "$app_dir/Contents/MacOS"
     cat > "$app_dir/Contents/MacOS/ResearchStudio" << MACBINEOF
 #!/usr/bin/env bash
-osascript -e 'tell application "Terminal" to activate' \\
+osascript -e 'tell application "Terminal" to activate' \
           -e 'tell application "Terminal" to do script "cd $SCRIPT_DIR && ./start.sh"'
 MACBINEOF
     chmod +x "$app_dir/Contents/MacOS/ResearchStudio"
@@ -127,12 +135,11 @@ PLISTEOF
 
 install_desktop_app_if_needed() {
     [[ -f "$_APP_MARKER" ]] && return
-    local os; os="$(uname -s)"
     echo ""
     echo "  Installing desktop shortcut (one-time setup)…"
-    if [[ "$os" == "Darwin" ]]; then
+    if [[ "$_OS" == "Darwin" ]]; then
         _install_macos_app
-    elif [[ "$os" == "Linux" ]]; then
+    elif [[ "$_OS" == "Linux" ]]; then
         _install_linux_desktop
     fi
     mkdir -p "$(dirname "$_APP_MARKER")"
@@ -142,11 +149,23 @@ install_desktop_app_if_needed() {
 
 install_desktop_app_if_needed
 
+# ─── Must always run from the project root ───────────────────────────────────
+cd "$SCRIPT_DIR"
+
 # ─── Ensure Ollama is running ─────────────────────────────────────────────────
 if ! curl -s --max-time 2 "$OLLAMA_HOST/api/tags" &>/dev/null; then
     echo "  Starting Ollama…"
     ollama serve &>/tmp/ollama_rag.log &
-    sleep 3
+    for i in $(seq 1 20); do
+        sleep 1
+        if curl -s --max-time 2 "$OLLAMA_HOST/api/tags" &>/dev/null; then
+            echo "  Ollama ready."
+            break
+        fi
+        if [[ $i -eq 20 ]]; then
+            echo "  ⚠  Ollama didn't respond in time — the app may be slow on first query."
+        fi
+    done
 fi
 
 # ─── Menu ─────────────────────────────────────────────────────────────────────

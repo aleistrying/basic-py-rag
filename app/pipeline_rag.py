@@ -16,6 +16,19 @@ Stages:
 """
 
 from __future__ import annotations
+from app.rag import (
+    LAW_SYSTEM_PROMPT,
+    LAW_RAG_TEMPLATE,
+    RAG_TEMPLATE,
+    CORRECTION_PROMPT,
+    _extract_decisive_props,
+    _symbolic_boost,
+    detect_law_mode,
+    likely_contradiction,
+)
+from app.rerank import mmr as _mmr_fn, build_context
+from app.pgvector_backend import search_pgvector
+from app.qdrant_backend import search_qdrant
 
 import logging
 import os
@@ -46,34 +59,23 @@ except ImportError:
     ollama_generate_with_retry = None
 
 # ── retrieval backends ────────────────────────────────────────────────────────
-from app.qdrant_backend import search_qdrant
-from app.pgvector_backend import search_pgvector
 
 BACKENDS: dict = {"qdrant": search_qdrant, "pgvector": search_pgvector}
 
 # ── reranker + context builder ────────────────────────────────────────────────
-from app.rerank import mmr as _mmr_fn, build_context
 
 # ── existing helpers from rag.py ──────────────────────────────────────────────
-from app.rag import (
-    LAW_SYSTEM_PROMPT,
-    LAW_RAG_TEMPLATE,
-    RAG_TEMPLATE,
-    CORRECTION_PROMPT,
-    _extract_decisive_props,
-    _symbolic_boost,
-    detect_law_mode,
-    likely_contradiction,
-)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # A.  Data types
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 @dataclass
 class QueryAnalysis:
     language: str                               # "fr" | "en" | "es"
-    answer_type: str                            # "yes_no" | "analytical" | "definitional"
+    # "yes_no" | "analytical" | "definitional"
+    answer_type: str
     case_name: Optional[str] = None
     statute: Optional[str] = None
     primary_doctrine: Optional[str] = None
@@ -82,7 +84,8 @@ class QueryAnalysis:
 
 @dataclass
 class EvidenceSheet:
-    answer_polarity: Optional[str]              # "yes" | "no" | "partly" | "insufficient"
+    # "yes" | "no" | "partly" | "insufficient"
+    answer_polarity: Optional[str]
     controlling_doctrine: Optional[str]
     case_support: List[str]
     doctrine_support: List[str]
@@ -96,8 +99,10 @@ class EvidenceSheet:
 
 # (trigger_words, canonical_case_name, primary_statute)
 _CASE_PATTERNS: list = [
-    (["tarification", "carbone", "ltpges"], "Renvoi tarification carbone", "LTPGES"),
-    (["sécession", "secession", "québec secession"], "Renvoi relatif à la sécession", None),
+    (["tarification", "carbone", "ltpges"],
+     "Renvoi tarification carbone", "LTPGES"),
+    (["sécession", "secession", "québec secession"],
+     "Renvoi relatif à la sécession", None),
     (["trans mountain", "burnaby"], "Trans Mountain / Burnaby", "EMA"),
     (["réforme du sénat", "senate reform", "sénat"],
      "Renvoi relatif à la réforme du Sénat", None),
@@ -108,15 +113,15 @@ _CASE_PATTERNS: list = [
 # (trigger_words, canonical_doctrine_name)
 _DOCTRINE_PATTERNS: list = [
     (["chevauchement", "overlap", "double aspect", "double-aspect",
-       "situations de fait identiques"], "double aspect"),
+      "situations de fait identiques"], "double aspect"),
     (["prépondérance", "paramountcy", "opérabilité", "operability",
-       "inopérant", "inoperative"], "paramountcy"),
+      "inopérant", "inoperative"], "paramountcy"),
     (["immunité interjuridictionnelle", "interjurisdictional immunity",
-       "applicabilité", "iji"], "interjurisdictional immunity"),
+      "applicabilité", "iji"], "interjurisdictional immunity"),
     (["pogg", "pobg", "intérêt national", "national concern",
-       "résiduel fédéral"], "POGG"),
+      "résiduel fédéral"], "POGG"),
     (["pith and substance", "caractère véritable", "validité",
-       "validity", "qualification"], "pith and substance"),
+      "validity", "qualification"], "pith and substance"),
     (["droit criminel", "criminal law", "92(27)", "91(27)"],
      "criminal law power"),
 ]
@@ -238,9 +243,11 @@ def build_combined_queries(question: str, qa: QueryAnalysis) -> Dict[str, List[s
 
     for sec in qa.secondary_doctrines:
         if sec == "POGG":
-            buckets["doctrine"].append("POBG super-exclusif tarification carbone")
+            buckets["doctrine"].append(
+                "POBG super-exclusif tarification carbone")
         elif sec == "double aspect":
-            buckets["doctrine"].append("double aspect situations de fait identiques")
+            buckets["doctrine"].append(
+                "double aspect situations de fait identiques")
 
     # ── HyDE query ──
     # A synthetic "ideal passage" description that will embed closer to the answer
@@ -322,7 +329,8 @@ def retrieve_and_fuse(
     rrf_docs: dict = {}
 
     _backend_fn = BACKENDS.get(backend, search_qdrant)
-    is_law = detect_law_mode(original_query, [])  # lightweight check on query alone
+    # lightweight check on query alone
+    is_law = detect_law_mode(original_query, [])
 
     # Build flat list: (query_text, rrf_weight)
     weighted_queries: List[tuple] = [(original_query, _ORIGIN_WEIGHT)]
@@ -415,9 +423,12 @@ def gap_analysis(chunks: List[dict], qa: QueryAnalysis) -> Dict[str, bool]:
 
 def compute_confidence(gaps: Dict[str, bool], top_chunks: List[dict]) -> float:
     score = 0.0
-    if gaps["have_case"]:     score += 0.40
-    if gaps["have_doctrine"]: score += 0.30
-    if gaps["have_signal"]:   score += 0.20
+    if gaps["have_case"]:
+        score += 0.40
+    if gaps["have_doctrine"]:
+        score += 0.30
+    if gaps["have_signal"]:
+        score += 0.20
     if top_chunks and top_chunks[0].get('score', 0) > 0.88:
         score += 0.10
     return min(score, 1.0)
@@ -496,7 +507,10 @@ def _extract_evidence_sheet(
         question=question,
         sources=sources[:2500],   # keep prompt short for the extraction call
     )
-    opts = {"temperature": 0.05, "num_predict": 512, "top_p": 0.9}
+    # think=False: structured JSON extraction — thinking mode wastes tokens and budget
+    # Non-thinking mode recommended params per Qwen3 docs: temp=0.7, top_p=0.8, top_k=20
+    opts = {"temperature": 0.7, "num_predict": 512,
+            "top_p": 0.8, "top_k": 20, "min_p": 0}
 
     try:
         if ollama_generate_with_retry:
@@ -506,17 +520,20 @@ def _extract_evidence_sheet(
                 max_retries=2,
                 auto_fallback=False,
                 auto_restart=False,
+                think=False,
                 options=opts,
             )
         elif _ollama_module:
             client = _ollama_module.Client(
                 host=os.getenv("OLLAMA_HOST", "http://localhost:11434")
             )
-            resp = client.generate(model=model, prompt=prompt, options=opts)
+            resp = client.generate(
+                model=model, prompt=prompt, think=False, options=opts)
         else:
             return None
 
-        raw = resp.get('response', '') if hasattr(resp, 'get') else getattr(resp, 'response', '')
+        raw = resp.get('response', '') if hasattr(
+            resp, 'get') else getattr(resp, 'response', '')
         # Strip <think> blocks emitted by reasoning models
         raw = re.sub(r'<think>[\s\S]*?</think>\s*', '', raw).strip()
 
@@ -606,7 +623,8 @@ def pipeline_search(
     # ── B: Build query buckets ────────────────────────────────────────────────
     buckets = build_combined_queries(query, qa)
     total_bucket_queries = sum(len(v) for v in buckets.values())
-    logger.info(f"[Pipeline] {total_bucket_queries} bucket queries across {len(buckets)} buckets")
+    logger.info(
+        f"[Pipeline] {total_bucket_queries} bucket queries across {len(buckets)} buckets")
 
     # ── C+D: Retrieve + fuse ──────────────────────────────────────────────────
     fused = retrieve_and_fuse(
@@ -653,7 +671,8 @@ def pipeline_search(
             # Re-check gaps after merge
             gaps = gap_analysis(deduped, qa)
             confidence = compute_confidence(gaps, deduped)
-            logger.info(f"[Pipeline] post-2nd-pass confidence={confidence:.2f}")
+            logger.info(
+                f"[Pipeline] post-2nd-pass confidence={confidence:.2f}")
 
     # ── Prepare candidates for MMR ────────────────────────────────────────────
     candidates: List[dict] = []
@@ -781,10 +800,16 @@ def pipeline_search(
     # ── Generate ──────────────────────────────────────────────────────────────
     ai_response = ""
     final_model = model
+    # num_predict must accommodate the <think> block + the final answer.
+    # qwen3:4b thinking blocks can be 500-2000 tokens — 4096 gives ample budget.
+    # Thinking mode recommended params per Qwen3 docs: temp=0.6, top_p=0.95, top_k=20, min_p=0
+    # DO NOT use greedy (temp=0) — causes quality degradation and repetitions.
     gen_opts = {
-        "temperature": 0.3,
-        "num_predict": 1024,
-        "top_p": 0.9,
+        "temperature": 0.6,
+        "num_predict": 4096,
+        "top_p": 0.95,
+        "top_k": 20,
+        "min_p": 0,
         "repeat_penalty": 1.05,
     }
 
@@ -804,7 +829,8 @@ def pipeline_search(
             client = _ollama_module.Client(
                 host=os.getenv("OLLAMA_HOST", "http://localhost:11434")
             )
-            resp = client.generate(model=model, prompt=final_prompt, options=gen_opts)
+            resp = client.generate(
+                model=model, prompt=final_prompt, options=gen_opts)
         else:
             raise RuntimeError("Ollama not available")
 
@@ -823,21 +849,24 @@ def pipeline_search(
                 key_props=key_props or "(see excerpts)",
                 sources=sources_text,
             )
-            corr_opts = {**gen_opts, "temperature": 0.1, "num_predict": 512}
+            # think=False on correction: targeted rewrite, no benefit from thinking
+            corr_opts = {**gen_opts, "temperature": 0.1, "num_predict": 1024}
             try:
                 if ollama_generate_with_retry:
                     cr = ollama_generate_with_retry(
                         model=model, prompt=corr_prompt,
                         max_retries=2, auto_fallback=False,
-                        auto_restart=False, options=corr_opts,
+                        auto_restart=False, think=False, options=corr_opts,
                     )
                 elif _ollama_module:
-                    cr = client.generate(model=model, prompt=corr_prompt, options=corr_opts)
+                    cr = client.generate(
+                        model=model, prompt=corr_prompt, think=False, options=corr_opts)
                 else:
                     raise RuntimeError("No LLM available")
                 corr_raw = (cr.get('response', '') if hasattr(cr, 'get')
                             else getattr(cr, 'response', ''))
-                corr_raw = re.sub(r'<think>[\s\S]*?</think>\s*', '', corr_raw).strip()
+                corr_raw = re.sub(
+                    r'<think>[\s\S]*?</think>\s*', '', corr_raw).strip()
                 if corr_raw:
                     ai_response = corr_raw
                     logger.info("[Pipeline] ✅ Contradiction corrected")

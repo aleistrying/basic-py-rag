@@ -178,31 +178,102 @@ else
 fi
 
 # ─── Model selection ─────────────────────────────────────────────────────────
+
+# Detect total RAM
+RAM_BYTES=$(sysctl -n hw.memsize 2>/dev/null || echo "0")
+RAM_GB=$(( RAM_BYTES / 1024 / 1024 / 1024 ))
+success "Detected ${RAM_GB} GB RAM"
+
+# Detect Mac model identifier and year (e.g. "MacBookAir10,1" or "MacBookPro16,1")
+MAC_MODEL=$(sysctl -n hw.model 2>/dev/null || system_profiler SPHardwareDataType 2>/dev/null \
+    | awk -F': ' '/Model Identifier/{print $2; exit}' || echo "unknown")
+MAC_YEAR=$(system_profiler SPHardwareDataType 2>/dev/null \
+    | awk -F': ' '/Model Name|Model Year/{print $2}' | tail -1 || echo "")
+info "Mac model: ${MAC_MODEL}${MAC_YEAR:+  (${MAC_YEAR})}"
+
+# On Apple Silicon (arm64) Ollama uses Metal/MLX — full GPU acceleration.
+# On Intel (x86_64) Ollama is CPU-only — inference is ~3–6× slower.
+# For Intel, we drop one tier so the model actually runs at bearable speed.
+if [[ "$ARCH" == "arm64" ]]; then
+    _GPU_NOTE="Apple Silicon — Metal GPU acceleration active (all ${RAM_GB} GB RAM available to model)"
+    _INTEL=false
+else
+    _GPU_NOTE="Intel Mac — CPU-only inference (no Metal GPU). Smaller models are faster."
+    _INTEL=true
+    warn "Intel Mac detected: inference runs on CPU only. Models will be slower."
+    warn "Recommendation adjusted downward by one tier for comfortable speed."
+fi
+info "$_GPU_NOTE"
+
+# Pick the best default model for this machine
+# Intel gets one tier lower because CPU-only makes larger models painfully slow
+if [[ "$_INTEL" == "true" ]]; then
+    # Intel tiers (CPU-only — prioritise speed)
+    if   [[ $RAM_GB -ge 16 ]]; then
+        _DEFAULT_MODEL_NUM=1; _SUGGEST_MODEL="qwen3:4b"
+        _SUGGEST_NOTE="(best balance on Intel ${RAM_GB} GB — thinking mode, still usable on CPU)"
+    elif [[ $RAM_GB -ge 8 ]]; then
+        _DEFAULT_MODEL_NUM=5; _SUGGEST_MODEL="qwen3:1.7b"
+        _SUGGEST_NOTE="(recommended for Intel ${RAM_GB} GB — small enough to run at good speed on CPU)"
+    else
+        _DEFAULT_MODEL_NUM=5; _SUGGEST_MODEL="qwen3:1.7b"
+        _SUGGEST_NOTE="(only safe choice for Intel ${RAM_GB} GB on CPU)"
+    fi
+else
+    # Apple Silicon tiers (Metal GPU — full RAM is GPU memory)
+    if   [[ $RAM_GB -ge 20 ]]; then
+        _DEFAULT_MODEL_NUM=7; _SUGGEST_MODEL="qwen3:14b"
+        _SUGGEST_NOTE="(best quality for legal research — 9 GB, your ${RAM_GB} GB unified mem handles it)"
+    elif [[ $RAM_GB -ge 12 ]]; then
+        _DEFAULT_MODEL_NUM=6; _SUGGEST_MODEL="qwen3:8b"
+        _SUGGEST_NOTE="(noticeably stronger reasoning — 5 GB, fits your ${RAM_GB} GB unified mem)"
+    elif [[ $RAM_GB -ge 7 ]]; then
+        _DEFAULT_MODEL_NUM=1; _SUGGEST_MODEL="qwen3:4b"
+        _SUGGEST_NOTE="(best fit for ${RAM_GB} GB M-series — thinking mode, 256K ctx)"
+    else
+        _DEFAULT_MODEL_NUM=5; _SUGGEST_MODEL="qwen3:1.7b"
+        _SUGGEST_NOTE="(recommended for ${RAM_GB} GB — ultra-light Qwen3 with thinking)"
+    fi
+fi
+
 echo ""
-echo -e "  ${BOLD}Best models for M1 8 GB MacBook Air — ranked by quality/size:${RESET}"
+echo -e "  ${BOLD}Model recommendation for your machine (${RAM_GB} GB${_INTEL:+, CPU-only}):${RESET}"
+echo -e "  ${BOLD}${GREEN}  →  ${_SUGGEST_MODEL}  ${DIM}${_SUGGEST_NOTE}${RESET}"
 echo ""
-echo -e "  ${BOLD}  1.  qwen3:4b     ${DIM}(2.5 GB — rivals models 18× its size · thinking mode · 256K ctx)${RESET}  ✓ RECOMMENDED"
+echo -e "  All options (Qwen3 family uses thinking mode for legal reasoning):"
+echo ""
+echo -e "  ${DIM}  1.  qwen3:4b     (2.5 GB — rivals models 18× its size · thinking mode · 256K ctx)${RESET}"
 echo -e "  ${DIM}  2.  phi4-mini     (2.3 GB — Microsoft Phi-4 Mini · top-tier reasoning · multilingual)${RESET}"
 echo -e "  ${DIM}  3.  gemma3:4b     (2.5 GB — Google Gemma 3 · 128K ctx · 35M+ downloads · proven)${RESET}"
 echo -e "  ${DIM}  4.  llama3.2:3b   (2.0 GB — Meta · lightweight classic · good all-round)${RESET}"
 echo -e "  ${DIM}  5.  qwen3:1.7b    (1.4 GB — ultra-light · Qwen3 quality in tiny size)${RESET}"
-echo -e "  ${DIM}  6.  Custom — type any Ollama model name${RESET}"
+echo -e "  ${DIM}  6.  qwen3:8b      (5.0 GB — noticeably stronger reasoning · needs 8 GB+ Apple Silicon)${RESET}"
+echo -e "  ${DIM}  7.  qwen3:14b     (9.0 GB — best open legal reasoning model · needs 16 GB+ Apple Silicon)${RESET}"
+echo -e "  ${DIM}  8.  Custom — type any Ollama model name${RESET}"
 echo ""
-echo -e "  ${DIM}Tip: Latest Ollama uses Apple MLX backend (~3× faster on M1).${RESET}"
-echo -e "  ${DIM}     Run  brew upgrade ollama  before your first model pull.${RESET}"
+if [[ "$_INTEL" == "false" ]]; then
+    echo -e "  ${DIM}Tip: Ollama uses Apple MLX/Metal backend — ~3× faster than CPU inference.${RESET}"
+    echo -e "  ${DIM}     On Apple Silicon, unified memory = all RAM is available to the model.${RESET}"
+else
+    echo -e "  ${DIM}Tip: Intel Macs run inference on CPU. qwen3:1.7b gives the best speed/quality trade-off.${RESET}"
+    echo -e "  ${DIM}     A 2020+ Mac with Apple Silicon would run qwen3:4b or larger comfortably.${RESET}"
+fi
 echo ""
-ask "Choose model [1]: "
+ask "Choose model [${_DEFAULT_MODEL_NUM}]: "
 read -r MODEL_CHOICE
-MODEL_CHOICE="${MODEL_CHOICE:-1}"
+MODEL_CHOICE="${MODEL_CHOICE:-${_DEFAULT_MODEL_NUM}}"
 
 case "$MODEL_CHOICE" in
-    1|"") MODEL="qwen3:4b" ;;
+    1)    MODEL="qwen3:4b" ;;
     2)    MODEL="phi4-mini" ;;
     3)    MODEL="gemma3:4b" ;;
     4)    MODEL="llama3.2:3b" ;;
     5)    MODEL="qwen3:1.7b" ;;
-    6)    ask "Enter model name: "; read -r MODEL ;;
-    *)    MODEL="$MODEL_CHOICE" ;;  # treat raw input as model name
+    6)    MODEL="qwen3:8b" ;;
+    7)    MODEL="qwen3:14b" ;;
+    8)    ask "Enter model name: "; read -r MODEL ;;
+    "")   MODEL="$_SUGGEST_MODEL" ;;
+    *)    MODEL="$MODEL_CHOICE" ;;
 esac
 
 info "Pulling model: ${BOLD}${MODEL}${RESET}  (downloads once, may take several minutes on first run)..."
@@ -320,77 +391,80 @@ ENVEOF
 
 success "Configuration written to .env.local"
 
-# ─── Write start.sh ──────────────────────────────────────────────────────────
-cat > "$SCRIPT_DIR/start.sh" <<'STARTSCRIPT'
-#!/usr/bin/env bash
-# RAG System — one-command launcher
-# Run this after install_mac.sh to start the system.
-set -euo pipefail
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VENV_PY="$SCRIPT_DIR/.venv/bin/python"
-ENV_FILE="$SCRIPT_DIR/.env.local"
-
-# Load local env
-if [[ -f "$ENV_FILE" ]]; then
-    set -a; source "$ENV_FILE"; set +a
-fi
-
-OLLAMA_HOST="${OLLAMA_HOST:-http://localhost:11434}"
-APP_PORT="${APP_PORT:-8080}"
-
-# Ensure Ollama is running
-if ! curl -s --max-time 2 "$OLLAMA_HOST/api/tags" &>/dev/null; then
-    echo "  Starting Ollama..."
-    ollama serve &>/tmp/ollama_rag.log &
-    sleep 3
-fi
-
-clear
-echo ""
-echo "  ╔════════════════════════════════════╗"
-echo "  ║         RAG System                 ║"
-echo "  ╠════════════════════════════════════╣"
-echo "  ║  1.  Interactive CLI (recommended) ║"
-echo "  ║  2.  Research UI  ← for daily use  ║"
-echo "  ║  3.  Full web app  (all features)  ║"
-echo "  ╚════════════════════════════════════╝"
-echo ""
-printf "  Choose [2]: "
-read -r CHOICE
-CHOICE="${CHOICE:-2}"
-
-case "$CHOICE" in
-    1)
-        exec "$VENV_PY" "$SCRIPT_DIR/cli.py" "$@"
-        ;;
-    2)
-        echo ""
-        echo "  Starting Research UI…"
-        echo "  Opening http://localhost:${APP_PORT}/research"
-        echo "  Press Ctrl+C to stop."
-        echo ""
-        # Auto-open browser after a short delay
-        (sleep 2 && open "http://localhost:${APP_PORT}/research" 2>/dev/null || true) &
-        exec "$VENV_PY" -m uvicorn app.main:app \
-            --host 0.0.0.0 --port "$APP_PORT"
-        ;;
-    3)
-        echo ""
-        echo "  Starting full web app at http://localhost:${APP_PORT}"
-        echo "  Press Ctrl+C to stop."
-        echo ""
-        exec "$VENV_PY" -m uvicorn app.main:app \
-            --host 0.0.0.0 --port "$APP_PORT" --reload
-        ;;
-    *)
-        echo "  Invalid choice."
-        exit 1
-        ;;
-esac
-STARTSCRIPT
+# ─── Ensure start.sh is executable ───────────────────────────────────────────
 chmod +x "$SCRIPT_DIR/start.sh"
-success "Created start.sh"
+success "start.sh is ready"
+
+# ─── End-to-end verification ─────────────────────────────────────────────────
+header "Verification  —  sanity-checking the full installation"
+
+PASS=0; FAIL=0
+check_pass() { echo -e "    ${GREEN}✓  $*${RESET}"; PASS=$((PASS+1)); }
+check_fail() { echo -e "    ${RED}✗  $*${RESET}"; FAIL=$((FAIL+1)); }
+check_warn() { echo -e "    ${YELLOW}⚠  $*${RESET}"; }
+
+# 1. Python venv
+[[ -f "$VENV_DIR/bin/python" ]] && check_pass "Python venv present" || check_fail "Python venv missing — re-run installer"
+
+# 2. Critical packages
+"$VENV_DIR/bin/python" - <<'PYCHECK' && check_pass "Core Python packages importable" || check_fail "Some Python packages failed to import — re-run installer"
+import fastapi, qdrant_client, sentence_transformers, uvicorn, ollama
+PYCHECK
+
+# 3. .env.local written and has QDRANT_LOCAL_PATH
+if [[ -f "$ENV_FILE" ]] && grep -q "QDRANT_LOCAL_PATH" "$ENV_FILE"; then
+    check_pass ".env.local written with QDRANT_LOCAL_PATH"
+else
+    check_fail ".env.local missing or incomplete"
+fi
+
+# 4. Qdrant data directory
+[[ -d "$DATA_DIR/qdrant_local" ]] && check_pass "Qdrant local directory exists" || check_fail "Qdrant directory missing: $DATA_DIR/qdrant_local"
+
+# 5. Embedding model cached
+if ls "$DATA_DIR/models/embeddings/models--intfloat--multilingual-e5-base/snapshots" &>/dev/null 2>&1; then
+    check_pass "Embedding model cached"
+else
+    check_warn "Embedding model not yet cached — it will download on first use (~280 MB)"
+fi
+
+# 6. Ollama running + model available
+if curl -s --max-time 5 "http://localhost:11434/api/tags" &>/dev/null; then
+    check_pass "Ollama server reachable"
+    MODELS_JSON=$(curl -s --max-time 5 "http://localhost:11434/api/tags" 2>/dev/null || echo "{}")
+    if echo "$MODELS_JSON" | grep -q "\"name\""; then
+        check_pass "Ollama has at least one model loaded"
+    else
+        check_warn "Ollama running but no models listed — try:  ollama pull ${MODEL}"
+    fi
+else
+    check_warn "Ollama server not running — it will start automatically when you run start.sh"
+fi
+
+# 7. start.sh is executable and contains cd guard
+if [[ -x "$SCRIPT_DIR/start.sh" ]] && grep -q 'cd "\$SCRIPT_DIR"' "$SCRIPT_DIR/start.sh"; then
+    check_pass "start.sh is executable with working-directory guard"
+else
+    check_fail "start.sh missing or malformed"
+fi
+
+# 8. Quick app import smoke-test (no server started)
+cd "$SCRIPT_DIR"
+"$VENV_DIR/bin/python" -c "
+import sys, os
+os.environ.setdefault('QDRANT_LOCAL_PATH', '${DATA_DIR}/qdrant_local')
+from app.rag import generate_llm_answer, search_knowledge_base
+from app.pipeline_rag import pipeline_search, analyze_question
+print('ok')
+" 2>/dev/null && check_pass "App modules import cleanly" || check_warn "App import check failed (may be OK if you haven't ingested docs yet)"
+
+echo ""
+if [[ $FAIL -eq 0 ]]; then
+    echo -e "  ${BOLD}${GREEN}All checks passed${RESET} ($PASS passed, 0 failed)"
+else
+    echo -e "  ${BOLD}${YELLOW}$FAIL check(s) failed${RESET} — see items marked ✗ above"
+fi
+echo ""
 
 # ─── Summary ─────────────────────────────────────────────────────────────────
 echo ""
@@ -398,11 +472,7 @@ echo -e "${BOLD}${GREEN}╔═════════════════�
 echo -e "${BOLD}${GREEN}║            Installation complete!            ║${RESET}"
 echo -e "${BOLD}${GREEN}╚══════════════════════════════════════════════╝${RESET}"
 echo ""
-echo -e "  ${BOLD}To start the system:${RESET}"
-echo ""
-echo -e "    ${BOLD}./start.sh${RESET}"
-echo ""
-echo -e "  ${BOLD}To add your documents:${RESET}"
+echo -e "  ${BOLD}To add your documents later:${RESET}"
 echo -e "    Copy PDF or text files to  ${BOLD}./data/raw/${RESET}"
 echo -e "    Then run the CLI and choose ${BOLD}\"Ingest documents\"${RESET}"
 echo ""
@@ -410,3 +480,13 @@ echo -e "  ${DIM}Ollama model: ${MODEL}${RESET}"
 echo -e "  ${DIM}Vector DB:    local file storage (./data/qdrant_local)${RESET}"
 echo -e "  ${DIM}No Docker required.${RESET}"
 echo ""
+ask "Launch the Research UI now? [Y/n]: "
+read -r LAUNCH_NOW
+LAUNCH_NOW="${LAUNCH_NOW:-Y}"
+if [[ "$LAUNCH_NOW" =~ ^[Yy]$ ]]; then
+    exec "$SCRIPT_DIR/start.sh"
+else
+    echo ""
+    echo -e "  Run  ${BOLD}./start.sh${RESET}  whenever you're ready."
+    echo ""
+fi
