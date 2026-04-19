@@ -1,597 +1,1895 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Research — Document AI</title>
+  <title>Research Studio</title>
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0
+    }
 
     :root {
-      --bg:          #07090f;
-      --surface:     #0e1422;
-      --surface2:    #141929;
-      --border:      rgba(255,255,255,0.07);
-      --border-hi:   rgba(124,58,237,0.4);
-      --accent:      #7c3aed;
-      --accent-l:    #a78bfa;
-      --accent-bg:   rgba(124,58,237,0.12);
-      --text:        #e2e8f0;
-      --muted:       #64748b;
-      --dim:         #94a3b8;
-      --green:       #10b981;
-      --yellow:      #f59e0b;
-      --red:         #ef4444;
-      --r:           10px;
-      --font:        -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
-      --mono:        'Menlo','Monaco','SF Mono',monospace;
+      --bg: #07090f;
+      --sur: #0e1422;
+      --sur2: #131b2e;
+      --brd: rgba(255, 255, 255, .07);
+      --brd-h: rgba(124, 58, 237, .4);
+      --acc: #7c3aed;
+      --acc-l: #a78bfa;
+      --acc-bg: rgba(124, 58, 237, .12);
+      --text: #e2e8f0;
+      --muted: #64748b;
+      --dim: #94a3b8;
+      --green: #10b981;
+      --yellow: #f59e0b;
+      --red: #ef4444;
+      --r: 10px;
+      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+      --mono: 'Menlo', 'Monaco', 'SF Mono', monospace;
     }
 
     body {
       font-family: var(--font);
       background: var(--bg);
       color: var(--text);
-      min-height: 100vh;
-      line-height: 1.6;
+      min-height: 100vh
     }
 
-    /* ─── Header ───────────────────────────────── */
     header {
-      position: sticky; top: 0; z-index: 100;
-      background: rgba(7,9,15,0.9);
+      position: sticky;
+      top: 0;
+      z-index: 200;
+      background: rgba(7, 9, 15, .94);
       backdrop-filter: blur(14px);
-      border-bottom: 1px solid var(--border);
-      display: flex; align-items: center;
-      justify-content: space-between;
-      padding: 13px 28px;
+      border-bottom: 1px solid var(--brd);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 0 28px;
+      height: 56px;
     }
-    .logo { font-size: 0.97rem; font-weight: 700; color: var(--accent-l); letter-spacing: -0.02em; }
-    .logo em { font-style: normal; color: var(--muted); font-weight: 400; font-size: 0.8rem; margin-left: 6px; }
-    .hdr-r { display: flex; gap: 10px; align-items: center; }
+
+    .logo {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--acc-l);
+      letter-spacing: -.02em;
+      white-space: nowrap
+    }
+
+    .tabs {
+      display: flex;
+      gap: 4px;
+      flex: 1;
+      justify-content: center
+    }
+
+    .tab-btn {
+      padding: 6px 20px;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      background: none;
+      color: var(--muted);
+      font-size: .86rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .15s
+    }
+
+    .tab-btn:hover {
+      color: var(--dim)
+    }
+
+    .tab-btn.active {
+      background: var(--acc-bg);
+      border-color: rgba(124, 58, 237, .3);
+      color: var(--acc-l)
+    }
+
+    .hdr-r {
+      display: flex;
+      gap: 10px;
+      align-items: center
+    }
+
     .badge {
-      padding: 3px 10px; border-radius: 20px; font-size: 0.71rem; font-weight: 600;
-      background: rgba(124,58,237,0.1); border: 1px solid rgba(124,58,237,0.3); color: var(--accent-l);
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: .71rem;
+      font-weight: 600;
+      background: rgba(124, 58, 237, .1);
+      border: 1px solid rgba(124, 58, 237, .3);
+      color: var(--acc-l)
     }
-    a.back { color: var(--muted); font-size: 0.81rem; text-decoration: none; transition: color .15s; }
-    a.back:hover { color: var(--dim); }
 
-    /* ─── Main wrapper ──────────────────────────── */
-    .main { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+    .tab-pane {
+      display: none
+    }
 
-    /* ─── Hero (large, before search) ──────────── */
-    #hero {
-      padding: 76px 0 52px;
+    .tab-pane.active {
+      display: block
+    }
+
+    .wrap {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 7px 16px;
+      border-radius: 8px;
+      font-size: .84rem;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: all .15s;
+      font-family: var(--font)
+    }
+
+    .btn-primary {
+      background: var(--acc);
+      color: #fff
+    }
+
+    .btn-primary:hover {
+      background: #6d28d9
+    }
+
+    .btn-sm {
+      padding: 4px 11px;
+      font-size: .75rem;
+      border-radius: 6px
+    }
+
+    .btn-ghost {
+      background: none;
+      border: 1px solid var(--brd);
+      color: var(--muted)
+    }
+
+    .btn-ghost:hover {
+      border-color: var(--dim);
+      color: var(--dim)
+    }
+
+    .btn-danger {
+      background: none;
+      border: 1px solid rgba(239, 68, 68, .25);
+      color: var(--red)
+    }
+
+    .btn-danger:hover {
+      background: rgba(239, 68, 68, .08)
+    }
+
+    .btn-view {
+      background: none;
+      border: 1px solid var(--brd);
+      color: var(--muted)
+    }
+
+    .btn-view:hover {
+      border-color: var(--acc-l);
+      color: var(--acc-l)
+    }
+
+    .btn-open {
+      background: var(--acc-bg);
+      border: 1px solid rgba(124, 58, 237, .35);
+      color: var(--acc-l)
+    }
+
+    .btn-open:hover {
+      background: rgba(124, 58, 237, .22)
+    }
+
+    .btn:disabled {
+      opacity: .5;
+      cursor: not-allowed
+    }
+
+    #tab-library .wrap {
+      padding-top: 28px;
+      padding-bottom: 60px
+    }
+
+    .upload-zone {
+      border: 2px dashed rgba(124, 58, 237, .35);
+      border-radius: 14px;
+      background: var(--sur);
+      padding: 38px 24px;
       text-align: center;
-      transition: padding .3s ease;
+      cursor: pointer;
+      transition: all .2s;
+      margin-bottom: 20px;
+      user-select: none
     }
+
+    .upload-zone:hover,
+    .upload-zone.drag {
+      border-color: var(--acc);
+      background: var(--acc-bg)
+    }
+
+    .upload-zone input {
+      display: none
+    }
+
+    .upload-icon {
+      font-size: 2.4rem;
+      margin-bottom: 10px;
+      line-height: 1
+    }
+
+    .upload-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 4px
+    }
+
+    .upload-sub {
+      font-size: .79rem;
+      color: var(--muted)
+    }
+
+    .upload-sub span {
+      color: var(--acc-l);
+      font-weight: 600
+    }
+
+    .upload-progress {
+      display: none;
+      margin-bottom: 16px
+    }
+
+    .upload-progress.show {
+      display: block
+    }
+
+    .uprog-label {
+      font-size: .78rem;
+      color: var(--muted);
+      margin-bottom: 5px;
+      display: flex;
+      justify-content: space-between
+    }
+
+    .uprog-bar {
+      height: 5px;
+      background: var(--sur2);
+      border-radius: 3px;
+      overflow: hidden
+    }
+
+    .uprog-fill {
+      height: 100%;
+      background: var(--acc);
+      border-radius: 3px;
+      transition: width .15s;
+      width: 0
+    }
+
+    .upload-result {
+      margin-top: 7px;
+      font-size: .78rem
+    }
+
+    .upload-result.ok {
+      color: var(--green)
+    }
+
+    .upload-result.err {
+      color: var(--red)
+    }
+
+    .lib-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px
+    }
+
+    .lib-title {
+      font-size: .9rem;
+      font-weight: 700;
+      color: var(--text);
+      flex: 1
+    }
+
+    .lib-count {
+      font-size: .72rem;
+      padding: 2px 7px;
+      border-radius: 9px;
+      background: rgba(255, 255, 255, .05);
+      color: var(--muted)
+    }
+
+    .file-list {
+      border: 1px solid var(--brd);
+      border-radius: var(--r);
+      overflow: hidden;
+      margin-bottom: 18px
+    }
+
+    .file-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 11px 16px;
+      border-bottom: 1px solid var(--brd);
+      transition: background .15s
+    }
+
+    .file-row:last-child {
+      border-bottom: none
+    }
+
+    .file-row:hover {
+      background: rgba(255, 255, 255, .025)
+    }
+
+    .file-icon {
+      font-size: 1.3rem;
+      flex-shrink: 0
+    }
+
+    .file-info {
+      flex: 1;
+      min-width: 0
+    }
+
+    .file-name {
+      font-size: .87rem;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis
+    }
+
+    .file-meta {
+      font-size: .71rem;
+      color: var(--muted);
+      margin-top: 2px
+    }
+
+    .file-status {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      flex-shrink: 0
+    }
+
+    .sdot-sm {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%
+    }
+
+    .sdot-sm.ok {
+      background: var(--green)
+    }
+
+    .sdot-sm.none {
+      background: var(--muted)
+    }
+
+    .status-label {
+      font-size: .73rem;
+      color: var(--muted);
+      white-space: nowrap
+    }
+
+    .file-actions {
+      display: flex;
+      gap: 5px;
+      flex-shrink: 0
+    }
+
+    .empty-lib {
+      padding: 32px;
+      text-align: center;
+      color: var(--muted);
+      font-size: .84rem
+    }
+
+    .ingest-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 0;
+      border-top: 1px solid var(--brd)
+    }
+
+    .ingest-status {
+      flex: 1;
+      font-size: .8rem;
+      color: var(--muted)
+    }
+
+    .log-panel {
+      display: none;
+      background: #050810;
+      border: 1px solid rgba(124, 58, 237, .2);
+      border-radius: var(--r);
+      padding: 12px 14px;
+      height: 240px;
+      overflow-y: auto;
+      font-family: var(--mono);
+      font-size: .73rem;
+      line-height: 1.65;
+      color: var(--dim);
+      margin-top: 12px
+    }
+
+    .log-panel.show {
+      display: block
+    }
+
+    .log-line {
+      display: block
+    }
+
+    .log-line.ok {
+      color: var(--green)
+    }
+
+    .log-line.err {
+      color: var(--red)
+    }
+
+    .log-line.info {
+      color: var(--acc-l)
+    }
+
+    #tab-research .wrap {
+      padding-bottom: 60px
+    }
+
+    #hero {
+      padding: 58px 0 36px;
+      text-align: center;
+      transition: padding .3s
+    }
+
     #hero.compact {
-      padding: 22px 0 14px;
-      text-align: left;
+      padding: 16px 0 10px;
+      text-align: left
+    }
+
+    #hero.compact .hide-compact {
+      display: none
     }
 
     .eyebrow {
-      font-size: 0.73rem; letter-spacing: 0.1em; text-transform: uppercase;
-      color: var(--accent-l); font-weight: 600; margin-bottom: 14px;
+      font-size: .72rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--acc-l);
+      font-weight: 600;
+      margin-bottom: 12px
     }
-    #hero.compact .eyebrow,
-    #hero.compact .hero-title,
-    #hero.compact .hero-sub   { display: none; }
 
     .hero-title {
-      font-size: 2.7rem; font-weight: 800; letter-spacing: -0.045em; margin-bottom: 12px;
-      background: linear-gradient(130deg, #e2e8f0 0%, #a78bfa 65%);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-    }
-    .hero-sub {
-      color: var(--muted); font-size: .93rem; max-width: 500px;
-      margin: 0 auto 36px;
+      font-size: 2.55rem;
+      font-weight: 800;
+      letter-spacing: -.045em;
+      margin-bottom: 10px;
+      background: linear-gradient(130deg, #e2e8f0, #a78bfa 65%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text
     }
 
-    /* ─── Search bar ────────────────────────────── */
-    .search-wrap {
-      width: 100%; max-width: 700px; margin: 0 auto;
-      position: relative; transition: max-width .3s ease;
+    .hero-sub {
+      color: var(--muted);
+      font-size: .9rem;
+      max-width: 500px;
+      margin: 0 auto 28px
     }
-    #hero.compact .search-wrap { max-width: 100%; margin: 0; }
+
+    .search-wrap {
+      width: 100%;
+      max-width: 680px;
+      margin: 0 auto;
+      position: relative;
+      transition: max-width .3s
+    }
+
+    #hero.compact .search-wrap {
+      max-width: 100%;
+      margin: 0
+    }
 
     .search-input {
-      width: 100%; background: var(--surface);
-      border: 1.5px solid var(--border); border-radius: 12px;
-      color: var(--text); font-family: var(--font); font-size: 1.03rem;
-      padding: 15px 136px 15px 18px; outline: none;
-      transition: border-color .2s, box-shadow .2s;
+      width: 100%;
+      background: var(--sur);
+      border: 1.5px solid var(--brd);
+      border-radius: 12px;
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 1.02rem;
+      padding: 14px 128px 14px 18px;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s
     }
+
     .search-input:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(124,58,237,0.13);
+      border-color: var(--acc);
+      box-shadow: 0 0 0 3px rgba(124, 58, 237, .12)
     }
-    .search-input::placeholder { color: var(--muted); }
+
+    .search-input::placeholder {
+      color: var(--muted)
+    }
 
     .search-btn {
-      position: absolute; right: 7px; top: 7px; bottom: 7px;
-      padding: 0 18px; background: var(--accent); border: none;
-      border-radius: 8px; color: #fff; font-weight: 700; font-size: 0.87rem;
-      cursor: pointer; transition: background .2s, transform .1s;
-      display: flex; align-items: center; gap: 5px; white-space: nowrap;
+      position: absolute;
+      right: 7px;
+      top: 7px;
+      bottom: 7px;
+      padding: 0 18px;
+      background: var(--acc);
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-weight: 700;
+      font-size: .85rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: background .2s;
+      white-space: nowrap;
+      font-family: var(--font)
     }
-    .search-btn:hover { background: #6d28d9; }
-    .search-btn:active { transform: scale(.97); }
-    .search-btn:disabled { opacity: .55; cursor: not-allowed; }
 
-    /* ─── Method pills ──────────────────────────── */
-    .methods {
-      display: flex; flex-wrap: wrap; gap: 7px;
-      margin-top: 13px; justify-content: center;
-      max-width: 700px; margin-left: auto; margin-right: auto;
+    .search-btn:hover {
+      background: #6d28d9
     }
-    #hero.compact .methods { justify-content: flex-start; max-width: 100%; margin-left: 0; margin-right: 0; }
+
+    .search-btn:disabled {
+      opacity: .55;
+      cursor: not-allowed
+    }
+
+    .methods {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin-top: 14px;
+      justify-content: center;
+      max-width: 680px;
+      margin-left: auto;
+      margin-right: auto
+    }
+
+    #hero.compact .methods {
+      justify-content: flex-start;
+      max-width: 100%;
+      margin-left: 0;
+      margin-right: 0
+    }
 
     .pill {
-      padding: 4px 12px; border-radius: 20px; font-size: 0.76rem; font-weight: 500;
-      border: 1px solid var(--border); background: transparent; color: var(--muted);
-      cursor: pointer; transition: all .15s; position: relative;
+      padding: 4px 13px;
+      border-radius: 20px;
+      font-size: .75rem;
+      font-weight: 500;
+      border: 1px solid var(--brd);
+      background: none;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all .15s;
+      position: relative;
+      font-family: var(--font)
     }
-    .pill:hover { border-color: var(--accent-l); color: var(--accent-l); }
-    .pill.active { background: var(--accent-bg); border-color: var(--accent); color: var(--accent-l); }
 
-    .tip {
-      display: none; position: absolute; bottom: calc(100% + 8px); left: 50%;
-      transform: translateX(-50%); background: #1e2237;
-      border: 1px solid var(--border); color: var(--dim); font-size: 0.7rem;
-      padding: 6px 10px; border-radius: 6px; width: 200px; text-align: center;
-      line-height: 1.4; z-index: 50; pointer-events: none; white-space: normal;
+    .pill:hover {
+      border-color: var(--acc-l);
+      color: var(--acc-l)
     }
-    .pill:hover .tip { display: block; }
 
-    /* ─── Status bar ────────────────────────────── */
+    .pill.active {
+      background: var(--acc-bg);
+      border-color: var(--acc);
+      color: var(--acc-l)
+    }
+
+    .pill-tip {
+      display: none;
+      position: absolute;
+      bottom: calc(100% + 8px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1a2035;
+      border: 1px solid var(--brd);
+      color: var(--dim);
+      font-size: .69rem;
+      padding: 6px 10px;
+      border-radius: 6px;
+      width: 215px;
+      text-align: center;
+      line-height: 1.45;
+      z-index: 999;
+      pointer-events: none;
+      white-space: normal
+    }
+
+    .pill:hover .pill-tip {
+      display: block
+    }
+
     #status-bar {
-      display: none; align-items: center; gap: 9px;
-      font-size: 0.73rem; color: var(--muted); padding: 9px 0 3px;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      font-size: .72rem;
+      color: var(--muted);
+      padding: 8px 0
     }
-    #status-bar.show { display: flex; }
-    .sdot { width: 5px; height: 5px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
 
-    /* ─── Results grid ──────────────────────────── */
+    #status-bar.show {
+      display: flex
+    }
+
+    .sdot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--green);
+      flex-shrink: 0
+    }
+
     #results {
       display: none;
-      gap: 18px;
-      padding-bottom: 70px;
+      gap: 20px;
+      padding-bottom: 60px
     }
+
     #results.show {
       display: grid;
-      grid-template-columns: 2fr 3fr;
-    }
-    @media (max-width: 740px) { #results.show { grid-template-columns: 1fr; } }
-
-    .panel-label {
-      font-size: 0.71rem; font-weight: 700; letter-spacing: 0.08em;
-      text-transform: uppercase; color: var(--muted); margin-bottom: 11px;
-      display: flex; align-items: center; justify-content: space-between;
-    }
-    .panel-count {
-      font-size: 0.69rem; padding: 2px 7px; border-radius: 9px;
-      background: rgba(255,255,255,0.05); color: var(--muted); font-weight: 500;
+      grid-template-columns: 2fr 3fr
     }
 
-    /* ─── Source cards ──────────────────────────── */
+    @media(max-width:700px) {
+      #results.show {
+        grid-template-columns: 1fr
+      }
+    }
+
+    .panel-hdr {
+      font-size: .7rem;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between
+    }
+
+    .panel-meta {
+      font-size: .69rem;
+      padding: 2px 7px;
+      border-radius: 9px;
+      background: rgba(255, 255, 255, .04);
+      color: var(--muted)
+    }
+
     .src-card {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--r); padding: 13px 14px; margin-bottom: 9px;
-      transition: border-color .18s;
+      background: var(--sur);
+      border: 1px solid var(--brd);
+      border-radius: var(--r);
+      padding: 12px 14px;
+      margin-bottom: 9px;
+      transition: border-color .18s, background .15s;
+      cursor: pointer
     }
-    .src-card:hover { border-color: var(--border-hi); }
 
-    .card-top { display: flex; align-items: flex-start; gap: 9px; margin-bottom: 7px; }
+    .src-card:hover {
+      border-color: var(--brd-h);
+      background: rgba(14, 20, 34, .85)
+    }
+
+    .card-top {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin-bottom: 6px
+    }
 
     .doc-icon {
-      width: 30px; height: 30px; border-radius: 6px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 14px; flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0
     }
-    .doc-icon.pdf  { background: rgba(239,68,68,.13); }
-    .doc-icon.md   { background: rgba(59,130,246,.13); }
-    .doc-icon.docx { background: rgba(59,130,246,.13); }
-    .doc-icon.txt  { background: rgba(107,114,128,.13); }
-    .doc-icon.any  { background: rgba(124,58,237,.13); }
 
-    .card-info { flex: 1; min-width: 0; }
-    .card-name {
-      font-size: 0.85rem; font-weight: 600; color: var(--text);
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    .doc-icon.pdf {
+      background: rgba(239, 68, 68, .13)
     }
-    .card-loc { font-size: 0.72rem; color: var(--muted); margin-top: 1px; }
+
+    .doc-icon.txt {
+      background: rgba(107, 114, 128, .13)
+    }
+
+    .doc-icon.md {
+      background: rgba(59, 130, 246, .13)
+    }
+
+    .doc-icon.any {
+      background: rgba(124, 58, 237, .13)
+    }
+
+    .card-info {
+      flex: 1;
+      min-width: 0
+    }
+
+    .card-name {
+      font-size: .84rem;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis
+    }
+
+    .card-loc {
+      font-size: .71rem;
+      color: var(--muted);
+      margin-top: 1px
+    }
 
     .card-score {
-      font-size: 0.72rem; font-family: var(--mono);
-      font-weight: 600; flex-shrink: 0;
+      font-size: .71rem;
+      font-family: var(--mono);
+      font-weight: 600;
+      flex-shrink: 0
     }
 
     .card-preview {
-      font-size: 0.8rem; color: var(--dim); line-height: 1.5; margin-bottom: 9px;
-      display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+      font-size: .79rem;
+      color: var(--dim);
+      line-height: 1.5;
+      margin-bottom: 8px;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden
     }
 
-    .card-actions { display: flex; gap: 7px; align-items: center; }
-
-    .btn-open {
-      display: inline-flex; align-items: center; gap: 4px;
-      padding: 4px 11px; font-size: 0.75rem; font-weight: 600;
-      border-radius: 6px; cursor: pointer; text-decoration: none;
-      background: var(--accent-bg); border: 1px solid rgba(124,58,237,.35);
-      color: var(--accent-l); transition: background .15s;
+    .card-actions {
+      display: flex;
+      gap: 6px;
+      align-items: center
     }
-    .btn-open:hover { background: rgba(124,58,237,.22); }
 
-    .btn-view {
-      display: inline-flex; align-items: center; gap: 4px;
-      padding: 4px 11px; font-size: 0.75rem; font-weight: 500;
-      border-radius: 6px; cursor: pointer; text-decoration: none;
-      background: transparent; border: 1px solid var(--border);
-      color: var(--muted); transition: border-color .15s, color .15s;
+    .open-ok {
+      font-size: .69rem;
+      opacity: 0;
+      transition: opacity .3s
     }
-    .btn-view:hover { border-color: var(--dim); color: var(--dim); }
 
-    .open-ok { font-size: 0.7rem; opacity: 0; transition: opacity .3s; }
-    .open-ok.show { opacity: 1; }
+    .open-ok.show {
+      opacity: 1
+    }
 
-    /* ─── Skeleton ──────────────────────────────── */
     @keyframes shimmer {
-      0%   { background-position: -200% 0; }
-      100% { background-position:  200% 0; }
+      0% {
+        background-position: -200% 0
+      }
+
+      100% {
+        background-position: 200% 0
+      }
     }
+
     .skel {
-      background: linear-gradient(90deg, var(--surface) 0%, var(--surface2) 50%, var(--surface) 100%);
-      background-size: 200% 100%; animation: shimmer 1.6s infinite; border-radius: 5px;
+      background: linear-gradient(90deg, var(--sur) 0%, var(--sur2) 50%, var(--sur) 100%);
+      background-size: 200% 100%;
+      animation: shimmer 1.6s infinite;
+      border-radius: 5px
     }
+
     .skel-card {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--r); padding: 13px 14px; margin-bottom: 9px;
+      background: var(--sur);
+      border: 1px solid var(--brd);
+      border-radius: var(--r);
+      padding: 13px 14px;
+      margin-bottom: 9px
     }
-    .skel-row { height: 9px; margin-bottom: 8px; }
 
-    /* ─── AI panel ──────────────────────────────── */
+    .skel-row {
+      height: 8px;
+      margin-bottom: 7px
+    }
+
     .ai-box {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--r); padding: 18px 20px; min-height: 180px;
+      background: var(--sur);
+      border: 1px solid var(--brd);
+      border-radius: var(--r);
+      padding: 18px 20px;
+      min-height: 160px
     }
 
-    .ai-thinking { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 0.87rem; }
-    .dots { display: flex; gap: 4px; }
+    .ai-thinking {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      font-size: .87rem
+    }
+
+    .dots {
+      display: flex;
+      gap: 4px
+    }
+
     .dots span {
-      width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
-      animation: pulse 1.4s ease-in-out infinite;
-    }
-    .dots span:nth-child(2) { animation-delay: .18s; }
-    .dots span:nth-child(3) { animation-delay: .36s; }
-    @keyframes pulse {
-      0%,80%,100% { opacity:.25; transform:scale(.75); }
-      40%          { opacity:1;   transform:scale(1); }
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--acc);
+      animation: pulse 1.4s ease-in-out infinite
     }
 
-    .ai-text { font-size: 0.91rem; line-height: 1.78; color: var(--text); }
-    .ai-text p { margin-bottom: 10px; }
-    .ai-text p:last-child { margin-bottom: 0; }
-    .ai-text strong { color: #e2e8f0; }
+    .dots span:nth-child(2) {
+      animation-delay: .18s
+    }
+
+    .dots span:nth-child(3) {
+      animation-delay: .36s
+    }
+
+    @keyframes pulse {
+
+      0%,
+      80%,
+      100% {
+        opacity: .25;
+        transform: scale(.75)
+      }
+
+      40% {
+        opacity: 1;
+        transform: scale(1)
+      }
+    }
+
+    .md {
+      font-size: .91rem;
+      line-height: 1.8;
+      color: var(--text)
+    }
+
+    .md p {
+      margin-bottom: .85em
+    }
+
+    .md p:last-child {
+      margin-bottom: 0
+    }
+
+    .md strong {
+      color: #e2e8f0;
+      font-weight: 700
+    }
+
+    .md em {
+      color: var(--dim);
+      font-style: italic
+    }
+
+    .md h1,
+    .md h2,
+    .md h3 {
+      color: var(--text);
+      font-weight: 700;
+      margin: 1em 0 .4em
+    }
+
+    .md h1 {
+      font-size: 1.1em
+    }
+
+    .md h2 {
+      font-size: 1em
+    }
+
+    .md h3 {
+      font-size: .94em
+    }
+
+    .md ul,
+    .md ol {
+      padding-left: 1.5em;
+      margin-bottom: .85em
+    }
+
+    .md li {
+      margin-bottom: .3em
+    }
+
+    .md code {
+      background: rgba(124, 58, 237, .15);
+      color: var(--acc-l);
+      border-radius: 3px;
+      padding: 1px 5px;
+      font-family: var(--mono);
+      font-size: .86em
+    }
+
+    .md pre {
+      background: #050810;
+      border: 1px solid rgba(124, 58, 237, .15);
+      border-radius: 7px;
+      padding: 12px 14px;
+      overflow-x: auto;
+      margin-bottom: .85em
+    }
+
+    .md pre code {
+      background: none;
+      padding: 0;
+      color: var(--dim)
+    }
+
+    .md blockquote {
+      border-left: 3px solid var(--acc);
+      padding-left: 12px;
+      color: var(--dim);
+      margin: .6em 0
+    }
 
     .ai-footer {
-      display: flex; gap: 6px; flex-wrap: wrap;
-      margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border);
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid var(--brd)
     }
-    .ai-tag {
-      font-size: 0.69rem; font-weight: 600; padding: 2px 8px; border-radius: 4px;
-    }
-    .ai-tag.t-model  { background:rgba(124,58,237,.12); color:var(--accent-l); border:1px solid rgba(124,58,237,.2); }
-    .ai-tag.t-time   { background:rgba(16,185,129,.08);  color:var(--green);    border:1px solid rgba(16,185,129,.2); }
-    .ai-tag.t-method { background:rgba(245,158,11,.08);  color:var(--yellow);   border:1px solid rgba(245,158,11,.2); }
 
-    /* ─── Empty / error state ───────────────────── */
-    .empty { text-align: center; padding: 30px 16px; color: var(--muted); }
-    .empty .ei { font-size: 1.8rem; margin-bottom: 8px; }
-    .empty p { font-size: 0.83rem; }
+    .ai-tag {
+      font-size: .69rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 4px
+    }
+
+    .ai-tag.model {
+      background: rgba(124, 58, 237, .12);
+      color: var(--acc-l);
+      border: 1px solid rgba(124, 58, 237, .2)
+    }
+
+    .ai-tag.time {
+      background: rgba(16, 185, 129, .08);
+      color: var(--green);
+      border: 1px solid rgba(16, 185, 129, .2)
+    }
+
+    .ai-tag.method {
+      background: rgba(245, 158, 11, .08);
+      color: var(--yellow);
+      border: 1px solid rgba(245, 158, 11, .2)
+    }
+
+    .empty {
+      text-align: center;
+      padding: 28px 16px;
+      color: var(--muted)
+    }
+
+    .empty .ei {
+      font-size: 1.8rem;
+      margin-bottom: 8px
+    }
+
+    .empty p {
+      font-size: .82rem
+    }
+
+    #pdf-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 500
+    }
+
+    #pdf-modal.open {
+      display: flex;
+      flex-direction: column
+    }
+
+    .modal-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, .78)
+    }
+
+    .modal-content {
+      position: relative;
+      margin: 32px auto;
+      width: calc(100% - 48px);
+      max-width: 1020px;
+      height: calc(100vh - 64px);
+      background: var(--sur);
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, .5)
+    }
+
+    .modal-hdr {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 11px 16px;
+      border-bottom: 1px solid var(--brd);
+      flex-shrink: 0;
+      min-height: 46px
+    }
+
+    .modal-title {
+      flex: 1;
+      font-size: .87rem;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis
+    }
+
+    .modal-loc {
+      font-size: .75rem;
+      color: var(--muted);
+      white-space: nowrap
+    }
+
+    .modal-close {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      flex-shrink: 0;
+      background: rgba(239, 68, 68, .1);
+      border: 1px solid rgba(239, 68, 68, .2);
+      color: var(--red);
+      font-size: 1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background .15s
+    }
+
+    .modal-close:hover {
+      background: rgba(239, 68, 68, .22)
+    }
+
+    .modal-iframe {
+      flex: 1;
+      width: 100%;
+      border: none;
+      background: #fff
+    }
+
+    /* ─── Progress Steps ─── */
+    .progress-steps {
+      display: flex;
+      align-items: center;
+      margin: 20px 0 24px;
+      padding: 0
+    }
+
+    .ps {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0
+    }
+
+    .ps-bubble {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 2px solid var(--brd);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: .72rem;
+      font-weight: 800;
+      color: var(--muted);
+      background: var(--sur);
+      flex-shrink: 0;
+      transition: all .25s
+    }
+
+    .ps-label {
+      font-size: .74rem;
+      font-weight: 600;
+      color: var(--muted);
+      transition: color .25s;
+      white-space: nowrap
+    }
+
+    .ps-connector {
+      flex: 1;
+      height: 1px;
+      background: var(--brd);
+      margin: 0 10px;
+      transition: background .3s;
+      min-width: 24px
+    }
+
+    .ps.active .ps-bubble {
+      background: var(--acc);
+      border-color: var(--acc);
+      color: #fff;
+      box-shadow: 0 0 0 4px rgba(124, 58, 237, .14)
+    }
+
+    .ps.active .ps-label {
+      color: var(--acc-l)
+    }
+
+    .ps.done .ps-bubble {
+      background: var(--green);
+      border-color: var(--green);
+      color: #fff
+    }
+
+    .ps.done .ps-label {
+      color: var(--green)
+    }
+
+    /* ─── Onboarding ─── */
+    #onboard-section {
+      display: none;
+      padding-bottom: 12px
+    }
+
+    .welcome-hero {
+      text-align: center;
+      padding: 20px 0 16px
+    }
+
+    .w-icon {
+      font-size: 2.2rem;
+      display: block;
+      margin-bottom: 8px
+    }
+
+    .w-title {
+      font-size: 1.2rem;
+      font-weight: 800;
+      letter-spacing: -.03em;
+      color: var(--text);
+      margin-bottom: 6px
+    }
+
+    .w-sub {
+      font-size: .84rem;
+      color: var(--muted);
+      line-height: 1.65;
+      max-width: 460px;
+      margin: 0 auto
+    }
+
+    .step-cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin: 18px 0
+    }
+
+    @media(max-width:620px) {
+      .step-cards {
+        grid-template-columns: 1fr
+      }
+    }
+
+    .sc {
+      background: var(--sur);
+      border: 1px solid var(--brd);
+      border-radius: 12px;
+      padding: 18px 16px;
+      transition: all .2s
+    }
+
+    .sc.sc-active {
+      border-color: rgba(124, 58, 237, .4);
+      background: linear-gradient(135deg, rgba(124, 58, 237, .07), var(--sur))
+    }
+
+    .sc.sc-done {
+      border-color: rgba(16, 185, 129, .25);
+      background: rgba(16, 185, 129, .03)
+    }
+
+    .sc-num {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: .7rem;
+      font-weight: 800;
+      border: 2px solid var(--brd);
+      color: var(--muted);
+      margin-bottom: 10px;
+      transition: all .2s;
+      flex-shrink: 0
+    }
+
+    .sc.sc-active .sc-num {
+      background: var(--acc);
+      border-color: var(--acc);
+      color: #fff
+    }
+
+    .sc.sc-done .sc-num {
+      background: var(--green);
+      border-color: var(--green);
+      color: #fff
+    }
+
+    .sc-icon {
+      font-size: 1.4rem;
+      display: block;
+      margin-bottom: 8px
+    }
+
+    .sc-title {
+      font-size: .84rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px
+    }
+
+    .sc-desc {
+      font-size: .74rem;
+      color: var(--muted);
+      line-height: 1.55
+    }
+
+    /* ─── No-index banner ─── */
+    .no-idx {
+      display: none;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 18px;
+      background: rgba(245, 158, 11, .06);
+      border: 1px solid rgba(245, 158, 11, .2);
+      border-radius: 12px;
+      margin-bottom: 20px
+    }
+
+    .no-idx.show {
+      display: flex
+    }
+
+    .no-idx-icon {
+      font-size: 1.3rem;
+      flex-shrink: 0
+    }
+
+    .no-idx-text {
+      flex: 1
+    }
+
+    .no-idx-text .t {
+      font-size: .86rem;
+      font-weight: 700;
+      color: var(--yellow);
+      margin-bottom: 2px
+    }
+
+    .no-idx-text .s {
+      font-size: .75rem;
+      color: var(--muted)
+    }
   </style>
 </head>
+
 <body>
 
-<header>
-  <div class="logo">Document Research <em>AI-powered</em></div>
-  <div class="hdr-r">
-    <span class="badge" id="model-badge">{{ default_model }}</span>
-    <a class="back" href="/">← Main app</a>
-  </div>
-</header>
-
-<div class="main">
-
-  <!-- ── Hero / search zone ──────────────────────────────── -->
-  <div id="hero">
-    <div class="eyebrow">Research Mode</div>
-    <h1 class="hero-title">Ask your documents</h1>
-    <p class="hero-sub">Search your knowledge base and get AI answers with direct source references you can open instantly.</p>
-
-    <form id="search-form" autocomplete="off">
-      <div class="search-wrap">
-        <input id="q" type="text" class="search-input"
-          placeholder="e.g. What are the conditions in article s26?"
-          autocorrect="off" spellcheck="false">
-        <button type="submit" class="search-btn" id="search-btn">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-          Search
-        </button>
-      </div>
-    </form>
-
-    <!-- Method selector -->
-    <div class="methods">
-      <button class="pill active" data-method="standard">
-        AI Search
-        <span class="tip">Standard RAG: fast vector search + language model. Best for most questions.</span>
-      </button>
-      <button class="pill" data-method="multi-query">
-        Multi-Query
-        <span class="tip">Auto-generates 3 rephrased versions of your question for broader retrieval.</span>
-      </button>
-      <button class="pill" data-method="decompose">
-        Decompose
-        <span class="tip">Splits complex questions into sub-questions before searching each separately.</span>
-      </button>
-      <button class="pill" data-method="hyde">
-        HyDE
-        <span class="tip">Generates a hypothetical answer first, then finds real matching passages.</span>
-      </button>
-      <button class="pill" data-method="hybrid">
-        Hybrid
-        <span class="tip">Combines keyword and semantic search — best for precise terms or names.</span>
-      </button>
-      <button class="pill" data-method="iterative">
-        Iterative
-        <span class="tip">Multi-round retrieval that refines results across follow-up searches.</span>
-      </button>
+  <header>
+    <div class="logo">📚 Research Studio</div>
+    <nav class="tabs">
+      <button class="tab-btn active" data-tab="library">📂 Library</button>
+      <button class="tab-btn" data-tab="research">🔍 Research</button>
+    </nav>
+    <div class="hdr-r">
+      <span class="badge" id="model-badge">{{ default_model }}</span>
     </div>
-  </div>
+  </header>
 
-  <!-- ── Status bar ─────────────────────────────────────── -->
-  <div id="status-bar">
-    <span class="sdot"></span>
-    <span id="status-text">Ready</span>
-  </div>
+  <!-- LIBRARY TAB -->
+  <div id="tab-library" class="tab-pane active">
+    <div class="wrap">
 
-  <!-- ── Results grid ──────────────────────────────────── -->
-  <div id="results">
-
-    <!-- Sources column -->
-    <div>
-      <div class="panel-label">
-        Sources
-        <span class="panel-count" id="src-count">—</span>
+      <div class="upload-zone" id="upload-zone">
+        <input type="file" id="file-input" accept=".pdf,.txt,.md,.docx,.yaml,.yml" multiple>
+        <div class="upload-icon">📄</div>
+        <div class="upload-title">Drop your documents here</div>
+        <div class="upload-sub">PDF · TXT · MD · DOCX — up to 50 MB &nbsp;·&nbsp; <span>browse to upload</span></div>
       </div>
-      <div id="sources-list"></div>
-    </div>
 
-    <!-- AI answer column -->
-    <div>
-      <div class="panel-label">
-        AI Answer
-        <span class="panel-count" id="ai-meta">—</span>
+      <div class="upload-progress" id="upload-progress">
+        <div class="uprog-label">
+          <span id="uprog-name">Uploading…</span>
+          <span id="uprog-pct">0%</span>
+        </div>
+        <div class="uprog-bar">
+          <div class="uprog-fill" id="uprog-fill"></div>
+        </div>
+        <div class="upload-result" id="upload-result"></div>
       </div>
-      <div class="ai-box" id="ai-box"></div>
-    </div>
 
-  </div><!-- #results -->
-</div><!-- .main -->
+      <!-- Step progress indicator -->
+      <div class="progress-steps" id="progress-steps">
+        <div class="ps" id="ps-1">
+          <div class="ps-bubble">1</div>
+          <div class="ps-label">Upload</div>
+        </div>
+        <div class="ps-connector" id="psc-1"></div>
+        <div class="ps" id="ps-2">
+          <div class="ps-bubble">2</div>
+          <div class="ps-label">Index</div>
+        </div>
+        <div class="ps-connector" id="psc-2"></div>
+        <div class="ps" id="ps-3">
+          <div class="ps-bubble">3</div>
+          <div class="ps-label">Search</div>
+        </div>
+      </div>
 
-<script>
-  // ── Config injected from server ─────────────────────────────
-  const DEFAULT_MODEL = "{{ default_model|e }}";
-
-  // ── State ────────────────────────────────────────────────────
-  let activeMethod = 'standard';
-
-  // ── Method pill selection ────────────────────────────────────
-  document.querySelectorAll('.pill').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.pill').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      activeMethod = btn.dataset.method;
-    });
-  });
-
-  // ── Helpers ──────────────────────────────────────────────────
-  function esc(s) {
-    return String(s || '')
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  }
-
-  function docIcon(path) {
-    const ext = (path || '').split('.').pop().toLowerCase();
-    if (ext === 'pdf')  return { cls: 'pdf',  em: '📕' };
-    if (ext === 'md')   return { cls: 'md',   em: '📝' };
-    if (ext === 'docx') return { cls: 'docx', em: '📄' };
-    if (ext === 'txt')  return { cls: 'txt',  em: '📃' };
-    return { cls: 'any', em: '📄' };
-  }
-
-  function basename(p) { return (p || '').split('/').pop(); }
-
-  function scoreColor(s) {
-    const n = parseFloat(s);
-    if (n >= 0.8) return 'var(--green)';
-    if (n >= 0.5) return 'var(--yellow)';
-    return 'var(--muted)';
-  }
-
-  // ── Skeleton loaders ─────────────────────────────────────────
-  function skelCards() {
-    return [1, 2, 3].map(() => `
-      <div class="skel-card">
-        <div class="skel skel-row" style="width:62%"></div>
-        <div class="skel skel-row" style="width:40%"></div>
-        <div class="skel skel-row" style="width:88%"></div>
-        <div class="skel skel-row" style="width:70%"></div>
-      </div>`).join('');
-  }
-
-  function skelAI() {
-    return `<div class="ai-thinking">
-      <div class="dots"><span></span><span></span><span></span></div>
-      <span>AI is thinking…</span>
-    </div>`;
-  }
-
-  // ── Render source card ────────────────────────────────────────
-  function renderCard(r, idx) {
-    const { cls, em } = docIcon(r.path || r.document || '');
-    const fname  = basename(r.path) || r.document || 'Document';
-    const dname  = r.document || fname;
-    const page   = r.page   ? `p.${r.page}` : '';
-    const sec    = r.section || r.chapter || '';
-    const loc    = [page, sec].filter(Boolean).join(' · ');
-    const sim    = r.similarity || (r.score != null ? String(r.score).slice(0, 5) : '');
-    const prev   = r.preview || r.content || '';
-    const path   = r.path || '';
-    const pg     = r.page || 0;
-    const viewHref = fname ? `/files/serve/${encodeURIComponent(fname)}${pg ? '#page=' + pg : ''}` : '#';
-
-    return `
-      <div class="src-card" id="card-${idx}">
-        <div class="card-top">
-          <div class="doc-icon ${cls}">${em}</div>
-          <div class="card-info">
-            <div class="card-name" title="${esc(fname)}">${esc(dname)}</div>
-            ${loc ? `<div class="card-loc">${esc(loc)}</div>` : ''}
+      <!-- Onboarding — shown when library is empty -->
+      <div id="onboard-section">
+        <div class="welcome-hero">
+          <span class="w-icon">🚀</span>
+          <div class="w-title">Welcome to Research Studio</div>
+          <div class="w-sub">Upload your documents, index them into the vector database, then ask questions in natural
+            language — sources appear instantly, AI answer follows.</div>
+        </div>
+        <div class="step-cards">
+          <div class="sc sc-active" id="sc-1">
+            <span class="sc-icon">📂</span>
+            <div class="sc-num">1</div>
+            <div class="sc-title">Upload Documents</div>
+            <div class="sc-desc">Drag &amp; drop or click the zone above. Supports PDF, TXT, MD, and DOCX — up to 50 MB
+              each.</div>
           </div>
-          ${sim ? `<div class="card-score" style="color:${scoreColor(sim)}">${esc(sim)}</div>` : ''}
+          <div class="sc" id="sc-2">
+            <span class="sc-icon">⚡</span>
+            <div class="sc-num">2</div>
+            <div class="sc-title">Index into Vector DB</div>
+            <div class="sc-desc">Once uploaded, click "Index All Files" to parse, chunk, embed, and store your docs for
+              fast search.</div>
+          </div>
+          <div class="sc" id="sc-3">
+            <span class="sc-icon">🔍</span>
+            <div class="sc-num">3</div>
+            <div class="sc-title">Research &amp; Ask</div>
+            <div class="sc-desc">Switch to the Research tab and ask in natural language — sources in milliseconds, AI
+              answer right after.</div>
+          </div>
         </div>
-        ${prev ? `<div class="card-preview">${esc(prev)}</div>` : ''}
-        <div class="card-actions">
-          <button class="btn-open" onclick="openDoc('${esc(path)}', ${pg}, ${idx})">
-            ↗ Open
-          </button>
-          <a class="btn-view" href="${esc(viewHref)}" target="_blank" rel="noopener">
-            👁 View
-          </a>
-          <span class="open-ok" id="ok-${idx}"></span>
+      </div>
+
+      <div id="lib-section">
+        <div class="lib-header">
+          <span class="lib-title">Documents</span>
+          <span class="lib-count" id="lib-count">0</span>
+          <button class="btn btn-ghost btn-sm" onclick="loadLibrary()">↺ Refresh</button>
         </div>
-      </div>`;
-  }
+        <div class="file-list" id="file-list">
+          <div class="empty-lib">Loading…</div>
+        </div>
+      </div><!-- /lib-section -->
 
-  // ── Open document via OS native app ──────────────────────────
-  async function openDoc(path, page, idx) {
-    const el = document.getElementById(`ok-${idx}`);
-    try {
-      const url = `/api/open-file?path=${encodeURIComponent(path)}&page=${page || 1}`;
-      const res  = await fetch(url);
-      const data = await res.json();
-      if (el) {
-        el.textContent = data.success ? '✓ Opened' : '✗ Not found locally';
-        el.style.color  = data.success ? 'var(--green)' : 'var(--red)';
-        el.classList.add('show');
-        setTimeout(() => el.classList.remove('show'), 2800);
+      <div class="ingest-bar" id="ingest-bar">
+        <div class="ingest-status" id="ingest-status">Index all documents into the vector database so you can search
+          them.</div>
+        <button class="btn btn-primary" id="ingest-btn" onclick="startIngest()">⚡ Index All Files</button>
+      </div>
+      <div class="log-panel" id="log-panel"></div>
+
+    </div>
+  </div>
+
+  <!-- RESEARCH TAB -->
+  <div id="tab-research" class="tab-pane">
+    <div class="wrap">
+
+      <div class="no-idx" id="no-idx">
+        <div class="no-idx-icon">⚠️</div>
+        <div class="no-idx-text">
+          <div class="t">No documents indexed yet</div>
+          <div class="s">Go to the <b>Library</b> tab to upload and index your files first.</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="switchTab('library')">Go to Library →</button>
+      </div>
+
+      <div id="hero">
+        <div class="eyebrow hide-compact">Research Mode</div>
+        <h1 class="hero-title hide-compact">Ask your documents</h1>
+        <p class="hero-sub hide-compact">Sources appear instantly. AI answer loads right after.<br>Click any result to
+          open the document at that exact page.</p>
+
+        <form id="search-form" autocomplete="off">
+          <div class="search-wrap">
+            <input id="q" type="text" class="search-input" placeholder="e.g. What are the requirements in article 26?"
+              autocorrect="off" spellcheck="false">
+            <button type="submit" class="search-btn" id="search-btn">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.35-4.35" />
+              </svg>
+              Search
+            </button>
+          </div>
+        </form>
+
+        <div class="methods">
+          <button class="pill active" data-method="standard">AI Search<span class="pill-tip">Fast vector search + AI
+              answer. Best starting point for most questions.</span></button>
+          <button class="pill" data-method="multi-query">Multi-Query<span class="pill-tip">Rephrases your question 3
+              ways for broader, more complete coverage.</span></button>
+          <button class="pill" data-method="decompose">Decompose<span class="pill-tip">Breaks complex questions into
+              sub-questions, searches each one separately.</span></button>
+          <button class="pill" data-method="hyde">HyDE<span class="pill-tip">Generates a hypothetical ideal answer, then
+              finds real matching passages.</span></button>
+          <button class="pill" data-method="hybrid">Hybrid<span class="pill-tip">Combines keyword + semantic search.
+              Best for exact names, codes, or terms.</span></button>
+          <button class="pill" data-method="iterative">Iterative<span class="pill-tip">Multiple retrieval rounds that
+              refine results. Best for deep analysis.</span></button>
+        </div>
+      </div>
+
+      <div id="status-bar">
+        <span class="sdot"></span>
+        <span id="status-text">Ready</span>
+      </div>
+
+      <div id="results">
+        <div>
+          <div class="panel-hdr"><span>Sources</span><span class="panel-meta" id="src-count">—</span></div>
+          <div id="sources-list"></div>
+        </div>
+        <div>
+          <div class="panel-hdr"><span>AI Answer</span><span class="panel-meta" id="ai-meta">—</span></div>
+          <div class="ai-box" id="ai-box"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- PDF Viewer Modal -->
+  <div id="pdf-modal">
+    <div class="modal-overlay" onclick="closeModal()"></div>
+    <div class="modal-content">
+      <div class="modal-hdr">
+        <div class="modal-title" id="modal-title">Document</div>
+        <div class="modal-loc" id="modal-loc"></div>
+        <button class="modal-close" onclick="closeModal()">✕</button>
+      </div>
+      <iframe class="modal-iframe" id="modal-iframe" src="about:blank" title="Document viewer"></iframe>
+    </div>
+  </div>
+
+  <script>
+    const DEFAULT_MODEL = {{ default_model| tojson }};
+
+    // Tab navigation
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const t = btn.dataset.tab;
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('tab-' + t).classList.add('active');
+        if (t === 'library') loadLibrary();
+        if (t === 'research') { document.getElementById('q').focus(); updateNoIdxBanner(); }
+      });
+    });
+
+    // Helpers
+    function esc(s) {
+      return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+    function basename(p) { return (p || '').split('/').pop().split('\\').pop(); }
+    function fmtBytes(b) {
+      if (b < 1024) return b + ' B';
+      if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+      return (b / 1048576).toFixed(1) + ' MB';
+    }
+    function docIcon(name) {
+      const ext = (name || '').split('.').pop().toLowerCase();
+      if (ext === 'pdf') return { cls: 'pdf', icon: '📕' };
+      if (ext === 'md') return { cls: 'md', icon: '📝' };
+      if (ext === 'docx' || ext === 'doc') return { cls: 'md', icon: '📄' };
+      if (ext === 'txt') return { cls: 'txt', icon: '📃' };
+      return { cls: 'any', icon: '📄' };
+    }
+    function scoreColor(s) {
+      const n = parseFloat(s);
+      if (n >= .8) return 'var(--green)';
+      if (n >= .5) return 'var(--yellow)';
+      return 'var(--muted)';
+    }
+
+    // Markdown renderer
+    function md2html(raw) {
+      if (!raw) return '';
+      let s = String(raw).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      s = s.replace(/```[\w]*\n?([\s\S]*?)```/g, (_, c) => '<pre><code>' + c.trim() + '</code></pre>');
+      s = s.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+      s = s.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+      s = s.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+      s = s.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+      s = s.replace(/\*\*\*(.+?)\*\*\*/gs, '<strong><em>$1</em></strong>');
+      s = s.replace(/\*\*(.+?)\*\*/gs, '<strong>$1</strong>');
+      s = s.replace(/\*([^*\n]+)\*/g, '<em>$1</em>');
+      s = s.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+      s = s.replace(/((?:^[ \t]*[-*] .+$\n?)+)/gm, block => {
+        const items = block.split('\n').filter(l => l.trim()).map(l => '<li>' + l.replace(/^[ \t]*[-*] /, '') + ' </li>').join('');
+        return '<ul>' + items + '</ul>';
+      });
+      s = s.replace(/((?:^\d+\. .+$\n?)+)/gm, block => {
+        const items = block.split('\n').filter(l => l.trim()).map(l => '<li>' + l.replace(/^\d+\. /, '') + ' </li>').join('');
+        return '<ol>' + items + '</ol>';
+      });
+      return s.split(/\n\n+/).map(p => {
+        p = p.trim();
+        if (!p) return '';
+        if (/^<(h[1-6]|ul|ol|pre|blockquote)/.test(p)) return p;
+        return '<p>' + p.replace(/\n/g, ' ') + '</p>';
+      }).join('\n');
+    }
+
+    // Library
+    let _indexedCount = 0;
+    async function loadLibrary() {
+      try {
+        const data = await fetch('/api/research/library').then(r => r.json());
+        const list = document.getElementById('file-list');
+        const cnt = document.getElementById('lib-count');
+        const onboard = document.getElementById('onboard-section');
+        const libSec = document.getElementById('lib-section');
+        const ingestBar = document.getElementById('ingest-bar');
+        const files = data.files || [];
+        _indexedCount = files.filter(f => f.indexed).length;
+        cnt.textContent = files.length + ' file' + (files.length !== 1 ? 's' : '');
+        if (!files.length) {
+          onboard.style.display = 'block';
+          libSec.style.display = 'none';
+          ingestBar.style.display = 'none';
+          _setStep(1);
+        } else {
+          onboard.style.display = 'none';
+          libSec.style.display = '';
+          ingestBar.style.display = '';
+          _setStep(_indexedCount > 0 ? 3 : 2);
+          list.innerHTML = files.map(f => {
+            const { icon } = docIcon(f.filename);
+            const dotCls = f.indexed ? 'ok' : 'none';
+            const dotLabel = f.indexed ? f.chunks + ' chunks indexed' : 'Not indexed yet';
+            return '<div class="file-row">' +
+              '<div class="file-icon">' + icon + '</div>' +
+              '<div class="file-info">' +
+              '<div class="file-name">' + esc(f.filename) + '</div>' +
+              '<div class="file-meta">' + fmtBytes(f.size) + '</div>' +
+              '</div>' +
+              '<div class="file-status">' +
+              '<span class="sdot-sm ' + dotCls + '"></span>' +
+              '<span class="status-label">' + esc(dotLabel) + '</span>' +
+              '</div>' +
+              '<div class="file-actions">' +
+              '<button class="btn btn-view btn-sm" data-fname="' + esc(f.filename) + '" data-page="1" onclick="viewDocBtn(this)">👁 View</button>' +
+              '<button class="btn btn-danger btn-sm" onclick="deleteFile(\'' + esc(f.filename) + '\')" >🗑</button>' +
+              '</div>' +
+              '</div>';
+          }).join('');
+        }
+        updateNoIdxBanner();
+      } catch (e) {
+        document.getElementById('file-list').innerHTML = '<div class="empty-lib">Could not load library.</div>';
       }
-    } catch (e) {
-      if (el) { el.textContent = '✗ Error'; el.style.color = 'var(--red)'; el.classList.add('show'); }
     }
-  }
 
-  // ── Render AI answer ──────────────────────────────────────────
-  function renderAI(data) {
-    const raw = (data.ai_response || '').trim();
-    if (!raw) return `<div class="empty"><div class="ei">🤔</div><p>No response available.</p></div>`;
+    async function deleteFile(filename) {
+      if (!confirm('Delete "' + filename + '"?\nThis cannot be undone.')) return;
+      await fetch('/api/research/library/' + encodeURIComponent(filename), { method: 'DELETE' });
+      loadLibrary();
+    }
 
-    // Paragraphs + basic **bold** support
-    const html = raw
-      .split(/\n\n+/)
-      .map(p => `<p>${esc(p.trim()).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</p>`)
-      .join('');
+    // Upload
+    const uploadZone = document.getElementById('upload-zone');
+    const fileInput = document.getElementById('file-input');
+    uploadZone.addEventListener('click', e => { if (!e.target.closest('.file-actions')) fileInput.click(); });
+    uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag'); });
+    uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag'));
+    uploadZone.addEventListener('drop', e => {
+      e.preventDefault(); uploadZone.classList.remove('drag');
+      [...e.dataTransfer.files].forEach(f => uploadFile(f));
+    });
+    fileInput.addEventListener('change', e => { [...e.target.files].forEach(f => uploadFile(f)); e.target.value = ''; });
 
-    const model  = data.model || DEFAULT_MODEL;
-    const ms     = data.backend_info?.search_time_ms ?? data.total_time_ms ?? null;
-    const method = data.method || '';
+    function uploadFile(file) {
+      const prog = document.getElementById('upload-progress');
+      const name = document.getElementById('uprog-name');
+      const pct = document.getElementById('uprog-pct');
+      const fill = document.getElementById('uprog-fill');
+      const res = document.getElementById('upload-result');
+      prog.classList.add('show');
+      name.textContent = file.name; pct.textContent = '0%'; fill.style.width = '0%';
+      res.textContent = ''; res.className = 'upload-result';
+      const fd = new FormData(); fd.append('file', file);
+      const xhr = new XMLHttpRequest();
+      xhr.upload.onprogress = e => {
+        if (e.lengthComputable) { const p = Math.round(e.loaded / e.total * 100); fill.style.width = p + '%'; pct.textContent = p + '%'; }
+      };
+      xhr.onload = () => {
+        try {
+          const d = JSON.parse(xhr.responseText);
+          if (d.success) {
+            res.textContent = '✓ Uploaded — ' + fmtBytes(d.size); res.className = 'upload-result ok';
+            loadLibrary(); setTimeout(() => prog.classList.remove('show'), 3500);
+          } else { res.textContent = '✗ ' + (d.detail || d.error || 'Upload failed'); res.className = 'upload-result err'; }
+        } catch (e) { res.textContent = '✗ Upload failed'; res.className = 'upload-result err'; }
+      };
+      xhr.onerror = () => { res.textContent = '✗ Network error'; res.className = 'upload-result err'; };
+      xhr.open('POST', '/api/research/upload');
+      xhr.send(fd);
+    }
 
-    return `
-      <div class="ai-text">${html}</div>
-      <div class="ai-footer">
-        <span class="ai-tag t-model">⚡ ${esc(model)}</span>
-        ${ms  != null ? `<span class="ai-tag t-time">⏱ ${ms}ms</span>` : ''}
-        ${method      ? `<span class="ai-tag t-method">${esc(method)}</span>` : ''}
-      </div>`;
-  }
+    // Ingest
+    let _ingestRunning = false, _ingestPollId = null;
 
-  // ── Main search handler ───────────────────────────────────────
-  async function doSearch(q) {
-    if (!q.trim()) return;
+    async function startIngest() {
+      if (_ingestRunning) return;
+      const btn = document.getElementById('ingest-btn');
+      const status = document.getElementById('ingest-status');
+      const logPanel = document.getElementById('log-panel');
+      btn.disabled = true; btn.textContent = '⏳ Running…';
+      _ingestRunning = true; logPanel.classList.add('show'); logPanel.innerHTML = '';
+      status.textContent = 'Processing files…';
+      try {
+        const r = await fetch('/api/research/ingest', { method: 'POST' }).then(r => r.json());
+        if (r.started === false) { status.textContent = r.message || 'Could not start.'; _resetIngestUI(); return; }
+      } catch (e) { status.textContent = 'Failed to start pipeline.'; _resetIngestUI(); return; }
+      let lastLen = 0;
+      _ingestPollId = setInterval(async () => {
+        try {
+          const s = await fetch('/api/research/ingest/status').then(r => r.json());
+          const lines = s.log || [];
+          for (let i = lastLen; i < lines.length; i++) {
+            const line = lines[i];
+            const span = document.createElement('span');
+            span.className = 'log-line' + (
+              line.includes('✓') ? ' ok' :
+                line.includes('✗') || line.toLowerCase().includes('error') ? ' err' :
+                  line.startsWith('Starting') || line.startsWith('→') ? ' info' : '');
+            span.textContent = line;
+            logPanel.appendChild(span); logPanel.appendChild(document.createTextNode('\n'));
+          }
+          lastLen = lines.length; logPanel.scrollTop = logPanel.scrollHeight;
+          if (s.elapsed) status.textContent = 'Indexing… ' + s.elapsed + 's elapsed';
+          if (!s.running) {
+            clearInterval(_ingestPollId); _ingestPollId = null; _ingestRunning = false;
+            if (s.error) { status.textContent = '✗ Error: ' + s.error; }
+            else if (s.done) { status.textContent = '✓ Done in ' + s.elapsed + 's — your documents are ready to search!'; loadLibrary(); }
+            btn.disabled = false; btn.textContent = '⚡ Index All Files';
+          }
+        } catch (e) { clearInterval(_ingestPollId); _ingestPollId = null; _resetIngestUI(); }
+      }, 1200);
+    }
+    function _resetIngestUI() {
+      _ingestRunning = false;
+      const btn = document.getElementById('ingest-btn');
+      btn.disabled = false; btn.textContent = '⚡ Index All Files';
+    }
 
-    // Compact hero
-    document.getElementById('hero').classList.add('compact');
-
-    // Show panels
-    const resultsEl  = document.getElementById('results');
-    const statusBar  = document.getElementById('status-bar');
-    const statusText = document.getElementById('status-text');
-    const srcList    = document.getElementById('sources-list');
-    const aiBox      = document.getElementById('ai-box');
-    const srcCount   = document.getElementById('src-count');
-    const aiMeta     = document.getElementById('ai-meta');
-    const btn        = document.getElementById('search-btn');
-
-    resultsEl.classList.add('show');
-    statusBar.classList.add('show');
-    statusText.textContent = 'Searching…';
-    srcList.innerHTML  = skelCards();
-    aiBox.innerHTML    = skelAI();
-    srcCount.textContent = '…';
-    aiMeta.textContent   = '…';
-    btn.disabled = true;
-
-    const t0 = Date.now();
-
-    // Fire both requests in parallel
-    const searchProm = fetch(
-      `/api/research/search?q=${encodeURIComponent(q)}&method=${activeMethod}&k=5`
-    ).then(r => r.json()).catch(e => ({ error: String(e), results: [], total_results: 0 }));
-
-    const aiProm = fetch(
-      `/api/research/ai?q=${encodeURIComponent(q)}&method=${activeMethod}&model=${encodeURIComponent(DEFAULT_MODEL)}`
-    ).then(r => r.json()).catch(e => ({ error: String(e), ai_response: 'Error contacting AI service.' }));
-
-    // Sources — render as soon as they arrive (fast)
-    try {
-      const sd = await searchProm;
-      const items = sd.results || [];
-      if (items.length === 0) {
-        srcList.innerHTML = `<div class="empty"><div class="ei">🔍</div><p>No matching documents found.<br>Try a different question or method.</p></div>`;
-      } else {
-        srcList.innerHTML = items.map((r, i) => renderCard(r, i)).join('');
+    function _setStep(n) {
+      for (let i = 1; i <= 3; i++) {
+        const ps = document.getElementById('ps-' + i);
+        if (ps) { ps.classList.remove('active', 'done'); if (i < n) ps.classList.add('done'); if (i === n) ps.classList.add('active'); }
+        const sc = document.getElementById('sc-' + i);
+        if (sc) { sc.classList.remove('sc-active', 'sc-done'); if (i < n) sc.classList.add('sc-done'); if (i === n) sc.classList.add('sc-active'); }
+        const pc = document.getElementById('psc-' + i);
+        if (pc) pc.style.background = i < n ? 'var(--green)' : '';
       }
-      srcCount.textContent = items.length;
-      const ms = sd.search_time_ms || (Date.now() - t0);
-      statusText.textContent = `Found ${items.length} source${items.length !== 1 ? 's' : ''} in ${ms}ms · AI answering…`;
-    } catch (e) {
-      srcList.innerHTML = `<div class="empty"><div class="ei">⚠️</div><p>Search failed. Is the server running?</p></div>`;
     }
 
-    // AI — render when ready (slower)
-    try {
-      const ad = await aiProm;
-      aiBox.innerHTML = renderAI(ad);
-      const total = Date.now() - t0;
-      aiMeta.textContent   = `${total}ms`;
-      statusText.textContent = `Done · ${total}ms total`;
-    } catch (e) {
-      aiBox.innerHTML = `<div class="empty"><div class="ei">⚠️</div><p>AI unavailable. Check that Ollama is running.</p></div>`;
+    function updateNoIdxBanner() {
+      const banner = document.getElementById('no-idx');
+      if (!banner) return;
+      const researchActive = document.getElementById('tab-research').classList.contains('active');
+      if (researchActive && _indexedCount === 0) banner.classList.add('show');
+      else banner.classList.remove('show');
     }
 
-    btn.disabled = false;
-  }
+    function switchTab(name) {
+      const btn = document.querySelector('.tab-btn[data-tab="' + name + '"]');
+      if (btn) btn.click();
+    }
 
-  // ── Form submit ───────────────────────────────────────────────
-  document.getElementById('search-form').addEventListener('submit', e => {
-    e.preventDefault();
-    doSearch(document.getElementById('q').value.trim());
-  });
+    // Research — method pills
+    let activeMethod = 'standard';
+    document.querySelectorAll('.pill').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.pill').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active'); activeMethod = btn.dataset.method;
+      });
+    });
 
-  // ── Auto-focus ────────────────────────────────────────────────
-  document.getElementById('q').focus();
-</script>
+    function skelCards() {
+      return [1, 2, 3].map(() =>
+        '<div class="skel-card">' +
+        '<div class="skel skel-row" style="width:58%"></div>' +
+        '<div class="skel skel-row" style="width:36%"></div>' +
+        '<div class="skel skel-row" style="width:88%"></div>' +
+        '<div class="skel skel-row" style="width:68%"></div></div>').join('');
+    }
+    function skelAI() {
+      return '<div class="ai-thinking"><div class="dots"><span></span><span></span><span></span></div><span>AI is thinking…</span></div>';
+    }
+
+    function renderCard(r, idx) {
+      const path = r.path || '';
+      const fname = basename(path) || r.document || 'Document';
+      const label = r.document || fname;
+      const page = r.page || 1;
+      const sec = r.section || r.chapter || '';
+      const loc = [page > 1 ? 'p.' + page : '', sec].filter(Boolean).join(' · ');
+      const sim = r.similarity != null ? String(r.similarity).slice(0, 5) : r.score != null ? String(r.score).slice(0, 5) : '';
+      const prev = r.preview || r.content || '';
+      const { cls, icon } = docIcon(fname);
+      return '<div class="src-card" data-fname="' + esc(fname) + '" data-page="' + page + '" onclick="cardClick(this)">' +
+        '<div class="card-top">' +
+        '<div class="doc-icon ' + cls + '">' + icon + '</div>' +
+        '<div class="card-info">' +
+        '<div class="card-name" title="' + esc(label) + '">' + esc(label) + '</div>' +
+        (loc ? '<div class="card-loc">' + esc(loc) + '</div>' : '') +
+        '</div>' +
+        (sim ? '<div class="card-score" style="color:' + scoreColor(sim) + '">' + esc(sim) + '</div>' : '') +
+        '</div>' +
+        (prev ? '<div class="card-preview">' + esc(prev) + '</div>' : '') +
+        '<div class="card-actions" onclick="event.stopPropagation()">' +
+        '<button class="btn btn-view btn-sm" data-fname="' + esc(fname) + '" data-page="' + page + '" onclick="viewDocBtn(this)">👁 View at p.' + page + '</button>' +
+        '<button class="btn btn-open btn-sm" data-path="' + esc(path) + '" data-page="' + page + '" data-idx="' + idx + '" onclick="openDocBtn(this)">↗ Open in App</button>' +
+        '<span class="open-ok" id="ok-' + idx + '"></span>' +
+        '</div></div>';
+    }
+
+    function renderAI(data) {
+      const raw = (data.ai_response || '').trim();
+      if (!raw) return '<div class="empty"><div class="ei">🤔</div><p>No AI response available.</p></div>';
+      const model = data.model || DEFAULT_MODEL;
+      const ms = data.backend_info?.search_time_ms ?? data.total_time_ms ?? null;
+      const method = data.method || '';
+      return '<div class="md">' + md2html(raw) + '</div>' +
+        '<div class="ai-footer">' +
+        '<span class="ai-tag model">⚡ ' + esc(model) + '</span>' +
+        (ms != null ? '<span class="ai-tag time">⏱ ' + ms + 'ms</span>' : '') +
+        (method ? '<span class="ai-tag method">' + esc(method) + '</span>' : '') +
+        '</div>';
+    }
+
+    async function doSearch(q) {
+      if (!q.trim()) return;
+      document.getElementById('hero').classList.add('compact');
+      const resultsEl = document.getElementById('results');
+      const statusBar = document.getElementById('status-bar');
+      const statusText = document.getElementById('status-text');
+      const srcList = document.getElementById('sources-list');
+      const aiBox = document.getElementById('ai-box');
+      const srcCount = document.getElementById('src-count');
+      const aiMeta = document.getElementById('ai-meta');
+      const btn = document.getElementById('search-btn');
+      resultsEl.classList.add('show');
+      statusBar.classList.add('show');
+      statusText.textContent = 'Searching…';
+      srcList.innerHTML = skelCards(); aiBox.innerHTML = skelAI();
+      srcCount.textContent = '…'; aiMeta.textContent = '…';
+      btn.disabled = true;
+      const t0 = Date.now();
+
+      const searchP = fetch('/api/research/search?q=' + encodeURIComponent(q) + '&method=' + activeMethod + '&k=6')
+        .then(r => r.json()).catch(e => ({ error: String(e), results: [] }));
+      const aiP = fetch('/api/research/ai?q=' + encodeURIComponent(q) + '&method=' + activeMethod + '&model=' + encodeURIComponent(DEFAULT_MODEL))
+        .then(r => r.json()).catch(e => ({ error: String(e), ai_response: 'Error contacting AI service.' }));
+
+      try {
+        const sd = await searchP;
+        const items = sd.results || [];
+        srcList.innerHTML = items.length
+          ? items.map((r, i) => renderCard(r, i)).join('')
+          : '<div class="empty"><div class="ei">🔍</div><p>No matching documents found.<br>Try a different question or method.</p></div>';
+        srcCount.textContent = items.length;
+        const ms = sd.search_time_ms || (Date.now() - t0);
+        statusText.textContent = items.length + ' source' + (items.length !== 1 ? 's' : '') + ' in ' + ms + 'ms · AI answering…';
+      } catch (e) {
+        srcList.innerHTML = '<div class="empty"><div class="ei">⚠️</div><p>Search failed. Is Ollama running?</p></div>';
+      }
+
+      try {
+        const ad = await aiP;
+        aiBox.innerHTML = renderAI(ad);
+        const total = Date.now() - t0;
+        aiMeta.textContent = total + 'ms';
+        statusText.textContent = 'Done — ' + total + 'ms total';
+      } catch (e) {
+        aiBox.innerHTML = '<div class="empty"><div class="ei">⚠️</div><p>AI unavailable. Check that Ollama is running.</p></div>';
+      }
+      btn.disabled = false;
+    }
+
+    document.getElementById('search-form').addEventListener('submit', e => {
+      e.preventDefault(); doSearch(document.getElementById('q').value.trim());
+    });
+
+    // Document viewer
+    function cardClick(card) { viewDoc(card.dataset.fname, parseInt(card.dataset.page) || 1); }
+    function viewDocBtn(btn) { viewDoc(btn.dataset.fname, parseInt(btn.dataset.page) || 1); }
+
+    function viewDoc(filename, page) {
+      if (!filename) return;
+      const url = '/files/serve/' + encodeURIComponent(filename) + (page > 1 ? '#page=' + page : '');
+      document.getElementById('modal-title').textContent = filename;
+      document.getElementById('modal-loc').textContent = page > 1 ? 'Page ' + page : '';
+      document.getElementById('modal-iframe').src = url;
+      document.getElementById('pdf-modal').classList.add('open');
+      document.addEventListener('keydown', _escHandler);
+    }
+    function closeModal() {
+      document.getElementById('pdf-modal').classList.remove('open');
+      document.getElementById('modal-iframe').src = 'about:blank';
+      document.removeEventListener('keydown', _escHandler);
+    }
+    function _escHandler(e) { if (e.key === 'Escape') closeModal(); }
+
+    async function openDocBtn(btn) {
+      const path = btn.dataset.path;
+      const page = parseInt(btn.dataset.page) || 1;
+      const idx = btn.dataset.idx;
+      const el = document.getElementById('ok-' + idx);
+      try {
+        const data = await fetch('/api/open-file?path=' + encodeURIComponent(path) + '&page=' + page).then(r => r.json());
+        if (el) {
+          el.textContent = data.success ? '✓ Opened' : '✗ Not found';
+          el.style.color = data.success ? 'var(--green)' : 'var(--red)';
+          el.classList.add('show'); setTimeout(() => el.classList.remove('show'), 3000);
+        }
+      } catch (e) {
+        if (el) { el.textContent = '✗ Error'; el.style.color = 'var(--red)'; el.classList.add('show'); }
+      }
+    }
+
+    // Init
+    loadLibrary();
+    document.getElementById('q').focus();
+  </script>
 </body>
+
 </html>
