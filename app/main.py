@@ -113,7 +113,15 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="RAG Demo - Qdrant vs PGvector Postgres")
 
 # Jinja2 templates for research UI
-_research_templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+_research_templates = Jinja2Templates(
+    directory=str(Path(__file__).parent / "templates"))
+
+# Research UI — local data paths (works in local and Docker mode)
+_PROJECT_ROOT = Path(__file__).parent.parent
+_RAW_DIR = _PROJECT_ROOT / "data" / "raw"
+_CLEAN_DIR = _PROJECT_ROOT / "data" / "clean"
+_ingest_state: dict = {"running": False, "done": False,
+                       "error": None, "log": [], "started_at": None}
 
 
 # ================================
@@ -3808,9 +3816,11 @@ async def system_prompt_post(request: Request):
 def research_page(request: Request):
     """Serve the focused research UI."""
     default_model = os.getenv("OLLAMA_MODEL", "qwen3:4b")
+    # Starlette 1.0+ API: request is the first positional arg
     return _research_templates.TemplateResponse(
+        request,
         "research.html",
-        {"request": request, "default_model": default_model}
+        {"default_model": default_model}
     )
 
 
@@ -3847,11 +3857,13 @@ def research_search(
             }
             fn = fn_map.get(method)
             if fn is None:
-                raise HTTPException(status_code=503, detail=f"Advanced method '{method}' not available.")
+                raise HTTPException(
+                    status_code=503, detail=f"Advanced method '{method}' not available.")
             raw = fn(q, backend=backend, k=k, model=default_model)
             results = raw.get("results") or raw.get("sources") or []
             timing = raw.get("timing", {})
-            search_ms = timing.get("total_time_ms") or timing.get("search_time_ms")
+            search_ms = timing.get(
+                "total_time_ms") or timing.get("search_time_ms")
 
     except HTTPException:
         raise
@@ -3924,7 +3936,8 @@ def open_file_native(path: str = Query(...), page: int = Query(1)):
     try:
         candidate.relative_to(project_root.resolve())
     except ValueError:
-        raise HTTPException(status_code=400, detail="Path outside project directory.")
+        raise HTTPException(
+            status_code=400, detail="Path outside project directory.")
 
     if not candidate.is_file():
         return JSONResponse({"success": False, "message": "File not found.", "resolved": str(candidate)})
@@ -3975,3 +3988,154 @@ def serve_file(filename: str):
         filename=filename,
         headers={"Content-Disposition": "inline"},
     )
+
+
+# ============================================================
+# RESEARCH UI  —  Library & Ingest API (local-mode aware)
+# ============================================================
+
+@app.post("/api/research/upload")
+async def api_research_upload(file: UploadFile = File(...)):
+    """Upload a document to data/raw (local path, safe filename)."""
+    ALLOWED = {'.pdf', '.txt', '.md', '.yaml', '.yml', '.docx', '.doc'}
+    ext = Path(file.filename).suffix.lower()
+    if ext not in ALLOWED:
+        raise HTTPException(
+            status_code=400, detail=f"File type not allowed: {ext}")
+    content = await file.read()
+    if len(content) > 50 * 1024 * 1024:
+        raise HTTPException(
+            status_code=400, detail="File too large (max 50 MB).")
+    _RAW_DIR.mkdir(parents=True, exist_ok=True)
+    safe_name = Path(file.filename).name  # strip any directory components
+    dest = _RAW_DIR / safe_name
+    dest.write_bytes(content)
+    logger.info(f"Research upload: {safe_name} ({len(content)} bytes)")
+    return JSONResponse({"success": True, "filename": safe_name, "size": len(content)})
+
+
+@app.get("/api/research/library")
+def api_research_library():
+    """List documents in data/raw with indexing status."""
+    _RAW_DIR.mkdir(parents=True, exist_ok=True)
+    _CLEAN_DIR.mkdir(parents=True, exist_ok=True)
+    files = []
+    try:
+        entries = sorted(_RAW_DIR.iterdir(),
+                         key=lambda f: f.stat().st_mtime, reverse=True)
+    except Exception:
+        entries = []
+    for fp in entries:
+        if not fp.is_file() or fp.name.startswith('.'):
+            continue
+        stat = fp.stat()
+        chunks = 0
+        for candidate in [
+            _CLEAN_DIR / f"{fp.name}.chunks.jsonl",
+            _CLEAN_DIR / f"{fp.stem}.chunks.jsonl",
+        ]:
+            if candidate.exists():
+                try:
+                    with candidate.open() as f:
+                        chunks = sum(1 for line in f if line.strip())
+                except Exception:
+                    pass
+                break
+        files.append({
+            "filename": fp.name,
+            "size":     stat.st_size,
+            "ext":      fp.suffix.lower(),
+            "indexed":  chunks > 0,
+            "chunks":   chunks,
+            "modified": stat.st_mtime,
+        })
+    return JSONResponse({"files": files, "count": len(files)})
+
+
+@app.delete("/api/research/library/{filename}")
+def api_research_delete(filename: str):
+    """Delete a file from data/raw (path-traversal safe)."""
+    if any(c in filename for c in ("/", "\\", "..")) or not filename:
+        raise HTTPException(status_code=400, detail="Invalid filename.")
+    fp = (_RAW_DIR / filename).resolve()
+    try:
+        fp.relative_to(_RAW_DIR.resolve())
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Access denied.")
+    if not fp.is_file():
+        raise HTTPException(status_code=404, detail="File not found.")
+    fp.unlink()
+    logger.info(f"Research delete: {filename}")
+    return JSONResponse({"success": True, "deleted": filename})
+
+
+@app.post("/api/research/ingest")
+def api_research_ingest():
+    """Start the ingest pipeline in a background thread."""
+    import threading
+    global _ingest_state
+    if _ingest_state.get("running"):
+        return JSONResponse({"started": False, "message": "Pipeline already running."})
+    script = _PROJECT_ROOT / "scripts" / "main_pipeline.py"
+    if not script.exists():
+        return JSONResponse({"started": False, "message": f"Pipeline script not found: {script}"})
+    _ingest_state = {
+        "running": True, "done": False, "error": None,
+        "log": ["Starting pipeline…"], "started_at": time.time(),
+    }
+
+    def run():
+        global _ingest_state
+        import os as _os
+        _env = _os.environ.copy()
+        if "QDRANT_URL" not in _env:
+            _qhost = _env.get("QDRANT_HOST", "localhost")
+            _qport = _env.get("QDRANT_PORT", "6333")
+            _env["QDRANT_URL"] = f"http://{_qhost}:{_qport}"
+        try:
+            proc = __import__("subprocess").Popen(
+                [sys.executable, str(script)],
+                cwd=str(_PROJECT_ROOT),
+                env=_env,
+                stdout=__import__("subprocess").PIPE,
+                stderr=__import__("subprocess").STDOUT,
+                text=True,
+                bufsize=1,
+            )
+            for line in proc.stdout:
+                line = line.rstrip()
+                if line:
+                    _ingest_state["log"].append(line)
+                    if len(_ingest_state["log"]) > 300:
+                        _ingest_state["log"] = _ingest_state["log"][-300:]
+            proc.wait()
+            if proc.returncode == 0:
+                _ingest_state["log"].append(
+                    "✓ Pipeline completed successfully")
+                _ingest_state["done"] = True
+            else:
+                _ingest_state["error"] = f"Process exited with code {proc.returncode}"
+                _ingest_state["log"].append(
+                    f"✗ Pipeline failed (code {proc.returncode})")
+        except Exception as exc:
+            _ingest_state["error"] = str(exc)
+            _ingest_state["log"].append(f"✗ Exception: {exc}")
+        finally:
+            _ingest_state["running"] = False
+
+    threading.Thread(target=run, daemon=True).start()
+    return JSONResponse({"started": True})
+
+
+@app.get("/api/research/ingest/status")
+def api_research_ingest_status():
+    """Poll ingest pipeline status."""
+    elapsed = round(time.time() - _ingest_state["started_at"], 1) \
+        if _ingest_state.get("started_at") else 0
+    return JSONResponse({
+        "running": _ingest_state["running"],
+        "done":    _ingest_state["done"],
+        "error":   _ingest_state["error"],
+        "log":     _ingest_state["log"][-60:],
+        "elapsed": elapsed,
+    })
