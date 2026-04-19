@@ -642,6 +642,53 @@ def process_all_pdfs():
             logger.error(f"❌ Error processing {pdf_file.name}: {e}")
 
 
+def _split_markdown_into_sections(content: str, source_path: str) -> list:
+    """
+    For structured Markdown documents that use '## S## — Title' section headers
+    (e.g., legal bibles, constitutional law notes), emit one JSONL record per section
+    so that each section's *title* is always part of the embedding text.
+
+    Falls back to None if the document doesn't have enough S## headings.
+    """
+    import re
+    # Match lines like: ## S06 — Renvoi tarification carbone (2021) — fédéralisme
+    section_re = re.compile(r'^(##\s+(S\d+)\s*[—\-–]?\s*)(.*)', re.MULTILINE)
+    matches = list(section_re.finditer(content))
+
+    if len(matches) < 3:   # not a structured S## document
+        return None
+
+    records = []
+    for i, match in enumerate(matches):
+        section_id = match.group(2).strip()          # "S06"
+        # "Renvoi tarification carbone..."
+        section_title = match.group(3).strip()
+        try:
+            section_num = int(section_id[1:])          # 6
+        except ValueError:
+            section_num = i + 1
+
+        start = match.start()
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(content)
+        section_text = content[start:end].strip()
+
+        if len(section_text) < 40:                     # skip trivially short sections
+            continue
+
+        records.append({
+            "source_path":   source_path,
+            "page":          section_num,              # section number as "page"
+            "text":          section_text,             # includes heading → always embedded
+            "extractor":     "markdown_section",
+            "section_id":    section_id,
+            "section_title": section_title,
+        })
+
+    logger.info(
+        f"  → {len(records)} sections extracted from {Path(source_path).name}")
+    return records if records else None
+
+
 def process_text_files():
     """Process text, markdown, and YAML files"""
     raw_path = Path(RAW_DIR)
@@ -656,7 +703,6 @@ def process_text_files():
         try:
             logger.info(f"Processing text file: {text_file.name}")
 
-            # Determine file type for appropriate processing
             file_ext = text_file.suffix.lower()
 
             with open(text_file, 'r', encoding='utf-8') as f:
@@ -666,30 +712,38 @@ def process_text_files():
                 logger.warning(f"Empty file skipped: {text_file.name}")
                 continue
 
-            # For YAML files, we can optionally parse and reformat the content
-            # but for now, we'll process them as plain text like other files
             if file_ext in ['.yaml', '.yml']:
                 extractor_type = "yaml_file"
-                logger.info(f"Processing YAML file: {text_file.name}")
             elif file_ext == '.md':
                 extractor_type = "markdown_file"
             else:
                 extractor_type = "text_file"
 
-            # Create JSONL output
             output_path = Path(CLEAN_DIR) / (text_file.stem + ".jsonl")
 
-            with open(output_path, 'w', encoding='utf-8') as output_file:
-                record = {
-                    "source_path": str(text_file),
-                    "page": 1,
-                    "text": content,
-                    "extractor": extractor_type
-                }
-                output_file.write(json.dumps(
-                    record, ensure_ascii=False) + '\n')
+            # ── Structured Markdown: split into per-section records ──────────
+            section_records = None
+            if file_ext == '.md':
+                section_records = _split_markdown_into_sections(
+                    content, str(text_file))
 
-            logger.info(f"✅ Completed: {output_path.name}")
+            with open(output_path, 'w', encoding='utf-8') as output_file:
+                if section_records:
+                    for rec in section_records:
+                        output_file.write(json.dumps(
+                            rec, ensure_ascii=False) + '\n')
+                    logger.info(f"✅ Completed (sectioned): {output_path.name}")
+                else:
+                    # Fallback: whole file as a single record
+                    record = {
+                        "source_path": str(text_file),
+                        "page": 1,
+                        "text": content,
+                        "extractor": extractor_type
+                    }
+                    output_file.write(json.dumps(
+                        record, ensure_ascii=False) + '\n')
+                    logger.info(f"✅ Completed: {output_path.name}")
 
         except Exception as e:
             logger.error(f"❌ Error processing {text_file.name}: {e}")

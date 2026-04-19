@@ -104,8 +104,8 @@ def get_model():
 
 def expand_query(query: str) -> str:
     """
-    Expand Spanish queries with synonyms and common variations
-    to improve retrieval on short queries.
+    Expand queries with synonyms and common variations to improve retrieval.
+    Handles Spanish course terms, French constitutional law terms, and English legal terms.
 
     Args:
         query: Original search query
@@ -113,7 +113,8 @@ def expand_query(query: str) -> str:
     Returns:
         Expanded query with relevant synonyms
     """
-    expansion_dict = {
+    # Spanish course / platform terms
+    course_dict = {
         "nube": ["cloud", "clouds", "plataforma en la nube", "Azure", "AWS", "MongoDB Atlas"],
         "nubes": ["cloud", "clouds", "plataformas en la nube", "Azure", "AWS", "MongoDB Atlas"],
         "entrega": ["fecha de entrega", "fecha límite", "deadline"],
@@ -126,16 +127,63 @@ def expand_query(query: str) -> str:
         "hora": ["tiempo", "horario", "schedule"],
     }
 
+    # French / English Canadian constitutional law terms
+    law_dict = {
+        # Carbon pricing / environment
+        "tarification": ["tarification carbone", "LTPGES", "carbon pricing", "GES", "greenhouse gas"],
+        "carbone": ["tarification carbone", "LTPGES", "GES", "greenhouse gas", "tarification"],
+        "ltpges": ["LTPGES", "tarification carbone", "GES", "Loi sur la tarification"],
+        "carbon": ["carbon pricing", "LTPGES", "tarification carbone", "GES"],
+        # Division of powers / double aspect
+        "chevauchement": ["chevauchement double aspect", "concurrent jurisdiction", "compétences partagées"],
+        "double aspect": ["double aspect", "chevauchement", "concurrent jurisdiction", "validité"],
+        "aspect": ["double aspect", "chevauchement", "caractère véritable", "pith and substance"],
+        # Advisory opinions / references
+        "renvoi": ["renvoi avis consultatif", "advisory opinion", "référence constitutionnelle"],
+        "reference": ["renvoi", "advisory opinion", "avis consultatif"],
+        # Federalism
+        "fédéralisme": ["fédéralisme coopératif", "cooperative federalism", "partage des compétences", "division of powers"],
+        "federalism": ["fédéralisme", "cooperative federalism", "partage des compétences"],
+        # Paramountcy
+        "opérabilité": ["opérabilité paramountcy", "federal paramountcy", "prépondérance fédérale"],
+        "paramountcy": ["paramountcy", "prépondérance fédérale", "opérabilité"],
+        "prépondérance": ["prépondérance fédérale", "paramountcy", "opérabilité"],
+        # Interjurisdictional immunity
+        "applicabilité": ["applicabilité interjuridictionnelle", "interjurisdictional immunity", "immunité interjuridictionnelle"],
+        "immunity": ["interjurisdictional immunity", "immunité interjuridictionnelle", "applicabilité"],
+        "immunité": ["immunité interjuridictionnelle", "interjurisdictional immunity", "applicabilité"],
+        # Pith and substance / validity
+        "validité": ["validité constitutionnelle", "caractère véritable", "pith and substance", "constitutionnalité"],
+        "validity": ["validity", "caractère véritable", "pith and substance", "constitutionnalité"],
+        "pith": ["pith and substance", "caractère véritable", "validité", "constitutionnalité"],
+        "caractère véritable": ["caractère véritable", "pith and substance", "validité"],
+        # POGG / national concern
+        "pogg": ["POGG", "peace order good government", "paix ordre bon gouvernement", "intérêt national", "national concern"],
+        "pobg": ["POBG", "POGG", "pouvoir résiduaire", "national concern", "intérêt national"],
+        "national concern": ["national concern", "intérêt national", "POGG", "POBG"],
+        "intérêt national": ["intérêt national", "national concern", "POGG", "POBG"],
+        # Criminal law
+        "droit pénal": ["droit pénal", "criminal law", "91(27)", "objectif prohibition sanction"],
+        "criminal": ["criminal law", "droit pénal", "91(27)", "prohibition sanction"],
+        # Provincial powers
+        "provincial": ["compétence provinciale", "provincial powers", "art. 92", "article 92"],
+        "compétence": ["compétence fédérale", "compétence provinciale", "partage des compétences", "division of powers"],
+    }
+
     ql = query.lower()
     extra_terms = []
 
-    for key, synonyms in expansion_dict.items():
+    for key, synonyms in course_dict.items():
+        if key in ql:
+            extra_terms.extend(synonyms)
+
+    for key, synonyms in law_dict.items():
         if key in ql:
             extra_terms.extend(synonyms)
 
     if extra_terms:
-        # Add top 2-3 most relevant synonyms to avoid query bloat
-        unique_terms = list(set(extra_terms))[:3]
+        # Deduplicate and limit to avoid query bloat (max 5 extra terms for law, 3 for course)
+        unique_terms = list(dict.fromkeys(extra_terms))[:5]
         return query + " " + " ".join(unique_terms)
 
     return query

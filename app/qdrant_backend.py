@@ -131,8 +131,13 @@ def search_qdrant(query_emb, k=5, where=None, collection_suffix=None):
                 "content": content,
                 "path": path,
                 "chunk_id": chunk_id,
-                "doc_id": r.payload.get("doc_id", ""),  # Legacy compatibility
-                "page": r.payload.get("page", None),    # Clean pipeline info
+                # Legacy compatibility
+                "doc_id": r.payload.get("doc_id", ""),
+                # Clean pipeline info
+                "page": r.payload.get("page", None),
+                # Section-aware markdown
+                "section_id": r.payload.get("section_id", ""),
+                "section_title": r.payload.get("section_title", ""),
                 # Clean pipeline metadata
                 "metadata": r.payload.get("metadata", {}),
             })

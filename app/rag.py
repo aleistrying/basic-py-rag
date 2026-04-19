@@ -65,6 +65,56 @@ DEFAULT_SYSTEM_PROMPT = (
 )
 
 
+LAW_SYSTEM_PROMPT = (
+    "You are an expert in Canadian constitutional law, specializing in the division of powers, "
+    "federalism, and the constitutional validity of legislation. "
+    "The user will ask a question and you will be given relevant excerpts from a legal reference document.\n\n"
+    "Rules:\n"
+    "- Start directly with your answer — no preamble\n"
+    "- SELF-CHECK before writing: does your answer address the EXACT case, section, or doctrine named in the question? "
+    "If not, correct your focus.\n"
+    "- Do NOT conflate different doctrines: validity (pith and substance) ≠ double aspect ≠ paramountcy (operability) "
+    "≠ interjurisdictional immunity. Name the correct doctrine for each point.\n"
+    "- Do NOT borrow legal facts or outcomes from a different case unless the excerpts explicitly connect them.\n"
+    "- Use specific case names, section numbers (§), article references, and legal tests from the excerpts.\n"
+    "- Structure legal analysis: (1) identify the heads of power at issue, (2) apply the test, (3) state the outcome.\n"
+    "- If the excerpts are insufficient to fully answer: state what IS supported, explicitly name what is missing, "
+    "and suggest which section/doctrine would cover it.\n"
+    "- DO NOT list sources or references — the UI shows them separately.\n"
+    "- Respond in the same language as the question (French, English, or Spanish)."
+)
+
+# French / English legal terms that trigger law-mode prompt
+_LAW_KEYWORDS = {
+    "tarification", "carbone", "ltpges", "carbon", "pogg", "pobg",
+    "fédéralisme", "federalism", "renvoi", "reference",
+    "double aspect", "chevauchement", "opérabilité", "operability",
+    "paramountcy", "prépondérance", "applicabilité", "immunité",
+    "interjurisdictional", "validité", "validity",
+    "pith and substance", "caractère véritable",
+    "compétence", "compétences", "provincial", "fédéral", "federal",
+    "constitution", "constitutionnel", "constitutional",
+    "article 91", "article 92", "art. 91", "art. 92",
+    "loi sur", "loi de", "charte", "charter",
+}
+
+_BIBLE_MARKERS = {"bible", "consti"}
+
+
+def detect_law_mode(query: str, hits: list) -> bool:
+    """Return True when the query or retrieved docs indicate a legal constitutional question."""
+    ql = query.lower()
+    # Check query keywords
+    if any(kw in ql for kw in _LAW_KEYWORDS):
+        return True
+    # Check if any retrieved doc comes from the Bible/constitution corpus
+    for hit in hits:
+        path = (hit.get("path", "") or hit.get("document", "") or "").lower()
+        if any(m in path for m in _BIBLE_MARKERS):
+            return True
+    return False
+
+
 def load_system_prompt() -> str:
     """Return the active system prompt (custom file, or built-in default)."""
     try:
@@ -312,6 +362,8 @@ def search_knowledge_base(query: str, backend: str = "qdrant", k: int = 5, filte
             "reference": reference,
             "page": hit.get('page'),
             "chunk_id": hit.get('chunk_id'),
+            "section_id": hit.get('section_id', metadata.get('section_id', '')),
+            "section_title": hit.get('section_title', metadata.get('section_title', '')),
             "chapter": chapter_info.replace(", ", "") if chapter_info else None,
             "section": section_info.replace(", ", "") if section_info else None,
             "similarity": f"{hit['score']:.3f}",
@@ -477,6 +529,8 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
             "reference": clean_reference,  # Clean reference without file path
             "detailed_reference": enhanced_reference,  # Full reference with all metadata
             "page": item.get('page'),
+            "section_id": item.get('section_id', metadata.get('section_id', '')),
+            "section_title": item.get('section_title', metadata.get('section_title', '')),
             "chapter": content_metadata.get('chapter'),
             "section": content_metadata.get('section'),
             "theme": doc_metadata.get('theme'),
@@ -488,7 +542,10 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
             "word_count": metadata.get('word_count', 0),
             "quality_score": metadata.get('quality_score', 0),
             "similarity": f"{item['sim']:.3f}",
-            "preview": content[:120] + "..." if len(content) > 120 else content
+            "preview": content[:120] + "..." if len(content) > 120 else content,
+            "path": item.get('path', ''),
+            "content": content,
+            "chunk_id": item.get('chunk_id'),
         })
 
     # Build context for LLM using enhanced method if available
@@ -496,8 +553,16 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
         sources = build_context_enhanced(reranked, max_tokens=1200)
     else:
         sources = build_context(reranked)
+
+    # Choose system prompt: law-mode when query or hits indicate constitutional law
+    active_system_prompt = (
+        LAW_SYSTEM_PROMPT
+        if detect_law_mode(query, reranked)
+        else load_system_prompt()
+    )
+
     prompt = RAG_TEMPLATE.format(
-        system_prompt=load_system_prompt(), q=query, sources=sources)
+        system_prompt=active_system_prompt, q=query, sources=sources)
 
     try:
         # Use resilient Ollama generation with automatic retry and fallback

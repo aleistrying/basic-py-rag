@@ -3997,6 +3997,23 @@ def open_file_native(path: str = Query(...), page: int = Query(1)):
         return JSONResponse({"success": False, "message": str(exc)})
 
 
+@app.get("/api/research/file-content/{filename}")
+def api_file_content(filename: str):
+    """Return the raw text content of a file in data/raw as JSON for in-browser rendering."""
+    if any(c in filename for c in ("/", "\\", "..")) or not filename:
+        raise HTTPException(status_code=400, detail="Invalid filename.")
+    file_path = (_RAW_DIR / filename).resolve()
+    try:
+        file_path.relative_to(_RAW_DIR.resolve())
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Access denied.")
+    if not file_path.is_file():
+        raise HTTPException(
+            status_code=404, detail=f"File not found: {filename}")
+    text = file_path.read_text(encoding="utf-8", errors="replace")
+    return JSONResponse({"filename": filename, "content": text, "size": len(text)})
+
+
 @app.get("/files/serve/{filename}")
 def serve_file(filename: str):
     """
@@ -4109,8 +4126,13 @@ def api_research_delete(filename: str):
 
 
 @app.post("/api/research/ingest")
-def api_research_ingest():
-    """Start the ingest pipeline in a background thread."""
+def api_research_ingest(clear: bool = False):
+    """Start the ingest pipeline in a background thread.
+
+    Query param:
+      clear=true  — delete all cached .jsonl and .chunks.jsonl files from data/clean/
+                    before running, so the pipeline fully re-processes raw documents.
+    """
     import threading
     global _ingest_state
     if _ingest_state.get("running"):
@@ -4118,9 +4140,22 @@ def api_research_ingest():
     script = _PROJECT_ROOT / "scripts" / "main_pipeline.py"
     if not script.exists():
         return JSONResponse({"started": False, "message": f"Pipeline script not found: {script}"})
+
+    # Delete cached processed files so they are regenerated from scratch
+    deleted_files = []
+    if clear:
+        for ext in ("*.jsonl", "*.chunks.jsonl"):
+            for f in _CLEAN_DIR.glob(ext):
+                try:
+                    f.unlink()
+                    deleted_files.append(f.name)
+                except Exception as exc:
+                    logger.warning(f"Could not delete {f.name}: {exc}")
+
     _ingest_state = {
         "running": True, "done": False, "error": None,
-        "log": ["Starting pipeline…"], "started_at": time.time(),
+        "log": (["🗑 Cleared cached files: " + ", ".join(deleted_files)] if deleted_files else []) + ["Starting pipeline…"],
+        "started_at": time.time(),
     }
 
     # Release the local Qdrant file lock before the subprocess opens it.

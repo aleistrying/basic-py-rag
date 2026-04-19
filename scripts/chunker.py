@@ -221,6 +221,10 @@ def chunk_jsonl(clean_jsonl_path: Path) -> Path:
                 chunks = chunk_text_tokens(
                     page_text, max_tokens=CHUNK_TOKENS, overlap=CHUNK_OVERLAP)
 
+                # Carry section metadata from the source record when present
+                section_id = page_record.get('section_id', '')
+                section_title = page_record.get('section_title', '')
+
                 # Write chunks with metadata
                 for chunk_idx, chunk_text in enumerate(chunks):
                     chunk_record = add_chunk_metadata(
@@ -230,6 +234,12 @@ def chunk_jsonl(clean_jsonl_path: Path) -> Path:
                         chunk_id=chunk_idx,
                         extractor=extractor
                     )
+                    # Propagate section metadata so downstream (Qdrant, viewer) can use it
+                    if section_id:
+                        chunk_record['section_id'] = section_id
+                        chunk_record['section_title'] = section_title
+                        chunk_record['metadata']['section_id'] = section_id
+                        chunk_record['metadata']['section_title'] = section_title
 
                     output_file.write(json.dumps(
                         chunk_record, ensure_ascii=False) + "\n")

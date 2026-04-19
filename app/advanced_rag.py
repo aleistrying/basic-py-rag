@@ -204,6 +204,92 @@ Preguntas reformuladas:
         return [query]
 
 
+# Legal keyword set — mirrors the one in rag.py (kept separate to avoid circular import)
+_LAW_KEYWORDS_ADV = {
+    "tarification", "carbone", "ltpges", "carbon", "pogg", "pobg",
+    "fédéralisme", "federalism", "renvoi", "reference",
+    "double aspect", "chevauchement", "opérabilité", "operability",
+    "paramountcy", "prépondérance", "applicabilité", "immunité",
+    "interjurisdictional", "validité", "validity",
+    "pith and substance", "caractère véritable",
+    "compétence", "constitution", "constitutionnel", "constitutional",
+    "article 91", "article 92", "art. 91", "art. 92", "loi sur", "charte", "charter",
+}
+_BIBLE_MARKERS_ADV = {"bible", "consti"}
+
+
+def _is_law_query(query: str, results: list = None) -> bool:
+    """Detect if query or results indicate Canadian constitutional law."""
+    ql = query.lower()
+    if any(kw in ql for kw in _LAW_KEYWORDS_ADV):
+        return True
+    if results:
+        for r in results:
+            path = (r.get("path", "") or r.get("document", "") or "").lower()
+            if any(m in path for m in _BIBLE_MARKERS_ADV):
+                return True
+    return False
+
+
+def generate_query_variations_legal(
+    query: str,
+    model: str = "phi3:mini",
+    num_variations: int = 3
+) -> List[str]:
+    """
+    Generate bilingual (French/English) query variations specialized for
+    Canadian constitutional law questions.
+
+    Produces variations covering:
+    1. Case-specific rephrase (cite the case name / year explicitly)
+    2. Doctrine-specific rephrase (double aspect, POGG, paramountcy, etc.)
+    3. Bilingual variant (translate to the other official language)
+    """
+    if ollama is None:
+        return [query]
+
+    prompt = (
+        f"You are an expert in Canadian constitutional law (droit constitutionnel canadien).\n"
+        f"Generate exactly {num_variations} alternative search queries for the following question. "
+        f"Each alternative must use different legal vocabulary or a different language (French/English) "
+        f"but capture the same constitutional issue.\n\n"
+        f"Original question: {query}\n\n"
+        f"Rules:\n"
+        f"- Variation 1: rephrase mentioning the specific case name or year if known\n"
+        f"- Variation 2: rephrase using explicit doctrine terms "
+        f"(double aspect / POGG / paramountcy / interjurisdictional immunity / pith and substance)\n"
+        f"- Variation 3: translate to the OTHER official language (French→English or English→French)\n"
+        f"- Output ONLY the {num_variations} variations, one per line, no numbering, no bullets\n\n"
+        f"Variations:"
+    )
+
+    try:
+        ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+        client = ollama.Client(host=ollama_host)
+
+        response = client.generate(
+            model=model,
+            prompt=prompt,
+            options={"temperature": 0.4, "num_predict": 300, "top_p": 0.9}
+        )
+
+        raw = response.get("response", "").strip()
+        # Strip <think>...</think> blocks from reasoning models
+        raw = re.sub(r'<think>[\s\S]*?</think>\s*', '', raw).strip()
+
+        variations = []
+        for line in raw.split("\n"):
+            line = re.sub(r"^\d+[\.\)]\s*", "", line.strip())
+            if line and not line.startswith(("-", "*", "•")):
+                variations.append(line)
+
+        return [query] + variations[:num_variations]
+
+    except Exception as e:
+        logger.error(f"Legal query variation failed: {e}")
+        return [query]
+
+
 def reciprocal_rank_fusion(
     results_list: List[List[Dict]],
     k: int = 60
@@ -283,7 +369,12 @@ def multi_query_search(
 
     # Step 1: Generate query variations (with timing)
     variation_start = time.time()
-    queries = generate_query_variations(query, model, num_variations)
+    if _is_law_query(query):
+        queries = generate_query_variations_legal(query, model, num_variations)
+        law_mode = True
+    else:
+        queries = generate_query_variations(query, model, num_variations)
+        law_mode = False
     variation_time = round((time.time() - variation_start) * 1000, 1)
 
     # Step 2: Perform search for each query variation (with timing)
@@ -335,6 +426,7 @@ def multi_query_search(
         "method": "Multi-Query + RRF",
         "model": model,
         "backend": backend.upper(),
+        "law_mode": law_mode,
 
         # Core results
         "ai_response": ai_answer,

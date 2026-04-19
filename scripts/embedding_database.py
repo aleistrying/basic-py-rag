@@ -381,6 +381,7 @@ class UnifiedEmbeddingProcessor:
                     # Create a hash-based ID to avoid collisions - ensure positive integer
                     point_id = abs(hash(point_id)) % (2**31 - 1)
 
+                    _meta = record.get("metadata", {})
                     point = PointStruct(
                         id=point_id,  # Now using integer directly
                         vector=embedding.tolist(),
@@ -389,7 +390,10 @@ class UnifiedEmbeddingProcessor:
                             "page": record.get("page", 0),
                             "chunk_id": record.get("chunk_id", i),
                             "content": record["content"],
-                            "metadata": record.get("metadata", {}),
+                            "metadata": _meta,
+                            # Section metadata (present for structured markdown files)
+                            "section_id": record.get("section_id", _meta.get("section_id", "")),
+                            "section_title": record.get("section_title", _meta.get("section_title", "")),
                             "distance_metric": distance_metric,
                             "index_algorithm": index_algorithm
                         }
@@ -475,8 +479,17 @@ class UnifiedEmbeddingProcessor:
         if not batch_records:
             return
 
-        # Extract texts for embedding
-        texts = [record["content"] for record in batch_records]
+        # Extract texts for embedding — prepend section context when available
+        # so that "S06 — Renvoi tarification carbone" is present in every chunk
+        # from that section even if the body text doesn't repeat the title.
+        texts = []
+        for record in batch_records:
+            meta = record.get("metadata", {}) or {}
+            sid = meta.get("section_id") or record.get("section_id", "")
+            stitle = meta.get("section_title") or record.get(
+                "section_title", "")
+            prefix = f"[{sid}: {stitle}] " if sid and stitle else ""
+            texts.append(prefix + record["content"])
 
         # Generate embeddings (GPU-accelerated)
         logger.debug(f"🧠 Embedding batch of {len(texts)} texts...")
