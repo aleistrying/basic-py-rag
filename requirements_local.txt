@@ -1,5 +1,5 @@
 # requirements_local.txt
-# macOS (Apple Silicon + Intel) — no Docker, no CUDA.
+# macOS (Apple Silicon + Intel) and Linux — no Docker, no CUDA.
 # PyTorch from PyPI includes MPS support for Apple Silicon automatically.
 #
 # Install: pip install -r requirements_local.txt
@@ -24,6 +24,15 @@ sentence-transformers
 PyPDF2
 pdfplumber
 python-docx
+openpyxl
+python-pptx
+beautifulsoup4
+lxml
+pymupdf
+
+# ── Cryptography (for encrypted PDFs) ────────────────────────────────────────
+pycryptodome
+cryptography
 
 # ── LLM (talks to local Ollama) ───────────────────────────────────────────────
 ollama
@@ -32,7 +41,17 @@ ollama
 questionary
 rich
 
-# ── Utilities ─────────────────────────────────────────────────────────────────
+# ── Data / analytics ─────────────────────────────────────────────────────────
+pandas
 numpy
 rapidfuzz
-psycopg2-binary   # optional: only used if PostgreSQL is enabled
+plotly
+kaleido
+matplotlib
+seaborn
+scikit-learn
+umap-learn
+
+# ── Database (optional: only used if PostgreSQL is enabled) ──────────────────
+sqlalchemy
+psycopg2-binary

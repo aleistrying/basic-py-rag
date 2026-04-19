@@ -32,7 +32,7 @@ echo -e "${BOLD}${CYAN}╚══════════════════
 echo ""
 
 # ─── 1. Platform check ───────────────────────────────────────────────────────
-header "Step 1 / 5  —  Platform"
+header "Step 1 / 7  —  Platform"
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
     error "This installer is for macOS only. On Linux use:  ./install_linux.sh"
@@ -50,7 +50,7 @@ else
 fi
 
 # ─── 2. Xcode Command Line Tools ─────────────────────────────────────────────
-header "Step 2 / 6  —  Xcode Command Line Tools"
+header "Step 2 / 7  —  Xcode Command Line Tools"
 
 if ! xcode-select -p &>/dev/null 2>&1; then
     warn "Xcode Command Line Tools not installed (required by Homebrew and Python)."
@@ -69,7 +69,7 @@ else
 fi
 
 # ─── 3. Homebrew ─────────────────────────────────────────────────────────────
-header "Step 3 / 6  —  Homebrew"
+header "Step 3 / 7  —  Homebrew"
 
 if ! command -v brew &>/dev/null; then
     warn "Homebrew not found. Installing... (you may be asked for your password)"
@@ -89,8 +89,37 @@ else
     fi
 fi
 
-# ─── 3. Python ───────────────────────────────────────────────────────────────
-header "Step 4 / 6  —  Python"
+# ─── 4. Docker (optional) ─────────────────────────────────────────────────────
+header "Step 4 / 7  —  Docker Desktop (optional)"
+
+DOCKER_INSTALLED=false
+if command -v docker &>/dev/null; then
+    DOCKER_VER=$(docker --version 2>/dev/null | head -1 || echo "version unknown")
+    success "Docker already installed ($DOCKER_VER)"
+    DOCKER_INSTALLED=true
+else
+    echo ""
+    info "Docker lets you run the full stack with one command:  docker compose up"
+    info "It is optional — this installer also works without it (local mode)."
+    echo ""
+    ask "Install Docker Desktop via Homebrew? [Y/n]: "
+    read -r DOCKER_CHOICE
+    DOCKER_CHOICE="${DOCKER_CHOICE:-Y}"
+
+    if [[ "$DOCKER_CHOICE" =~ ^[Yy]$ ]]; then
+        info "Downloading Docker Desktop (~500 MB) — please wait..."
+        brew install --cask docker
+        success "Docker Desktop installed"
+        info "First launch requires accepting the license agreement."
+        info "Open it from Applications or run:  open /Applications/Docker.app"
+        DOCKER_INSTALLED=true
+    else
+        info "Skipping Docker — system will run in local mode (no Docker required)."
+    fi
+fi
+
+# ─── 5. Python ─────────────────────────────────────────────────────────────
+header "Step 5 / 7  —  Python"
 
 PYTHON=""
 for py in python3.13 python3.12 python3.11 python3.10 python3; do
@@ -114,7 +143,7 @@ if [[ -z "$PYTHON" ]]; then
 fi
 
 # ─── 4. Ollama ───────────────────────────────────────────────────────────────
-header "Step 5 / 6  —  Ollama (local AI engine)"
+header "Step 6 / 7  —  Ollama (local AI engine)"
 
 if ! command -v ollama &>/dev/null; then
     warn "Ollama not found. Installing via Homebrew..."
@@ -186,7 +215,7 @@ else
 fi
 
 # ─── 5. Python deps ──────────────────────────────────────────────────────────
-header "Step 6 / 6  —  Python dependencies & configuration"
+header "Step 7 / 7  —  Python dependencies & configuration"
 
 VENV_PY="$VENV_DIR/bin/python"
 
@@ -199,9 +228,54 @@ fi
 info "Upgrading pip..."
 "$VENV_PY" -m pip install --upgrade pip --quiet 2>&1 | grep -v "^$" || true
 
-info "Installing Python dependencies (this may take a few minutes)..."
-"$VENV_PY" -m pip install -r "$SCRIPT_DIR/requirements_local.txt" --quiet 2>&1 | grep -v "^$" || true
+info "Installing Python dependencies (this may take 5–10 minutes on first run)..."
+if ! "$VENV_PY" -m pip install -r "$SCRIPT_DIR/requirements_local.txt" --progress-bar=off; then
+    # Retry without psycopg2-binary — needs PostgreSQL dev headers (optional package)
+    warn "Retrying without optional PostgreSQL driver (psycopg2-binary)..."
+    TEMP_REQ="$VENV_DIR/requirements_no_psql.txt"
+    grep -v "^psycopg2" "$SCRIPT_DIR/requirements_local.txt" > "$TEMP_REQ"
+    if ! "$VENV_PY" -m pip install -r "$TEMP_REQ" --progress-bar=off; then
+        rm -f "$TEMP_REQ"
+        error "Python package installation failed — see errors above."
+        error "Common fix:  xcode-select --install"
+        error "Then re-run: ./install_mac.sh"
+        exit 1
+    fi
+    rm -f "$TEMP_REQ"
+    warn "psycopg2-binary skipped — PostgreSQL features disabled."
+    warn "To enable later:  brew install libpq && pip install psycopg2-binary"
+fi
 success "Python dependencies installed"
+
+# Verify that critical packages actually imported
+info "Verifying installation..."
+if ! "$VENV_PY" - <<'PYVERIFY'
+import sys
+checks = [
+    ("fastapi",               "FastAPI web framework"),
+    ("pandas",                "Data analysis (pandas)"),
+    ("qdrant_client",         "Vector database (Qdrant)"),
+    ("sentence_transformers", "Embedding model"),
+    ("ollama",                "Ollama AI client"),
+    ("uvicorn",               "Web server (uvicorn)"),
+]
+failed = []
+for mod, label in checks:
+    try:
+        __import__(mod)
+        print(f"    \u2713  {label}")
+    except ImportError:
+        print(f"    \u2717  {label}  \u2190 MISSING", file=sys.stderr)
+        failed.append(mod)
+if failed:
+    print(f"\n  ERROR: Missing packages: {', '.join(failed)}", file=sys.stderr)
+    sys.exit(1)
+PYVERIFY
+then
+    error "Required packages are missing — see errors above."
+    exit 1
+fi
+success "All core packages verified"
 
 # Pre-download embedding model
 info "Downloading embedding model (one-time, ~280 MB)..."

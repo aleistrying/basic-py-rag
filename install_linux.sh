@@ -84,7 +84,7 @@ else
 fi
 
 # ─── 2. System dependencies ──────────────────────────────────────────────────
-header "Step 2 / 5  —  System dependencies"
+header "Step 2 / 6  —  System dependencies"
 
 install_pkg() {
     case "$PKG_MANAGER" in
@@ -128,20 +128,36 @@ if [[ "$NVIDIA_NEEDS_DRIVER" == "true" && "$PKG_MANAGER" == "apt" ]]; then
     DRIVER_CHOICE="${DRIVER_CHOICE:-Y}"
 
     if [[ "$DRIVER_CHOICE" =~ ^[Yy]$ ]]; then
-        info "Adding nvidia-driver PPA and installing latest recommended driver..."
-        # ubuntu-drivers-common provides 'ubuntu-drivers autoinstall' which picks
-        # the correct driver version for the detected GPU automatically.
-        sudo apt-get install -y ubuntu-drivers-common &>/dev/null
-        info "Detecting best driver for your GPU..."
-        RECOMMENDED=$(ubuntu-drivers devices 2>/dev/null | grep "recommended" | awk '{print $3}' | head -1 || true)
-        if [[ -n "$RECOMMENDED" ]]; then
-            info "Installing recommended driver: ${RECOMMENDED}"
-            sudo apt-get install -y "$RECOMMENDED"
+        info "Installing ubuntu-drivers-common tool..."
+        sudo apt-get install -y ubuntu-drivers-common
+
+        if command -v ubuntu-drivers &>/dev/null; then
+            # Prefer ubuntu-drivers autoinstall — it picks the right driver for the GPU
+            info "Detecting best driver for your GPU..."
+            RECOMMENDED=$(ubuntu-drivers devices 2>/dev/null \
+                | grep "recommended" | awk '{print $3}' | head -1 || true)
+
+            if [[ -n "$RECOMMENDED" ]]; then
+                info "Installing recommended driver: ${RECOMMENDED}"
+                sudo apt-get install -y "$RECOMMENDED"
+            else
+                info "Running ubuntu-drivers autoinstall..."
+                sudo ubuntu-drivers autoinstall || {
+                    warn "ubuntu-drivers autoinstall failed; falling back to nvidia-driver-570..."
+                    sudo apt-get install -y nvidia-driver-570 || \
+                        warn "Driver install failed — please install manually and reboot."
+                }
+            fi
         else
-            info "Running ubuntu-drivers autoinstall..."
-            sudo ubuntu-drivers autoinstall
+            # ubuntu-drivers not available — install latest known driver directly
+            warn "ubuntu-drivers tool not available; installing nvidia-driver-570 directly..."
+            sudo apt-add-repository -y ppa:graphics-drivers/ppa 2>/dev/null || true
+            sudo apt-get update -qq 2>&1 | grep -v "^W:\|^N:" || true
+            sudo apt-get install -y nvidia-driver-570 || \
+                warn "Driver install failed — please install manually from https://www.nvidia.com/drivers"
         fi
-        success "NVIDIA driver installed."
+
+        success "NVIDIA driver install complete."
         warn "A system reboot is required to activate the new driver."
         warn "After rebooting, re-run  ./install_linux.sh  to complete setup."
         echo ""
@@ -152,19 +168,75 @@ if [[ "$NVIDIA_NEEDS_DRIVER" == "true" && "$PKG_MANAGER" == "apt" ]]; then
             info "Rebooting in 5 seconds... (re-run install_linux.sh after boot)"
             sleep 5; sudo reboot
         else
-            warn "Continuing without reboot — GPU may not be active until next restart."
+            warn "Continuing without reboot — GPU won't be active until next restart."
         fi
     else
         warn "Skipping driver install. Models will run on CPU until driver is updated."
     fi
 elif [[ "$NVIDIA_NEEDS_DRIVER" == "true" && "$PKG_MANAGER" == "dnf" ]]; then
-    warn "Outdated NVIDIA driver detected. Install manually:"
-    warn "  sudo dnf install akmod-nvidia   (Fedora/RPM Fusion)"
+    warn "Outdated NVIDIA driver detected. To install the latest driver on Fedora:"
+    warn "  sudo dnf install akmod-nvidia   (requires RPM Fusion repo)"
     warn "Then reboot and re-run this installer."
 fi
 
-# ─── 3. Python ───────────────────────────────────────────────────────────────
-header "Step 3 / 5  —  Python"
+# ─── 3. Docker (optional) ────────────────────────────────────────────────────
+header "Step 3 / 6  —  Docker (optional)"
+
+DOCKER_INSTALLED=false
+if command -v docker &>/dev/null; then
+    DOCKER_VER=$(docker --version 2>/dev/null | head -1 || echo "version unknown")
+    success "Docker already installed ($DOCKER_VER)"
+    DOCKER_INSTALLED=true
+else
+    echo ""
+    info "Docker lets you run the full stack with one command:  docker compose up"
+    info "It is optional — this installer also works without it (local mode)."
+    echo ""
+    ask "Install Docker Engine now? [Y/n]: "
+    read -r DOCKER_CHOICE
+    DOCKER_CHOICE="${DOCKER_CHOICE:-Y}"
+
+    if [[ "$DOCKER_CHOICE" =~ ^[Yy]$ ]]; then
+        if [[ "$PKG_MANAGER" == "apt" ]]; then
+            info "Installing Docker Engine via official install script..."
+            curl -fsSL https://get.docker.com | sh
+            if getent group docker &>/dev/null; then
+                sudo usermod -aG docker "$USER" || true
+                warn "Log out and back in (or run: newgrp docker) before using Docker without sudo."
+            fi
+            sudo systemctl enable docker --quiet 2>/dev/null || true
+            sudo systemctl start  docker 2>/dev/null || true
+            DOCKER_INSTALLED=true
+        elif [[ "$PKG_MANAGER" == "dnf" ]]; then
+            info "Installing Docker Engine on Fedora/RHEL..."
+            sudo dnf -y install dnf-plugins-core 2>/dev/null || true
+            sudo dnf config-manager --add-repo \
+                https://download.docker.com/linux/fedora/docker-ce.repo 2>/dev/null || true
+            sudo dnf install -y docker-ce docker-ce-cli containerd.io \
+                docker-buildx-plugin docker-compose-plugin
+            sudo usermod -aG docker "$USER" || true
+            sudo systemctl enable docker --quiet 2>/dev/null || true
+            sudo systemctl start  docker 2>/dev/null || true
+            DOCKER_INSTALLED=true
+        elif [[ "$PKG_MANAGER" == "pacman" ]]; then
+            info "Installing Docker on Arch/Manjaro..."
+            sudo pacman -S --noconfirm docker docker-compose
+            sudo usermod -aG docker "$USER" || true
+            sudo systemctl enable docker --quiet 2>/dev/null || true
+            sudo systemctl start  docker 2>/dev/null || true
+            DOCKER_INSTALLED=true
+        else
+            warn "Auto-install not available for your package manager."
+            warn "Install Docker manually:  https://docs.docker.com/engine/install/"
+        fi
+        [[ "$DOCKER_INSTALLED" == "true" ]] && success "Docker installed"
+    else
+        info "Skipping Docker — system will run in local mode (no Docker required)."
+    fi
+fi
+
+# ─── 4. Python ───────────────────────────────────────────────────────────────
+header "Step 4 / 6  —  Python"
 
 PYTHON=""
 for py in python3.13 python3.12 python3.11 python3.10 python3; do
@@ -220,7 +292,7 @@ elif [[ "$PKG_MANAGER" == "pacman" ]]; then
 fi
 
 # ─── 4. Ollama ───────────────────────────────────────────────────────────────
-header "Step 4 / 5  —  Ollama (local AI engine)"
+header "Step 5 / 6  —  Ollama (local AI engine)"
 
 if ! command -v ollama &>/dev/null; then
     info "Installing Ollama via official install script..."
@@ -290,7 +362,7 @@ else
 fi
 
 # ─── 5. Python deps ──────────────────────────────────────────────────────────
-header "Step 5 / 5  —  Python dependencies & configuration"
+header "Step 6 / 6  —  Python dependencies & configuration"
 
 VENV_PY="$VENV_DIR/bin/python"
 
@@ -303,9 +375,54 @@ fi
 info "Upgrading pip..."
 "$VENV_PY" -m pip install --upgrade pip --quiet 2>&1 | grep -v "^$" || true
 
-info "Installing Python dependencies (this may take a few minutes)..."
-"$VENV_PY" -m pip install -r "$SCRIPT_DIR/requirements_local.txt" --quiet 2>&1 | grep -v "^$" || true
+info "Installing Python dependencies (this may take 5–10 minutes on first run)..."
+if ! "$VENV_PY" -m pip install -r "$SCRIPT_DIR/requirements_local.txt" --progress-bar=off; then
+    # Retry without psycopg2-binary — it needs PostgreSQL dev headers (optional package)
+    warn "Retrying without optional PostgreSQL driver (psycopg2-binary)..."
+    TEMP_REQ="$VENV_DIR/requirements_no_psql.txt"
+    grep -v "^psycopg2" "$SCRIPT_DIR/requirements_local.txt" > "$TEMP_REQ"
+    if ! "$VENV_PY" -m pip install -r "$TEMP_REQ" --progress-bar=off; then
+        rm -f "$TEMP_REQ"
+        error "Python package installation failed — see errors above."
+        error "Common fix:  sudo apt-get install build-essential python3-dev"
+        error "Then re-run: ./install_linux.sh"
+        exit 1
+    fi
+    rm -f "$TEMP_REQ"
+    warn "psycopg2-binary skipped — PostgreSQL features disabled."
+    warn "To enable later:  sudo apt-get install libpq-dev && pip install psycopg2-binary"
+fi
 success "Python dependencies installed"
+
+# Verify that critical packages actually imported
+info "Verifying installation..."
+if ! "$VENV_PY" - <<'PYVERIFY'
+import sys
+checks = [
+    ("fastapi",               "FastAPI web framework"),
+    ("pandas",                "Data analysis (pandas)"),
+    ("qdrant_client",         "Vector database (Qdrant)"),
+    ("sentence_transformers", "Embedding model"),
+    ("ollama",                "Ollama AI client"),
+    ("uvicorn",               "Web server (uvicorn)"),
+]
+failed = []
+for mod, label in checks:
+    try:
+        __import__(mod)
+        print(f"    \u2713  {label}")
+    except ImportError:
+        print(f"    \u2717  {label}  \u2190 MISSING", file=sys.stderr)
+        failed.append(mod)
+if failed:
+    print(f"\n  ERROR: Missing packages: {', '.join(failed)}", file=sys.stderr)
+    sys.exit(1)
+PYVERIFY
+then
+    error "Required packages are missing — see errors above."
+    exit 1
+fi
+success "All core packages verified"
 
 # Pre-download embedding model
 info "Downloading embedding model (one-time, ~280 MB)..."
