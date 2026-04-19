@@ -53,6 +53,14 @@ except ImportError as e:
     print(f"⚠️  Orchestrated RAG import error: {e}")
     orchestrated_rag_pipeline = None
 
+# Import advanced staged pipeline
+try:
+    from app.pipeline_rag import pipeline_search
+    print("✅ Staged pipeline RAG loaded successfully")
+except ImportError as e:
+    print(f"⚠️  Pipeline RAG import error: {e}")
+    pipeline_search = None
+
 # Import Ollama utilities
 try:
     from app.ollama_utils import (
@@ -3846,9 +3854,16 @@ def research_search(
         )
 
     try:
-        raw = search_knowledge_base(q, backend=backend, k=k)
-        results = raw.get("results", [])
-        search_ms = raw.get("backend_info", {}).get("search_time_ms")
+        if method == "pipeline" and pipeline_search:
+            raw = pipeline_search(
+                q, backend=backend, k=k, sources_only=True,
+            )
+            results = raw.get("results", [])
+            search_ms = raw.get("search_time_ms")
+        else:
+            raw = search_knowledge_base(q, backend=backend, k=k)
+            results = raw.get("results", [])
+            search_ms = raw.get("backend_info", {}).get("search_time_ms")
     except Exception as exc:
         logger.error(f"Research search error: {exc}")
         raise HTTPException(status_code=500, detail=str(exc))
@@ -3888,7 +3903,12 @@ def research_ai(
         })
 
     try:
-        if method in ("multi-query", "decompose", "hyde", "hybrid", "iterative"):
+        if method == "pipeline" and pipeline_search:
+            data = pipeline_search(
+                q, backend=backend, k=k, model=model, filters=None,
+                collection_suffix=None,
+            )
+        elif method in ("multi-query", "decompose", "hyde", "hybrid", "iterative"):
             fn_map = {
                 "multi-query": multi_query_search,
                 "decompose":   decomposed_search,
