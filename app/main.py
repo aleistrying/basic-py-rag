@@ -3832,41 +3832,23 @@ def research_search(
     backend: str = Query("qdrant"),
 ):
     """
-    JSON endpoint: runs semantic/advanced search and returns normalised results.
-    Supports method = standard | multi-query | decompose | hyde | hybrid | iterative
+    JSON endpoint: runs FAST vector search and returns normalised results.
+    Always uses the base vector search — no LLM calls here so it returns in ~ms.
+    Advanced methods (multi-query etc.) do extra LLM work only in /api/research/ai.
     """
     import time
     t0 = time.time()
 
-    default_model = os.getenv("OLLAMA_MODEL", "qwen3:4b")
+    if _ingest_state.get("running"):
+        raise HTTPException(
+            status_code=503,
+            detail="Indexing in progress — please wait until the pipeline finishes before searching."
+        )
 
     try:
-        if method == "standard" or method not in (
-            "multi-query", "decompose", "hyde", "hybrid", "iterative"
-        ):
-            raw = search_knowledge_base(q, backend=backend, k=k)
-            results = raw.get("results", [])
-            search_ms = raw.get("backend_info", {}).get("search_time_ms")
-        else:
-            fn_map = {
-                "multi-query": multi_query_search,
-                "decompose":   decomposed_search,
-                "hyde":        hyde_search,
-                "hybrid":      hybrid_search,
-                "iterative":   iterative_retrieval,
-            }
-            fn = fn_map.get(method)
-            if fn is None:
-                raise HTTPException(
-                    status_code=503, detail=f"Advanced method '{method}' not available.")
-            raw = fn(q, backend=backend, k=k, model=default_model)
-            results = raw.get("results") or raw.get("sources") or []
-            timing = raw.get("timing", {})
-            search_ms = timing.get(
-                "total_time_ms") or timing.get("search_time_ms")
-
-    except HTTPException:
-        raise
+        raw = search_knowledge_base(q, backend=backend, k=k)
+        results = raw.get("results", [])
+        search_ms = raw.get("backend_info", {}).get("search_time_ms")
     except Exception as exc:
         logger.error(f"Research search error: {exc}")
         raise HTTPException(status_code=500, detail=str(exc))
@@ -3893,14 +3875,51 @@ def research_ai(
     backend: str = Query("qdrant"),
 ):
     """
-    JSON endpoint: runs RAG + LLM and returns AI answer.
-    Uses the same model default as the research page.
+    JSON endpoint: runs RAG + LLM (with optional advanced retrieval) and returns AI answer.
+    Advanced methods (multi-query, hyde, etc.) do extra LLM retrieval here.
     """
     if not model:
         model = os.getenv("OLLAMA_MODEL", "qwen3:4b")
 
+    if _ingest_state.get("running"):
+        return JSONResponse({
+            "query": q, "answer": "", "ai_response": "",
+            "error": "Indexing in progress — please wait until the pipeline finishes before searching.",
+        })
+
     try:
-        data = generate_llm_answer(q, backend=backend, k=k, model=model)
+        if method in ("multi-query", "decompose", "hyde", "hybrid", "iterative"):
+            fn_map = {
+                "multi-query": multi_query_search,
+                "decompose":   decomposed_search,
+                "hyde":        hyde_search,
+                "hybrid":      hybrid_search,
+                "iterative":   iterative_retrieval,
+            }
+            fn = fn_map.get(method)
+            if fn:
+                raw = fn(q, backend=backend, k=k, model=model)
+                # Advanced methods return sources + sometimes an answer already
+                ai_answer = raw.get("answer") or raw.get("ai_response") or ""
+                sources = raw.get("results") or raw.get("sources") or []
+                if not ai_answer:
+                    # Build the LLM answer from the advanced sources
+                    context_data = generate_llm_answer(
+                        q, backend=backend, k=k, model=model)
+                    ai_answer = context_data.get("ai_response", "")
+                data = {
+                    "query": q,
+                    "ai_response": ai_answer,
+                    "model": model,
+                    "method": method,
+                    "sources": sources,
+                    "backend_info": raw.get("timing", {}),
+                }
+            else:
+                data = generate_llm_answer(
+                    q, backend=backend, k=k, model=model)
+        else:
+            data = generate_llm_answer(q, backend=backend, k=k, model=model)
     except Exception as exc:
         logger.error(f"Research AI error: {exc}")
         return JSONResponse({
@@ -3908,7 +3927,7 @@ def research_ai(
             "ai_response": f"AI service error: {exc}",
             "model": model,
             "error": str(exc),
-        }, status_code=200)  # 200 so the UI handles the message gracefully
+        }, status_code=200)
 
     data["method"] = method
     return JSONResponse(data)
@@ -3919,13 +3938,13 @@ def open_file_native(path: str = Query(...), page: int = Query(1)):
     """
     Opens a document with the OS default application (macOS: open, Linux: xdg-open).
     Only resolves paths within the project's data directory for safety.
+    Returns open_in_browser=True for text formats so the UI shows them in the modal.
     """
     import platform
 
-    # Resolve safe path: only allow files under ./data/
     project_root = Path(__file__).parent.parent
 
-    # Normalise: strip /app prefix added by Docker, leading ./
+    # Normalise: strip leading ./ or /app/
     clean = path.lstrip("./")
     if clean.startswith("app/"):
         clean = clean[4:]
@@ -3942,10 +3961,30 @@ def open_file_native(path: str = Query(...), page: int = Query(1)):
     if not candidate.is_file():
         return JSONResponse({"success": False, "message": "File not found.", "resolved": str(candidate)})
 
+    ext = candidate.suffix.lower()
+    # Text formats: open in the built-in browser modal instead of a system app
+    text_extensions = {".md", ".txt", ".yaml", ".yml", ".json", ".csv", ".rst"}
+    if ext in text_extensions:
+        return JSONResponse({
+            "success": True,
+            "open_in_browser": True,
+            "url": f"/files/serve/{candidate.name}",
+            "message": f"Viewing {candidate.name}",
+            "page_hint": page,
+        })
+
     try:
         system = platform.system()
         if system == "Darwin":
-            subprocess.Popen(["open", str(candidate)])
+            if ext == ".pdf" and page > 1:
+                # macOS: open PDF at specific page via AppleScript (Preview)
+                script = (
+                    f'tell application "Preview" to activate\n'
+                    f'tell application "Preview" to open POSIX file "{candidate}"\n'
+                )
+                subprocess.Popen(["osascript", "-e", script])
+            else:
+                subprocess.Popen(["open", str(candidate)])
         elif system == "Linux":
             subprocess.Popen(["xdg-open", str(candidate)])
         elif system == "Windows":
@@ -4084,6 +4123,10 @@ def api_research_ingest():
         "log": ["Starting pipeline…"], "started_at": time.time(),
     }
 
+    # Release the local Qdrant file lock before the subprocess opens it.
+    from app.qdrant_backend import close_client as _close_qdrant
+    _close_qdrant()
+
     def run():
         global _ingest_state
         import os as _os
@@ -4130,6 +4173,10 @@ def api_research_ingest():
             _ingest_state["log"].append(f"✗ Exception: {exc}")
         finally:
             _ingest_state["running"] = False
+            # Client was closed before the subprocess started; reset the
+            # singleton so the next search/AI request reopens it cleanly.
+            from app.qdrant_backend import close_client as _close_qdrant2
+            _close_qdrant2()
 
     threading.Thread(target=run, daemon=True).start()
     return JSONResponse({"started": True})

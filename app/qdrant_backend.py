@@ -1,6 +1,7 @@
 from qdrant_client import QdrantClient
 import os
 import logging
+import threading
 
 logger = logging.getLogger(__name__)
 
@@ -10,26 +11,51 @@ CLEAN_COLLECTION = "course_docs_clean"
 # Lazy-initialised client — avoids crashing at import time when Qdrant is
 # not yet reachable (e.g. container still starting, or local/offline mode).
 _client: QdrantClient | None = None
+_client_lock = threading.Lock()
 
 
 def _get_client() -> QdrantClient:
-    """Return the shared Qdrant client, creating it on first call."""
+    """Return the shared Qdrant client, creating it on first call (thread-safe)."""
     global _client
     if _client is not None:
         return _client
 
-    local_path = os.getenv("QDRANT_LOCAL_PATH")
-    if local_path:
-        # Local file-based storage — no server needed (great for macOS offline use)
-        os.makedirs(local_path, exist_ok=True)
-        logger.info(f"Qdrant: using local file storage at {local_path}")
-        _client = QdrantClient(path=local_path)
-    else:
-        host = os.getenv("QDRANT_HOST", "localhost")
-        logger.info(f"Qdrant: connecting to {host}:6333")
-        _client = QdrantClient(host=host, port=6333)
+    with _client_lock:
+        # Re-check inside the lock to avoid double-init race
+        if _client is not None:
+            return _client
+
+        local_path = os.getenv("QDRANT_LOCAL_PATH")
+        if local_path:
+            # Local file-based storage — no server needed (great for macOS offline use)
+            os.makedirs(local_path, exist_ok=True)
+            logger.info(f"Qdrant: using local file storage at {local_path}")
+            _client = QdrantClient(path=local_path)
+        else:
+            host = os.getenv("QDRANT_HOST", "localhost")
+            logger.info(f"Qdrant: connecting to {host}:6333")
+            _client = QdrantClient(host=host, port=6333)
 
     return _client
+
+
+def close_client() -> None:
+    """Close and reset the shared Qdrant client.
+
+    Call this before spawning a subprocess that opens the same local-file
+    storage path, otherwise both processes will hold conflicting locks.
+    The client is lazily re-created on the next call to _get_client().
+    """
+    global _client
+    with _client_lock:
+        if _client is not None:
+            try:
+                _client.close()
+            except Exception:
+                pass
+            _client = None
+            logger.info(
+                "Qdrant: client connection closed (will reopen on next request)")
 
 
 def get_available_collection() -> str:

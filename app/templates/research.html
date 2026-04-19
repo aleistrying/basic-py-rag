@@ -1760,12 +1760,22 @@
       const fname = basename(path) || r.document || 'Document';
       const label = r.document || fname;
       const page = r.page || 1;
+      // Use chunk_id as a meaningful position when page metadata isn't useful
+      const chunk = r.chunk_id;
       const sec = r.section || r.chapter || '';
-      const loc = [page > 1 ? 'p.' + page : '', sec].filter(Boolean).join(' · ');
+      // Build location label: prefer real page > chunk position > section
+      let locParts = [];
+      if (page > 1) locParts.push('p.' + page);
+      else if (chunk && String(chunk) !== '1' && !String(chunk).startsWith('unknown')) locParts.push('§' + chunk);
+      if (sec) locParts.push(sec);
+      const loc = locParts.join(' · ');
+      // For the view button, use page if real, else fallback to 1
+      const viewPage = page > 1 ? page : 1;
+      const viewLabel = page > 1 ? 'View at p.' + page : (chunk && String(chunk) !== '1' ? 'View §' + chunk : 'View');
       const sim = r.similarity != null ? String(r.similarity).slice(0, 5) : r.score != null ? String(r.score).slice(0, 5) : '';
       const prev = r.preview || r.content || '';
       const { cls, icon } = docIcon(fname);
-      return '<div class="src-card" data-fname="' + esc(fname) + '" data-page="' + page + '" onclick="cardClick(this)">' +
+      return '<div class="src-card" data-fname="' + esc(fname) + '" data-page="' + viewPage + '" onclick="cardClick(this)">' +
         '<div class="card-top">' +
         '<div class="doc-icon ' + cls + '">' + icon + '</div>' +
         '<div class="card-info">' +
@@ -1776,8 +1786,8 @@
         '</div>' +
         (prev ? '<div class="card-preview">' + esc(prev) + '</div>' : '') +
         '<div class="card-actions" onclick="event.stopPropagation()">' +
-        '<button class="btn btn-view btn-sm" data-fname="' + esc(fname) + '" data-page="' + page + '" onclick="viewDocBtn(this)">👁 View at p.' + page + '</button>' +
-        '<button class="btn btn-open btn-sm" data-path="' + esc(path) + '" data-page="' + page + '" data-idx="' + idx + '" onclick="openDocBtn(this)">↗ Open in App</button>' +
+        '<button class="btn btn-view btn-sm" data-fname="' + esc(fname) + '" data-page="' + viewPage + '" onclick="viewDocBtn(this)">👁 ' + viewLabel + '</button>' +
+        '<button class="btn btn-open btn-sm" data-path="' + esc(path) + '" data-page="' + viewPage + '" data-idx="' + idx + '" onclick="openDocBtn(this)">↗ Open in App</button>' +
         '<span class="open-ok" id="ok-' + idx + '"></span>' +
         '</div></div>';
     }
@@ -1876,7 +1886,12 @@
       const el = document.getElementById('ok-' + idx);
       try {
         const data = await fetch('/api/open-file?path=' + encodeURIComponent(path) + '&page=' + page).then(r => r.json());
-        if (el) {
+        if (data.open_in_browser) {
+          // Text file — show in built-in modal instead of system app
+          const fname = path.split('/').pop().split('\\').pop();
+          viewDoc(fname, page);
+          if (el) { el.textContent = '✓ Viewing'; el.style.color = 'var(--green)'; el.classList.add('show'); setTimeout(() => el.classList.remove('show'), 3000); }
+        } else if (el) {
           el.textContent = data.success ? '✓ Opened' : '✗ Not found';
           el.style.color = data.success ? 'var(--green)' : 'var(--red)';
           el.classList.add('show'); setTimeout(() => el.classList.remove('show'), 3000);

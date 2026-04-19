@@ -226,8 +226,11 @@ def reciprocal_rank_fusion(
 
     for results in results_list:
         for rank, doc in enumerate(results, start=1):
-            # Create unique key for document (use content hash or chunk_id)
-            doc_key = f"{doc.get('path', '')}:{doc.get('chunk_id', doc.get('page', rank))}"
+            # Unique key: prefer path, fall back to document name, then content prefix
+            _id_path = doc.get('path', '') or doc.get(
+                'document', '') or doc.get('reference', '')
+            _id_chunk = doc.get('chunk_id', doc.get('page', '')) or str(rank)
+            doc_key = f"{_id_path}::{_id_chunk}"
 
             # Calculate RRF score
             rrf_score = 1.0 / (k + rank)

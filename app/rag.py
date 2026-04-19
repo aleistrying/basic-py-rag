@@ -48,15 +48,20 @@ _SYSTEM_PROMPT_FILE = Path(__file__).parent.parent / \
 
 # Default prompt used when no custom file exists
 DEFAULT_SYSTEM_PROMPT = (
-    "Eres un asistente académico. Responde de forma directa y concisa "
-    "usando SOLO la información de los fragmentos.\n\n"
-    "Instrucciones:\n"
-    "- Da una respuesta clara y directa\n"
-    "- Usa fechas, números y nombres exactos de los fragmentos\n"
-    "- Si la información no está en los fragmentos, responde: \"No está disponible.\"\n"
-    "- Solo menciona el documento si es relevante para entender la respuesta\n"
-    "- NO incluyas referencias bibliográficas completas ni autores irrelevantes\n"
-    "- Responde en el lenguaje correspondiente (Ingles, Frances, o Español), de forma natural y concisa"
+    "You are an expert research assistant specializing in legal and academic analysis. "
+    "The user will ask a question and you will be given relevant document excerpts. "
+    "Your job is to build a well-reasoned, complete answer using those excerpts as evidence.\n\n"
+    "Rules:\n"
+    "- Start directly with your answer — no preamble, no 'based on the documents'\n"
+    "- Synthesize the information into a coherent argument or explanation, don't just quote\n"
+    "- Use specific names, case citations, article numbers, dates, and legal principles from the excerpts\n"
+    "- For legal/constitutional questions: identify the legal test, the competing powers or rights, and how the courts resolved the tension\n"
+    "- For factual questions: be direct and precise, 2–4 sentences\n"
+    "- For analytical/argumentative questions: develop the argument fully, 4–10 sentences, structured logically\n"
+    "- If the excerpts are insufficient to fully answer, say what can be answered and what is missing\n"
+    "- DO NOT list sources or references — the UI already shows them\n"
+    "- DO NOT start with 'Fuentes consultadas' or any source list\n"
+    "- Respond in the same language as the question (English, French, or Spanish)"
 )
 
 
@@ -81,12 +86,12 @@ def save_system_prompt(text: str) -> None:
 # Fixed RAG structure — wraps the editable system prompt around context
 RAG_TEMPLATE = """{system_prompt}
 
-Pregunta: {q}
+Question: {q}
 
-Fragmentos relevantes:
+Relevant excerpts:
 {sources}
 
-Respuesta:
+Answer (direct, no source list, same language as the question):
 """
 
 
@@ -239,6 +244,17 @@ def search_knowledge_base(query: str, backend: str = "qdrant", k: int = 5, filte
     # Calculate search time
     search_time_ms = round((time.time() - start_time) * 1000, 1)
 
+    # Deduplicate hits by (path, chunk_id) before building results.
+    # Re-ingest runs can create duplicate Qdrant points for the same chunk.
+    _seen: set = set()
+    deduped_hits = []
+    for hit in hits:
+        _k = f"{hit.get('path', hit.get('document', ''))}::{hit.get('chunk_id', hit.get('page', ''))}"
+        if _k not in _seen:
+            _seen.add(_k)
+            deduped_hits.append(hit)
+    hits = deduped_hits
+
     # Create a presentation-friendly response
     results = []
     for hit in hits:
@@ -295,6 +311,7 @@ def search_knowledge_base(query: str, backend: str = "qdrant", k: int = 5, filte
             "document": clean_document_name,
             "reference": reference,
             "page": hit.get('page'),
+            "chunk_id": hit.get('chunk_id'),
             "chapter": chapter_info.replace(", ", "") if chapter_info else None,
             "section": section_info.replace(", ", "") if section_info else None,
             "similarity": f"{hit['score']:.3f}",
@@ -360,15 +377,23 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
         hits = BACKENDS[backend](emb, k=max(
             k*3, 12), where=filters, collection_suffix=collection_suffix)
 
-    # Prepare candidates for reranking
+    # Prepare candidates for reranking, deduplicating by (path, chunk_id) so that
+    # chunks ingested multiple times don't flood the top-k results.
+    seen_keys: set = set()
     candidates = []
     for hit in hits:
+        _cid = hit.get('chunk_id', hit.get('page', ''))
+        _path = hit.get('path', hit.get('document', ''))
+        _key = f"{_path}::{_cid}"
+        if _key in seen_keys:
+            continue
+        seen_keys.add(_key)
         candidates.append({
             'content': hit['content'],
             'sim': min(max(hit['score'], 0.0), 1.0),  # Normalize score to 0-1
             'path': hit['path'],
             'document': hit.get('document', ''),  # Include document name
-            'chunk_id': hit.get('chunk_id', hit.get('page', 'unknown')),
+            'chunk_id': _cid,
             'page': hit.get('page'),
             'metadata': hit.get('metadata', {})
         })
@@ -486,7 +511,7 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
                 options={
                     "repeat_penalty": 1.0,
                     "temperature": 0.5,
-                    "num_predict": 256,
+                    "num_predict": 2048,
                     "top_p": 0.9
                 }
             )
@@ -506,67 +531,26 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
                 options={
                     "repeat_penalty": 1.0,
                     "temperature": 0.5,
-                    "num_predict": 256,
+                    "num_predict": 2048,
                     "top_p": 0.9
                 }
             )
             metadata = {}
 
-        # Extract the generated text
-        generated_text = response.get('response', '').strip()
-
-        # Build enhanced source attribution footer with full metadata
-        source_references = []
-        for i, result in enumerate(results[:3], 1):  # Show top 3 sources
-            # Extract clean document name - prefer 'document' field, fallback to path processing
-            if 'document' in result and result['document']:
-                doc_name = result['document']
-            else:
-                # Build comprehensive reference from available metadata
-                path = result.get('path', result.get('source_path', ''))
-
-                # Extract clean document name from path
-                doc_name = path
-                if 'data/raw/' in doc_name:
-                    doc_name = doc_name.split('data/raw/')[-1]
-                elif 'data/clean/' in doc_name:
-                    doc_name = doc_name.split('data/clean/')[-1]
-
-                # Clean up file extensions and normalize name
-                doc_name = doc_name.replace('.pdf', '').replace(
-                    '.jsonl', '').replace('.chunks', '')
-                doc_name = doc_name.replace('.txt', '').replace(
-                    '.yaml', '').replace('.yml', '')
-
-                # Handle empty or missing document names
-                if not doc_name or doc_name.strip() == '':
-                    doc_name = "Documento de curso"
-
-            # Add page information if available
-            page_info = ""
-            if result.get('page'):
-                page_info = f" (página {result['page']})"
-            elif result.get('chunk_id'):
-                page_info = f" (sección {result['chunk_id']})"
-
-            # Add any chapter or additional metadata
-            metadata = result.get('metadata', {})
-            chapter_info = ""
-            if metadata.get('chapter'):
-                chapter_info = f", {metadata['chapter']}"
-            elif metadata.get('section'):
-                chapter_info = f", {metadata['section']}"
-
-            # Create full reference with document name included
-            full_ref = f"{doc_name}{page_info}{chapter_info}"
-            source_references.append(f"{i}. {full_ref}")
-
-        # Add enhanced footer to the response - using markdown formatting
-        if source_references:
-            sources_text = "\n".join(source_references)
-            enhanced_response = f"{generated_text}\n\n\n**Fuentes consultadas:**\n{sources_text}"
-        else:
-            enhanced_response = generated_text
+        # Extract the generated text — strip any model-generated source lists
+        # (the UI renders sources from live data; the LLM must not add its own)
+        import re as _re
+        raw_response = response.get('response', '') if hasattr(
+            response, 'get') else getattr(response, 'response', '')
+        enhanced_response = (raw_response or '').strip()
+        # Strip thinking blocks (<think>...</think>) produced by reasoning models like qwen3
+        enhanced_response = _re.sub(
+            r'<think>[\s\S]*?</think>\s*', '', enhanced_response).strip()
+        # Only strip "Fuentes / Sources / References" when they appear at the START of a line
+        enhanced_response = _re.sub(
+            r'(?m)^\*{0,2}(?:Fuentes consultadas|Fuentes|Sources?|Références?|References?)\*{0,2}:?\s*$[\s\S]*',
+            '', enhanced_response, flags=_re.IGNORECASE
+        ).rstrip()
 
         # Calculate total processing time
         total_time_ms = round((time.time() - start_time) * 1000, 1)
