@@ -4088,10 +4088,18 @@ def api_research_ingest():
         global _ingest_state
         import os as _os
         _env = _os.environ.copy()
-        if "QDRANT_URL" not in _env:
-            _qhost = _env.get("QDRANT_HOST", "localhost")
-            _qport = _env.get("QDRANT_PORT", "6333")
-            _env["QDRANT_URL"] = f"http://{_qhost}:{_qport}"
+        # Resolve Docker-only hostnames to localhost when running outside Docker
+        _qhost = _env.get("QDRANT_HOST", "localhost")
+        if _qhost in ("qdrant", "qdrant-db"):  # Docker service names
+            _qhost = "localhost"
+        _qport = _env.get("QDRANT_PORT", "6333")
+        _env["QDRANT_URL"] = f"http://{_qhost}:{_qport}"
+        _env["QDRANT_HOST"] = _qhost
+        # Also fix Postgres host if set to Docker service name
+        _pghost = _env.get("POSTGRES_HOST", "localhost")
+        if _pghost in ("postgres", "db", "postgresql"):
+            _pghost = "localhost"
+        _env["POSTGRES_HOST"] = _pghost
         try:
             proc = __import__("subprocess").Popen(
                 [sys.executable, str(script)],
