@@ -2,6 +2,8 @@
 Query helper that ensures proper E5 query prefixes for consistent retrieval.
 Use this for embedding queries before searching Qdrant/pgvector.
 """
+import re as _re
+import unicodedata
 from typing import List, Union
 import numpy as np
 import sys
@@ -102,91 +104,227 @@ def get_model():
     return _model
 
 
+def _normalize(text: str) -> str:
+    """Lowercase, strip accents, collapse whitespace — for matching only, never for embedding."""
+    text = text.lower()
+    text = "".join(
+        c for c in unicodedata.normalize("NFD", text)
+        if unicodedata.category(c) != "Mn"
+    )
+    return _re.sub(r"\s+", " ", text).strip()
+
+
+# ---------------------------------------------------------------------------
+# Case packs: triggered by a specific case / statute mention.
+# Each pack returns 2-3 focused variant queries (not one bloated query).
+# ---------------------------------------------------------------------------
+_CASE_PACKS: list[tuple[list[str], list[str]]] = [
+    # Carbon pricing reference (FR + EN triggers)
+    (
+        ["tarification du carbone", "tarification carbone", "carbon pricing",
+         "ggppa", "ltpges", "greenhouse gas pollution pricing"],
+        [
+            "{q} Renvoi tarification carbone LTPGES",
+            "{q} double aspect fédéralisme coopératif",
+            "{q} POGG intérêt national",
+        ],
+    ),
+    # Trans Mountain / paramountcy / Burnaby — keep isolated from carbon
+    (
+        ["trans mountain", "burnaby", "city of burnaby", "trans-mountain"],
+        [
+            "{q} prépondérance fédérale paramountcy",
+            "{q} entreprise fédérale réglementation municipale",
+        ],
+    ),
+    # Secession reference
+    (
+        ["sécession", "secession", "renvoi sécession", "québec"],
+        [
+            "{q} Renvoi sécession Québec principes constitutionnels",
+            "{q} fédéralisme démocratie constitutionnalisme état de droit",
+        ],
+    ),
+    # Senate reference
+    (
+        ["sénat", "senate reform", "réforme du sénat"],
+        [
+            "{q} Renvoi réforme du Sénat",
+            "{q} fédéralisme procédure de modification",
+        ],
+    ),
+]
+
+# ---------------------------------------------------------------------------
+# Doctrine buckets: mutually exclusive — expanding "chevauchement" must NOT
+# also inject "applicabilité" or "prépondérance", which belong to different
+# doctrines and pollute retrieval.
+# ---------------------------------------------------------------------------
+_DOCTRINE_BUCKETS: list[tuple[list[str], list[str]]] = [
+    # Validity / classification
+    (
+        ["caract", "validit", "pith", "substance", "classification"],
+        ["caractère véritable", "pith and substance", "validité constitutionnelle",
+         "objet véritable"],
+    ),
+    # Double aspect / overlap (chevauchement)
+    (
+        ["chevauchement", "double aspect", "coexistence", "concurren"],
+        ["double aspect", "fédéralisme coopératif", "coexistence"],
+    ),
+    # Paramountcy / operability (prépondérance)
+    (
+        ["preponderan", "prepondéran", "paramountcy", "operabilit", "operabilit",
+         "conflit", "conflict", "incompatibilit"],
+        ["prépondérance fédérale", "paramountcy",
+            "opérabilité", "conflit de lois"],
+    ),
+    # Interjurisdictional immunity / applicability
+    (
+        ["applicabilit", "immunite", "immunity", "interjuridiction",
+         "entreprise fedérale", "federal undertaking"],
+        ["immunité interjuridictionnelle", "interjurisdictional immunity",
+         "entreprise fédérale", "applicabilité"],
+    ),
+    # POGG / national concern
+    (
+        ["pogg", "pobg", "interet national", "national concern", "pouvoir residuaire",
+         "residual power"],
+        ["POGG", "POBG", "intérêt national", "national concern",
+         "pouvoir résiduaire"],
+    ),
+    # Cooperative federalism / division of powers (generic)
+    (
+        ["federalism", "federalisme", "partage", "division of powers",
+         "repartition", "pouvoir federal", "pouvoir provincial"],
+        ["fédéralisme coopératif", "partage des compétences",
+         "pouvoirs fédéraux", "pouvoirs provinciaux"],
+    ),
+    # Criminal law head of power
+    (
+        ["droit penal", "criminal law",
+            "91(27)", "prohibition", "sanction penale"],
+        ["droit pénal", "criminal law", "91(27)", "objectif prohibitif"],
+    ),
+    # Renvoi / advisory opinion (generic)
+    (
+        ["renvoi", "reference", "avis consultatif", "advisory opinion"],
+        ["renvoi avis consultatif", "procédure de renvoi"],
+    ),
+]
+
+# ---------------------------------------------------------------------------
+# Bilingual bridging: single-term synonyms (FR ↔ EN), no doctrine mixing.
+# Only used for the primary/fallback single-string path.
+# ---------------------------------------------------------------------------
+_BRIDGE: dict[str, str] = {
+    "federalism": "fédéralisme",
+    "fédéralisme": "federalism",
+    "paramountcy": "prépondérance fédérale",
+    "prépondérance": "paramountcy",
+    "immunity": "immunité interjuridictionnelle",
+    "immunité": "interjurisdictional immunity",
+    "validity": "validité constitutionnelle",
+    "validité": "constitutional validity",
+    "pith and substance": "caractère véritable",
+    "caractère véritable": "pith and substance",
+    "national concern": "intérêt national",
+    "intérêt national": "national concern",
+    # Spanish course terms
+    "nube": "cloud platform",
+    "entrega": "deadline fecha de entrega",
+    "evaluación": "nota puntaje",
+    "horario": "cronograma calendario",
+    "profesor": "docente instructor",
+}
+
+
+def build_queries(query: str, max_variants: int = 4) -> list[str]:
+    """
+    Build a ranked list of focused retrieval queries from a single user query.
+
+    Strategy:
+    1. Check case packs first — if the query names a specific case/statute,
+       return 2-3 targeted variants specific to that case.
+    2. Check doctrine buckets — expand within the matching doctrine only,
+       keeping doctrines isolated from each other.
+    3. Fall back to bilingual bridging for generic vocabulary.
+
+    Always returns the original query as the first element.
+    Never returns more than `max_variants` queries total.
+    """
+    qn = _normalize(query)
+    queries: list[str] = [query]
+
+    # ── 1. Case packs (highest priority, most precise) ──────────────────────
+    for triggers, templates in _CASE_PACKS:
+        if any(_normalize(t) in qn for t in triggers):
+            for tmpl in templates:
+                v = tmpl.format(q=query)
+                if v not in queries:
+                    queries.append(v)
+            break  # only one case pack — stop after first match
+
+    if len(queries) > 1:
+        return queries[:max_variants]
+
+    # ── 2. Doctrine buckets (medium priority, doctrine-isolated) ─────────────
+    matched_bucket: list[str] | None = None
+    for triggers, terms in _DOCTRINE_BUCKETS:
+        if any(t in qn for t in triggers):
+            matched_bucket = terms
+            break  # only one bucket — first match wins
+
+    if matched_bucket:
+        # Build one variant that appends the doctrine-specific terms
+        doctrine_suffix = " ".join(matched_bucket[:3])
+        v = query + " " + doctrine_suffix
+        if v not in queries:
+            queries.append(v)
+        # Add a second variant with the remaining terms if any
+        if len(matched_bucket) > 3:
+            v2 = query + " " + " ".join(matched_bucket[3:])
+            if v2 not in queries:
+                queries.append(v2)
+
+    if len(queries) > 1:
+        return queries[:max_variants]
+
+    # ── 3. Bilingual bridge (fallback) ───────────────────────────────────────
+    extras: list[str] = []
+    for key, synonym in _BRIDGE.items():
+        if _normalize(key) in qn:
+            extras.append(synonym)
+    if extras:
+        v = query + " " + " ".join(dict.fromkeys(extras))
+        queries.append(v)
+
+    return queries[:max_variants]
+
+
 def expand_query(query: str) -> str:
     """
-    Expand queries with synonyms and common variations to improve retrieval.
-    Handles Spanish course terms, French constitutional law terms, and English legal terms.
+    Return a single expanded query string for backward-compatible callers.
 
-    Args:
-        query: Original search query
+    Uses the same doctrine-aware logic as build_queries() but collapses the
+    result to one string (joining only the first variant's extra terms, not
+    all variants concatenated).
 
-    Returns:
-        Expanded query with relevant synonyms
+    For multi-query search, prefer build_queries() directly.
     """
-    # Spanish course / platform terms
-    course_dict = {
-        "nube": ["cloud", "clouds", "plataforma en la nube", "Azure", "AWS", "MongoDB Atlas"],
-        "nubes": ["cloud", "clouds", "plataformas en la nube", "Azure", "AWS", "MongoDB Atlas"],
-        "entrega": ["fecha de entrega", "fecha límite", "deadline"],
-        "evaluación": ["puntaje", "porcentaje", "evaluaciones", "nota"],
-        "evaluaciones": ["puntaje", "porcentaje", "evaluación", "nota"],
-        "examen": ["evaluación", "prueba", "test"],
-        "horario": ["cronograma", "calendario", "fechas"],
-        "profesor": ["docente", "instructor", "maestro"],
-        "clase": ["curso", "materia", "asignatura"],
-        "hora": ["tiempo", "horario", "schedule"],
-    }
-
-    # French / English Canadian constitutional law terms
-    law_dict = {
-        # Carbon pricing / environment
-        "tarification": ["tarification carbone", "LTPGES", "carbon pricing", "GES", "greenhouse gas"],
-        "carbone": ["tarification carbone", "LTPGES", "GES", "greenhouse gas", "tarification"],
-        "ltpges": ["LTPGES", "tarification carbone", "GES", "Loi sur la tarification"],
-        "carbon": ["carbon pricing", "LTPGES", "tarification carbone", "GES"],
-        # Division of powers / double aspect
-        "chevauchement": ["chevauchement double aspect", "concurrent jurisdiction", "compétences partagées"],
-        "double aspect": ["double aspect", "chevauchement", "concurrent jurisdiction", "validité"],
-        "aspect": ["double aspect", "chevauchement", "caractère véritable", "pith and substance"],
-        # Advisory opinions / references
-        "renvoi": ["renvoi avis consultatif", "advisory opinion", "référence constitutionnelle"],
-        "reference": ["renvoi", "advisory opinion", "avis consultatif"],
-        # Federalism
-        "fédéralisme": ["fédéralisme coopératif", "cooperative federalism", "partage des compétences", "division of powers"],
-        "federalism": ["fédéralisme", "cooperative federalism", "partage des compétences"],
-        # Paramountcy
-        "opérabilité": ["opérabilité paramountcy", "federal paramountcy", "prépondérance fédérale"],
-        "paramountcy": ["paramountcy", "prépondérance fédérale", "opérabilité"],
-        "prépondérance": ["prépondérance fédérale", "paramountcy", "opérabilité"],
-        # Interjurisdictional immunity
-        "applicabilité": ["applicabilité interjuridictionnelle", "interjurisdictional immunity", "immunité interjuridictionnelle"],
-        "immunity": ["interjurisdictional immunity", "immunité interjuridictionnelle", "applicabilité"],
-        "immunité": ["immunité interjuridictionnelle", "interjurisdictional immunity", "applicabilité"],
-        # Pith and substance / validity
-        "validité": ["validité constitutionnelle", "caractère véritable", "pith and substance", "constitutionnalité"],
-        "validity": ["validity", "caractère véritable", "pith and substance", "constitutionnalité"],
-        "pith": ["pith and substance", "caractère véritable", "validité", "constitutionnalité"],
-        "caractère véritable": ["caractère véritable", "pith and substance", "validité"],
-        # POGG / national concern
-        "pogg": ["POGG", "peace order good government", "paix ordre bon gouvernement", "intérêt national", "national concern"],
-        "pobg": ["POBG", "POGG", "pouvoir résiduaire", "national concern", "intérêt national"],
-        "national concern": ["national concern", "intérêt national", "POGG", "POBG"],
-        "intérêt national": ["intérêt national", "national concern", "POGG", "POBG"],
-        # Criminal law
-        "droit pénal": ["droit pénal", "criminal law", "91(27)", "objectif prohibition sanction"],
-        "criminal": ["criminal law", "droit pénal", "91(27)", "prohibition sanction"],
-        # Provincial powers
-        "provincial": ["compétence provinciale", "provincial powers", "art. 92", "article 92"],
-        "compétence": ["compétence fédérale", "compétence provinciale", "partage des compétences", "division of powers"],
-    }
-
-    ql = query.lower()
-    extra_terms = []
-
-    for key, synonyms in course_dict.items():
-        if key in ql:
-            extra_terms.extend(synonyms)
-
-    for key, synonyms in law_dict.items():
-        if key in ql:
-            extra_terms.extend(synonyms)
-
-    if extra_terms:
-        # Deduplicate and limit to avoid query bloat (max 5 extra terms for law, 3 for course)
-        unique_terms = list(dict.fromkeys(extra_terms))[:5]
-        return query + " " + " ".join(unique_terms)
-
-    return query
+    variants = build_queries(query, max_variants=2)
+    if len(variants) == 1:
+        return query
+    # The second variant already has the right suffix appended; use it as-is
+    # so we don't double-append.  But we only want the *extra* terms, not the
+    # full variant (which repeats the original query).  Trim the original prefix.
+    second = variants[1]
+    if second.startswith(query):
+        extra = second[len(query):].strip()
+        # Keep at most 5 extra tokens to avoid bloating the embedding
+        extra_tokens = extra.split()[:5]
+        return query + (" " + " ".join(extra_tokens) if extra_tokens else "")
+    return second
 
 
 def embed_e5(texts: Union[List[str], str], is_query: bool = False) -> Union[np.ndarray, List[float]]:

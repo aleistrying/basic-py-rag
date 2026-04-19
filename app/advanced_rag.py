@@ -24,11 +24,12 @@ except ImportError:
     ollama = None
 
 try:
-    from scripts.query_embed import embed_query as embed_query_clean, expand_query, embed_e5
+    from scripts.query_embed import embed_query as embed_query_clean, expand_query, build_queries, embed_e5
 except ImportError:
     embed_query_clean = None
     embed_e5 = None
     def expand_query(x): return x
+    def build_queries(x, **_): return [x]
 
 from app.qdrant_backend import search_qdrant
 from app.pgvector_backend import search_pgvector

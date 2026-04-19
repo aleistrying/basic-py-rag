@@ -10,12 +10,13 @@ logger = logging.getLogger(__name__)
 
 # Import clean pipeline embedder and query utilities (consolidated)
 try:
-    from scripts.query_embed import embed_query as embed_query_clean, expand_query, embed_e5
+    from scripts.query_embed import embed_query as embed_query_clean, expand_query, build_queries, embed_e5
 except ImportError:
     print("Warning: query_embed module not available")
     print("Install: pip install sentence-transformers")
     embed_e5 = None
     def expand_query(x): return x
+    def build_queries(x, **_): return [x]
     embed_query_clean = None
 
 
@@ -270,26 +271,42 @@ def search_knowledge_base(query: str, backend: str = "qdrant", k: int = 5, filte
         raise ValueError(
             f"Backend '{backend}' not supported. Available backends: {available_backends}")
 
-    # Apply query expansion for better Spanish query matching
-    expanded_query = expand_query(query)
+    # Build focused retrieval variants (1-4 queries, doctrine-isolated)
+    query_variants = build_queries(query, max_variants=4)
 
-    # Use clean pipeline embedder if available, fallback to e5 directly
-    if embed_query_clean is not None:
-        try:
-            emb = embed_query_clean(expanded_query)
-        except Exception as e:
-            print(f"Clean embedder failed, using fallback: {e}")
-            emb = embed_e5([expanded_query], is_query=True)[0]
-    else:
-        emb = embed_e5([expanded_query], is_query=True)[0]
+    def _embed(q: str):
+        if embed_query_clean is not None:
+            try:
+                return embed_query_clean(q)
+            except Exception as e:
+                logger.warning(f"Clean embedder failed: {e}")
+        return embed_e5([q], is_query=True)[0]
 
-    # Pass filters and collection_suffix to the backend search function
-    if backend == "qdrant":
-        hits = BACKENDS[backend](
+    # Run each variant and collect all hits, scored by RRF
+    from collections import defaultdict
+    rrf_scores: dict = defaultdict(float)
+    rrf_docs: dict = {}
+    RRF_K = 60
+
+    for rank_offset, variant in enumerate(query_variants):
+        emb = _embed(variant)
+        variant_hits = BACKENDS[backend](
             emb, k=k, where=filters, collection_suffix=collection_suffix)
-    else:  # pgvector
-        hits = BACKENDS[backend](
-            emb, k=k, where=filters, collection_suffix=collection_suffix)
+        for rank, hit in enumerate(variant_hits, start=1):
+            doc_key = (
+                hit.get('path', hit.get('document', '')),
+                hit.get('chunk_id', hit.get('page', '')),
+            )
+            rrf_scores[doc_key] += 1.0 / (RRF_K + rank)
+            if doc_key not in rrf_docs or hit['score'] > rrf_docs[doc_key]['score']:
+                rrf_docs[doc_key] = hit
+
+    # Sort fused results and take top-k
+    ranked_keys = sorted(rrf_scores, key=lambda k: rrf_scores[k], reverse=True)
+    hits = [rrf_docs[dk] for dk in ranked_keys[:k]]
+
+    # The primary expanded query (first variant that differs from original)
+    expanded_query = query_variants[1] if len(query_variants) > 1 else query
 
     # Calculate search time
     search_time_ms = round((time.time() - start_time) * 1000, 1)
@@ -408,26 +425,41 @@ def generate_llm_answer(query: str, backend: str = "qdrant", k: int = 5, model: 
         raise ValueError(
             f"Backend '{backend}' not supported. Available backends: {available_backends}")
 
-    # Apply query expansion for better retrieval
-    expanded_query = expand_query(query)
+    # Build focused retrieval variants (1-4 queries, doctrine-isolated)
+    query_variants = build_queries(query, max_variants=4)
+    expanded_query = query_variants[1] if len(query_variants) > 1 else query
 
-    # Use clean pipeline embedder if available, fallback to e5 directly
-    if embed_query_clean is not None:
-        try:
-            emb = embed_query_clean(expanded_query)
-        except Exception as e:
-            print(f"Clean embedder failed, using fallback: {e}")
-            emb = embed_e5([expanded_query], is_query=True)[0]
-    else:
-        emb = embed_e5([expanded_query], is_query=True)[0]
+    def _embed_llm(q: str):
+        if embed_query_clean is not None:
+            try:
+                return embed_query_clean(q)
+            except Exception as e:
+                logger.warning(f"Clean embedder failed: {e}")
+        return embed_e5([q], is_query=True)[0]
 
-    # Get more results for reranking (12-16 results for better coverage)
-    if backend == "qdrant":
-        hits = BACKENDS[backend](emb, k=max(
-            k*3, 12), where=filters, collection_suffix=collection_suffix)
-    else:  # pgvector
-        hits = BACKENDS[backend](emb, k=max(
-            k*3, 12), where=filters, collection_suffix=collection_suffix)
+    # Run each variant and fuse with RRF, using wider k for reranking
+    from collections import defaultdict
+    rrf_scores_llm: dict = defaultdict(float)
+    rrf_docs_llm: dict = {}
+    RRF_K = 60
+    fetch_k = max(k * 3, 12)
+
+    for rank_offset, variant in enumerate(query_variants):
+        emb = _embed_llm(variant)
+        variant_hits = BACKENDS[backend](
+            emb, k=fetch_k, where=filters, collection_suffix=collection_suffix)
+        for rank, hit in enumerate(variant_hits, start=1):
+            doc_key = (
+                hit.get('path', hit.get('document', '')),
+                hit.get('chunk_id', hit.get('page', '')),
+            )
+            rrf_scores_llm[doc_key] += 1.0 / (RRF_K + rank)
+            if doc_key not in rrf_docs_llm or hit['score'] > rrf_docs_llm[doc_key]['score']:
+                rrf_docs_llm[doc_key] = hit
+
+    ranked_keys = sorted(
+        rrf_scores_llm, key=lambda k: rrf_scores_llm[k], reverse=True)
+    hits = [rrf_docs_llm[dk] for dk in ranked_keys[:fetch_k]]
 
     # Prepare candidates for reranking, deduplicating by (path, chunk_id) so that
     # chunks ingested multiple times don't flood the top-k results.
