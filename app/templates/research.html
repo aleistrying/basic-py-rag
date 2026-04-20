@@ -2738,6 +2738,29 @@
 
     // Research — method pills
     let activeMethod = 'standard';
+    let _currentSearchAbort = null;
+
+    // Retry AI fetch indefinitely until success or the search is cancelled
+    async function fetchAIWithRetry(url, signal, onRetry) {
+      let attempt = 0;
+      while (!signal.aborted) {
+        attempt++;
+        try {
+          const r = await fetch(url, { signal });
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return await r.json();
+        } catch (e) {
+          if (signal.aborted || e.name === 'AbortError') throw e;
+          onRetry(attempt);
+          // Wait 3 s before next attempt, bail immediately if a new search starts
+          await new Promise(res => {
+            const t = setTimeout(res, 3000);
+            signal.addEventListener('abort', () => { clearTimeout(t); res(); }, { once: true });
+          });
+        }
+      }
+      throw new DOMException('Aborted', 'AbortError');
+    }
     document.querySelectorAll('.pill').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.pill').forEach(b => b.classList.remove('active'));
@@ -2778,7 +2801,8 @@
       // View button label
       const viewPage = page > 1 ? page : 1;
       const viewLabel = sectionId ? 'View ' + sectionId : (page > 1 ? 'View p.' + page : (chunk && String(chunk) !== '0' ? 'View §' + chunk : 'View'));
-      const sim = r.similarity != null ? String(r.similarity).slice(0, 5) : r.score != null ? String(r.score).slice(0, 5) : '';
+      const rawScore = r.similarity != null ? r.similarity : r.score != null ? r.score : null;
+      const sim = rawScore != null ? Math.round(rawScore * 100) + '%' : '';
       const prev = r.preview || r.content || '';
       // Snippet: strip markdown syntax so highlightAndScroll can find it in rendered HTML
       const rawSnippet = (r.content || r.preview || '').slice(0, 200);
@@ -2791,7 +2815,7 @@
         '<div class="card-name" title="' + esc(label) + '">' + esc(label) + '</div>' +
         (loc ? '<div class="card-loc">' + esc(loc) + '</div>' : '') +
         '</div>' +
-        (sim ? '<div class="card-score" style="color:' + scoreColor(sim) + '">' + esc(sim) + '</div>' : '') +
+        (sim ? '<div class="card-score" style="color:' + scoreColor(rawScore) + '">' + esc(sim) + '</div>' : '') +
         '</div>' +
         (prev ? '<div class="card-preview">' + esc(prev) + '</div>' : '') +
         '<div class="card-actions" onclick="event.stopPropagation()">' +
@@ -2832,6 +2856,9 @@
       srcList.innerHTML = skelCards(); aiBox.innerHTML = skelAI();
       srcCount.textContent = '…'; aiMeta.textContent = '…';
       btn.disabled = true;
+      if (_currentSearchAbort) _currentSearchAbort.abort();
+      _currentSearchAbort = new AbortController();
+      const signal = _currentSearchAbort.signal;
       const t0 = Date.now();
 
       const sourcesOnly = activeMethod === 'sources-only';
@@ -2839,7 +2866,7 @@
       aiPanel.style.display = sourcesOnly ? 'none' : '';
 
       const searchMethod = sourcesOnly ? 'standard' : activeMethod;
-      const searchP = fetch('/api/research/search?q=' + encodeURIComponent(q) + '&method=' + searchMethod + '&k=' + (sourcesOnly ? 10 : 6))
+      const searchP = fetch('/api/research/search?q=' + encodeURIComponent(q) + '&method=' + searchMethod + '&k=' + (sourcesOnly ? 10 : 8))
         .then(r => r.json()).catch(e => ({ error: String(e), results: [] }));
 
       try {
@@ -2862,19 +2889,20 @@
         return;
       }
 
-      // AI call — no browser-side timeout; slow Mac models will just keep waiting
-      const aiP = fetch('/api/research/ai?q=' + encodeURIComponent(q) + '&method=' + activeMethod + '&model=' + encodeURIComponent(DEFAULT_MODEL))
-        .then(r => r.json()).catch(e => ({ error: String(e), ai_response: 'Error contacting AI service.' }));
+      // AI call — retries on any error until it succeeds or a new search cancels it
+      const aiUrl = '/api/research/ai?q=' + encodeURIComponent(q) + '&method=' + activeMethod + '&model=' + encodeURIComponent(DEFAULT_MODEL);
 
-      // Pulse the status bar while AI thinks (no fake timeout)
-      let _pulse = 0;
+      // Pulse + retry counter in status bar
+      let _pulse = 0; let _aiAttempt = 1;
       const _pulseTimer = setInterval(() => {
         _pulse++;
-        statusText.textContent = 'AI thinking' + '.'.repeat((_pulse % 3) + 1);
+        const dots = '.'.repeat((_pulse % 3) + 1);
+        const retryLabel = _aiAttempt > 1 ? ' (retry ' + _aiAttempt + ')' : '';
+        statusText.textContent = 'AI thinking' + dots + retryLabel;
       }, 800);
 
       try {
-        const ad = await aiP;
+        const ad = await fetchAIWithRetry(aiUrl, signal, (n) => { _aiAttempt = n; });
         clearInterval(_pulseTimer);
         aiBox.innerHTML = renderAI(ad);
         const total = Date.now() - t0;
@@ -2882,7 +2910,9 @@
         statusText.textContent = 'Done — ' + total + 'ms total';
       } catch (e) {
         clearInterval(_pulseTimer);
-        aiBox.innerHTML = '<div class="empty"><div class="ei"><svg width="28" height="28" style="color:var(--yellow)"><use href="#i-warning"/></svg></div><p>AI unavailable. Check that Ollama is running.</p></div>';
+        if (e.name !== 'AbortError') {
+          aiBox.innerHTML = '<div class="empty"><div class="ei"><svg width="28" height="28" style="color:var(--yellow)"><use href="#i-warning"/></svg></div><p>AI unavailable. Check that Ollama is running.</p></div>';
+        }
       }
       btn.disabled = false;
     }
