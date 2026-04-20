@@ -5,6 +5,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Research Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,400;0,500;0,700;1,400&family=Nunito:wght@700;800;900&family=Caveat:wght@600;700&display=swap"
+    rel="stylesheet">
   <style>
     *,
     *::before,
@@ -12,6 +17,10 @@
       box-sizing: border-box;
       margin: 0;
       padding: 0
+    }
+
+    html {
+      font-size: 17px;
     }
 
     :root {
@@ -30,12 +39,260 @@
       --yellow: #f59e0b;
       --red: #ef4444;
       --r: 10px;
-      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+      --font: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       --mono: 'Menlo', 'Monaco', 'SF Mono', monospace;
+      /* Derived — used to replace hardcoded rgba values */
+      --bg-glass: rgba(7, 9, 15, .94);
+      --sur-card-h: rgba(14, 20, 34, .85);
+      --log-bg: #050810;
+      --hero-a: #e2e8f0;
+      --hero-b: #a78bfa;
+      --upload-brd: rgba(124, 58, 237, .35);
+      --acc-code-bg: rgba(124, 58, 237, .15);
+      --theme-font: var(--font);
+    }
+
+    /* ── Theme: Light ───────────────────────────── */
+    [data-theme="light"] {
+      --bg: #f5f7fa;
+      --sur: #ffffff;
+      --sur2: #eef2f8;
+      --brd: rgba(0, 0, 0, .09);
+      --brd-h: rgba(109, 40, 217, .4);
+      --acc: #7c3aed;
+      --acc-l: #6d28d9;
+      --acc-bg: rgba(124, 58, 237, .08);
+      --text: #0f172a;
+      --muted: #64748b;
+      --dim: #334155;
+      --bg-glass: rgba(245, 247, 250, .95);
+      --sur-card-h: rgba(230, 235, 245, .9);
+      --log-bg: #1e1e2e;
+      --hero-a: #1e1b4b;
+      --hero-b: #7c3aed;
+      --upload-brd: rgba(124, 58, 237, .3);
+      --acc-code-bg: rgba(124, 58, 237, .1);
+    }
+
+    /* ── Theme: Nord ────────────────────────────── */
+    [data-theme="nord"] {
+      --bg: #2e3440;
+      --sur: #3b4252;
+      --sur2: #434c5e;
+      --brd: rgba(255, 255, 255, .09);
+      --brd-h: rgba(136, 192, 208, .5);
+      --acc: #5e81ac;
+      --acc-l: #88c0d0;
+      --acc-bg: rgba(94, 129, 172, .18);
+      --text: #eceff4;
+      --muted: #7d8fa3;
+      --dim: #d8dee9;
+      --bg-glass: rgba(46, 52, 64, .95);
+      --sur-card-h: rgba(59, 66, 82, .9);
+      --log-bg: #242831;
+      --hero-a: #eceff4;
+      --hero-b: #88c0d0;
+      --upload-brd: rgba(136, 192, 208, .3);
+      --acc-code-bg: rgba(94, 129, 172, .18);
+    }
+
+    /* ── Theme: Rose ────────────────────────────── */
+    [data-theme="rose"] {
+      --bg: #17040f;
+      --sur: #230b18;
+      --sur2: #2d1021;
+      --brd: rgba(240, 100, 170, .1);
+      --brd-h: rgba(217, 70, 239, .5);
+      --acc: #d946ef;
+      --acc-l: #f0abfc;
+      --acc-bg: rgba(217, 70, 239, .14);
+      --text: #fdf4ff;
+      --muted: #9b4dba;
+      --dim: #e879f9;
+      --bg-glass: rgba(23, 4, 15, .95);
+      --sur-card-h: rgba(35, 11, 24, .9);
+      --log-bg: #0f0009;
+      --hero-a: #fdf4ff;
+      --hero-b: #f0abfc;
+      --upload-brd: rgba(217, 70, 239, .35);
+      --acc-code-bg: rgba(217, 70, 239, .15);
+    }
+
+    /* ── Theme: Kirby 🌸 — Dream Land palette ─────── */
+    [data-theme="kirby"] {
+      --bg: #0e0525;
+      /* deep cosmic dream-night sky   */
+      --sur: #1c0840;
+      --sur2: #290d58;
+      --brd: rgba(255, 105, 180, .14);
+      --brd-h: rgba(255, 61, 154, .60);
+      --acc: #ff3d9a;
+      /* Kirby pink                    */
+      --acc-l: #ff90d4;
+      --acc-bg: rgba(255, 61, 154, .15);
+      --text: #fff0f8;
+      --muted: #9b60a8;
+      --dim: #d4a0e4;
+      --green: #52e0b0;
+      --yellow: #ffd553;
+      /* star yellow — triadic         */
+      --red: #ff5779;
+      --bg-glass: rgba(14, 5, 37, .96);
+      --sur-card-h: rgba(28, 8, 64, .9);
+      --log-bg: #07001e;
+      --hero-a: #fff0f8;
+      --hero-b: #ff90d4;
+      --upload-brd: rgba(255, 61, 154, .40);
+      --acc-code-bg: rgba(255, 61, 154, .15);
+      --r: 20px;
+      --theme-font: 'Nunito', 'Roboto', sans-serif;
+    }
+
+    /* Kirby: extra roundness flair */
+    [data-theme="kirby"] .tab-btn {
+      border-radius: 99px;
+    }
+
+    [data-theme="kirby"] .btn-primary {
+      border-radius: 99px;
+    }
+
+    [data-theme="kirby"] .search-btn {
+      border-radius: 99px;
+    }
+
+    [data-theme="kirby"] header {
+      border-color: rgba(255, 61, 154, .18);
+    }
+
+    /* ── Theme: LittleBigPlanet 🧵 — Felt & Cardboard ── */
+    [data-theme="lbp"] {
+      --bg: #140900;
+      /* near-black dark chocolate     */
+      --sur: #221304;
+      --sur2: #301b08;
+      --brd: rgba(205, 140, 50, .14);
+      --brd-h: rgba(210, 125, 30, .55);
+      --acc: #c96010;
+      /* sackboy zipper amber-orange   */
+      --acc-l: #f0a030;
+      --acc-bg: rgba(201, 96, 16, .15);
+      --text: #f2e0c0;
+      /* aged parchment cream          */
+      --muted: #7a5030;
+      --dim: #c89048;
+      --green: #7ec94a;
+      --yellow: #f5c030;
+      /* warm felt yellow              */
+      --red: #d44020;
+      --bg-glass: rgba(20, 9, 0, .97);
+      --sur-card-h: rgba(34, 19, 4, .9);
+      --log-bg: #0c0500;
+      --hero-a: #f2e0c0;
+      --hero-b: #f0a030;
+      --upload-brd: rgba(201, 96, 16, .40);
+      --acc-code-bg: rgba(201, 96, 16, .15);
+      --r: 6px;
+      --theme-font: 'Caveat', 'Georgia', serif;
+      font-size: 27px;
+    }
+
+    /* LBP burlap/fabric noise overlay */
+    [data-theme="lbp"] body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      opacity: .06;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+    }
+
+    /* Only lift content above the noise overlay — NOT fixed UI elements */
+    [data-theme="lbp"] header,
+    [data-theme="lbp"] .tab-pane {
+      position: relative;
+      z-index: 1;
+    }
+
+    [data-theme="lbp"] .file-row {
+      border-left: 3px solid var(--acc);
+    }
+
+    [data-theme="lbp"] .upload-zone {
+      border-style: dashed;
+    }
+
+    /* ── Theme: Matrix 💻 ───────────────────────── */
+    [data-theme="matrix"] {
+      --bg: #000700;
+      --sur: #001200;
+      --sur2: #001a00;
+      --brd: rgba(0, 200, 60, .1);
+      --brd-h: rgba(0, 255, 65, .4);
+      --acc: #00c840;
+      --acc-l: #00ff51;
+      --acc-bg: rgba(0, 200, 64, .1);
+      --text: #a0ffb0;
+      --muted: #1a6030;
+      --dim: #50c060;
+      --bg-glass: rgba(0, 7, 0, .97);
+      --sur-card-h: rgba(0, 18, 0, .9);
+      --log-bg: #000400;
+      --hero-a: #a0ffb0;
+      --hero-b: #00ff51;
+      --upload-brd: rgba(0, 200, 60, .3);
+      --acc-code-bg: rgba(0, 200, 60, .12);
+      --theme-font: 'Menlo', 'Monaco', 'Courier New', monospace;
+    }
+
+    /* Matrix scanline overlay */
+    [data-theme="matrix"] body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 9999;
+      background: repeating-linear-gradient(0deg,
+          transparent,
+          transparent 2px,
+          rgba(0, 255, 0, .015) 2px,
+          rgba(0, 255, 0, .015) 4px);
+    }
+
+    [data-theme="matrix"] .logo {
+      font-family: var(--mono);
+      letter-spacing: .05em;
+    }
+
+    [data-theme="matrix"] header {
+      border-color: rgba(0, 255, 65, .15);
+    }
+
+    /* ── Theme: Sunset 🌅 ───────────────────────── */
+    [data-theme="sunset"] {
+      --bg: #0d0507;
+      --sur: #1a0c0a;
+      --sur2: #261410;
+      --brd: rgba(255, 130, 50, .1);
+      --brd-h: rgba(255, 100, 30, .45);
+      --acc: #e05c00;
+      --acc-l: #ff9040;
+      --acc-bg: rgba(224, 92, 0, .13);
+      --text: #ffeedd;
+      --muted: #7a4030;
+      --dim: #d4835c;
+      --bg-glass: rgba(13, 5, 7, .95);
+      --sur-card-h: rgba(26, 12, 10, .9);
+      --log-bg: #080204;
+      --hero-a: #ffeedd;
+      --hero-b: #ff9040;
+      --upload-brd: rgba(224, 92, 0, .35);
+      --acc-code-bg: rgba(224, 92, 0, .15);
     }
 
     body {
-      font-family: var(--font);
+      font-family: var(--theme-font, var(--font));
       background: var(--bg);
       color: var(--text);
       min-height: 100vh
@@ -45,7 +302,7 @@
       position: sticky;
       top: 0;
       z-index: 200;
-      background: rgba(7, 9, 15, .94);
+      background: var(--bg-glass);
       backdrop-filter: blur(14px);
       border-bottom: 1px solid var(--brd);
       display: flex;
@@ -88,7 +345,7 @@
 
     .tab-btn.active {
       background: var(--acc-bg);
-      border-color: rgba(124, 58, 237, .3);
+      border-color: var(--brd-h);
       color: var(--acc-l)
     }
 
@@ -103,8 +360,8 @@
       border-radius: 20px;
       font-size: .71rem;
       font-weight: 600;
-      background: rgba(124, 58, 237, .1);
-      border: 1px solid rgba(124, 58, 237, .3);
+      background: var(--acc-bg);
+      border: 1px solid var(--brd-h);
       color: var(--acc-l)
     }
 
@@ -142,7 +399,7 @@
     }
 
     .btn-primary:hover {
-      background: #6d28d9
+      filter: brightness(.82)
     }
 
     .btn-sm {
@@ -185,7 +442,7 @@
 
     .btn-open {
       background: var(--acc-bg);
-      border: 1px solid rgba(124, 58, 237, .35);
+      border: 1px solid var(--brd-h);
       color: var(--acc-l)
     }
 
@@ -204,7 +461,7 @@
     }
 
     .upload-zone {
-      border: 2px dashed rgba(124, 58, 237, .35);
+      border: 2px dashed var(--upload-brd);
       border-radius: 14px;
       background: var(--sur);
       padding: 38px 24px;
@@ -419,8 +676,8 @@
 
     .log-panel {
       display: none;
-      background: #050810;
-      border: 1px solid rgba(124, 58, 237, .2);
+      background: var(--log-bg);
+      border: 1px solid var(--brd-h);
       border-radius: var(--r);
       padding: 12px 14px;
       height: 240px;
@@ -485,7 +742,7 @@
       font-weight: 800;
       letter-spacing: -.045em;
       margin-bottom: 10px;
-      background: linear-gradient(130deg, #e2e8f0, #a78bfa 65%);
+      background: linear-gradient(130deg, var(--hero-a), var(--hero-b) 65%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text
@@ -700,7 +957,7 @@
 
     .src-card:hover {
       border-color: var(--brd-h);
-      background: rgba(14, 20, 34, .85)
+      background: var(--sur-card-h)
     }
 
     .card-top {
@@ -927,7 +1184,7 @@
     }
 
     .md code {
-      background: rgba(124, 58, 237, .15);
+      background: var(--acc-code-bg);
       color: var(--acc-l);
       border-radius: 3px;
       padding: 1px 5px;
@@ -936,8 +1193,8 @@
     }
 
     .md pre {
-      background: #050810;
-      border: 1px solid rgba(124, 58, 237, .15);
+      background: var(--log-bg);
+      border: 1px solid var(--brd);
       border-radius: 7px;
       padding: 12px 14px;
       overflow-x: auto;
@@ -1098,7 +1355,7 @@
       font-size: .88rem;
       line-height: 1.7;
       background: var(--bg);
-      color: var(--txt);
+      color: var(--text);
     }
 
     #doc-viewer.loading {
@@ -1114,7 +1371,7 @@
     #doc-viewer h4 {
       margin: 1.1em 0 .4em;
       font-weight: 600;
-      color: var(--txt);
+      color: var(--text);
     }
 
     #doc-viewer h1 {
@@ -1195,6 +1452,276 @@
       background: rgba(255, 255, 255, .03);
     }
 
+    #doc-viewer h5 {
+      font-size: .88rem;
+      font-weight: 600;
+      color: var(--dim);
+    }
+
+    #doc-viewer h6 {
+      font-size: .82rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    #doc-viewer hr {
+      border: none;
+      border-top: 1px solid var(--brd);
+      margin: 1em 0;
+    }
+
+    #doc-viewer a.doc-link {
+      color: var(--acc-l);
+      text-decoration: none;
+      border-bottom: 1px dashed rgba(167, 139, 250, .4);
+      cursor: pointer;
+    }
+
+    #doc-viewer a.doc-link:hover {
+      color: var(--acc);
+      border-bottom-color: var(--acc);
+    }
+
+    #doc-viewer a[target='_blank'] {
+      color: var(--acc-l);
+      text-decoration: none;
+    }
+
+    #doc-viewer a[target='_blank']:hover {
+      text-decoration: underline;
+    }
+
+    #doc-viewer .ref-link {
+      color: var(--dim);
+      font-style: italic;
+    }
+
+    /* ─── Theme Picker ─── */
+    .theme-btn {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      border: 1px solid var(--brd);
+      background: none;
+      cursor: pointer;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--dim);
+      transition: all .15s;
+      position: relative;
+      flex-shrink: 0;
+    }
+
+    .theme-btn:hover {
+      border-color: var(--acc-l);
+      background: var(--acc-bg);
+    }
+
+    .theme-panel {
+      position: fixed;
+      top: 62px;
+      right: 10px;
+      width: 288px;
+      max-width: calc(100vw - 16px);
+      background: var(--sur);
+      border: 1px solid var(--brd-h);
+      border-radius: 14px;
+      padding: 12px;
+      box-shadow: 0 16px 48px rgba(0, 0, 0, .55);
+      z-index: 9001;
+      display: none;
+    }
+
+    .theme-panel.open {
+      display: block;
+      animation: tp-in .15s ease;
+    }
+
+    @keyframes tp-in {
+      from {
+        opacity: 0;
+        transform: translateY(-6px) scale(.97);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    .theme-panel-title {
+      font-size: .73rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--muted);
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--brd);
+    }
+
+    .theme-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .theme-swatch {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 8px 10px;
+      border-radius: 9px;
+      border: 1.5px solid var(--brd);
+      background: none;
+      cursor: pointer;
+      transition: all .15s;
+      font-family: var(--font);
+      width: 100%;
+      text-align: left;
+    }
+
+    .theme-swatch:hover {
+      border-color: var(--dim);
+      background: var(--sur2);
+    }
+
+    .theme-swatch.active {
+      border-color: var(--acc);
+      background: var(--acc-bg);
+    }
+
+    .swatch-dots {
+      display: flex;
+      gap: 3px;
+      flex-shrink: 0;
+    }
+
+    .sd {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .swatch-name {
+      font-size: .78rem;
+      font-weight: 600;
+      color: var(--dim);
+      white-space: nowrap;
+    }
+
+    .theme-swatch.active .swatch-name {
+      color: var(--acc-l);
+    }
+
+    .swatch-check {
+      margin-left: auto;
+      font-size: .75rem;
+      opacity: 0;
+    }
+
+    .theme-swatch.active .swatch-check {
+      opacity: 1;
+    }
+
+    /* ─── SVG Icon Utility ─── */
+    .ic {
+      display: inline-block;
+      width: 1em;
+      height: 1em;
+      vertical-align: -.125em;
+      flex-shrink: 0;
+    }
+
+    /* ─── Theme Mascots ─── */
+    .theme-mascot {
+      display: none;
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 400;
+      pointer-events: none;
+      filter: drop-shadow(0 6px 18px rgba(0, 0, 0, .5));
+    }
+
+    [data-theme="kirby"] #mascot-kirby {
+      display: block;
+    }
+
+    [data-theme="lbp"] #mascot-lbp {
+      display: block;
+    }
+
+    @keyframes mascot-float {
+
+      0%,
+      100% {
+        transform: translateY(0) rotate(-2deg) scale(1);
+      }
+
+      40% {
+        transform: translateY(-14px) rotate(2deg) scale(1.04);
+      }
+    }
+
+    @keyframes mascot-bounce {
+
+      0%,
+      100% {
+        transform: translateY(0) rotate(0deg);
+      }
+
+      25% {
+        transform: translateY(-10px) rotate(-4deg);
+      }
+
+      75% {
+        transform: translateY(-5px) rotate(4deg);
+      }
+    }
+
+    @keyframes star-spin {
+      from {
+        transform: rotate(0deg);
+      }
+
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    #mascot-kirby .kirby-body {
+      animation: mascot-float 3s ease-in-out infinite;
+    }
+
+    #mascot-lbp .lbp-body {
+      animation: mascot-bounce 1.8s ease-in-out infinite;
+    }
+
+    #doc-viewer del {
+      color: var(--muted);
+      text-decoration: line-through;
+    }
+
+    #doc-viewer .task {
+      list-style: none;
+      padding-left: 0;
+    }
+
+    #doc-viewer .task input[type="checkbox"] {
+      margin-right: 6px;
+      accent-color: var(--acc);
+      cursor: default;
+    }
+
+    #doc-viewer blockquote:empty {
+      display: none;
+    }
+
     .doc-highlight {
       background: rgba(251, 191, 36, .35);
       border-left: 3px solid rgba(251, 191, 36, .9);
@@ -1256,7 +1783,7 @@
       background: var(--acc);
       border-color: var(--acc);
       color: #fff;
-      box-shadow: 0 0 0 4px rgba(124, 58, 237, .14)
+      box-shadow: 0 0 0 4px var(--acc-bg)
     }
 
     .ps.active .ps-label {
@@ -1425,16 +1952,290 @@
 
 <body>
 
+  <!-- ─── SVG Icon Sprite ──────────────────────────────────────── -->
+  <svg id="svg-sprite" xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+    <!-- Book (logo) -->
+    <symbol id="i-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+      stroke-linejoin="round">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+    </symbol>
+    <!-- Folder (Library tab) -->
+    <symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+      stroke-linejoin="round">
+      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+    </symbol>
+    <!-- Search (Research tab) -->
+    <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+      stroke-linejoin="round">
+      <circle cx="11" cy="11" r="8" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </symbol>
+    <!-- Upload cloud -->
+    <symbol id="i-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+      stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="16 16 12 12 8 16" />
+      <line x1="12" y1="12" x2="12" y2="21" />
+      <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" />
+    </symbol>
+    <!-- Theme toggle — three stacked color circles -->
+    <symbol id="i-palette" viewBox="0 0 24 24">
+      <circle cx="8" cy="12" r="4" fill="#ef4444" />
+      <circle cx="16" cy="12" r="4" fill="#3b82f6" />
+      <circle cx="12" cy="6" r="4" fill="#22c55e" />
+    </symbol>
+    <!-- Rocket (onboarding) -->
+    <symbol id="i-rocket" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+      stroke-linejoin="round">
+      <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2l6-6-4.5-4.5z" />
+      <path d="M12 15l-4.5-4.5C9.5 7 14 2 21 2c-.5 8.5-5.5 12.5-9 13z" />
+      <circle cx="16.5" cy="7.5" r="1" fill="currentColor" stroke="none" />
+    </symbol>
+    <!-- Bolt / Lightning (index) -->
+    <symbol id="i-bolt" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+      <polygon points="13,2 4,14 12,14 11,22 20,10 12,10" />
+    </symbol>
+    <!-- Eye (view) -->
+    <symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+      stroke-linejoin="round">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
+    </symbol>
+    <!-- Trash (delete) -->
+    <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+      stroke-linejoin="round">
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+    </symbol>
+    <!-- Refresh -->
+    <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+      stroke-linejoin="round">
+      <path d="M23 4v6h-6" />
+      <path d="M1 20v-6h6" />
+      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+    </symbol>
+    <!-- Database (step 2 index) -->
+    <symbol id="i-db" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+      stroke-linejoin="round">
+      <ellipse cx="12" cy="5" rx="9" ry="3" />
+      <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+      <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+    </symbol>
+    <!-- Star (kirby decorative) -->
+    <symbol id="i-star" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+      <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" />
+    </symbol>
+    <!-- File (document icon) -->
+    <symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+      stroke-linejoin="round">
+      <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
+      <polyline points="13 2 13 9 20 9" />
+    </symbol>
+    <!-- Warning triangle -->
+    <symbol id="i-warning" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+      stroke-linejoin="round">
+      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+      <line x1="12" y1="9" x2="12" y2="13" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </symbol>
+  </svg>
+
+  <!-- ─── Theme Mascots ────────────────────────────────────────── -->
+  <!-- "Dream Puff" — original round puffball character, Kirby-theme mascot -->
+  <div class="theme-mascot" id="mascot-kirby" aria-hidden="true">
+    <svg width="100" height="114" viewBox="0 0 100 114" overflow="visible" xmlns="http://www.w3.org/2000/svg">
+      <g class="kirby-body">
+        <!-- Red oval feet peek from below body (drawn first = behind) -->
+        <ellipse cx="31" cy="99" rx="19" ry="13" fill="#be1c3e" />
+        <ellipse cx="69" cy="99" rx="19" ry="13" fill="#be1c3e" />
+        <!-- Arm nubs (small rotated ellipses on sides) -->
+        <ellipse cx="7" cy="54" rx="16" ry="10" fill="#ff91c4" transform="rotate(-20,7,54)" />
+        <ellipse cx="93" cy="54" rx="16" ry="10" fill="#ff91c4" transform="rotate(20,93,54)" />
+        <!-- Main body: large pink circle -->
+        <circle cx="50" cy="51" r="42" fill="#ff91c4" />
+        <!-- Roundness highlight -->
+        <ellipse cx="37" cy="33" rx="15" ry="10" fill="white" opacity=".22" />
+        <!-- Cheek blushes: large and close to body edges -->
+        <ellipse cx="13" cy="61" rx="14" ry="10" fill="#ff1870" opacity=".40" />
+        <ellipse cx="87" cy="61" rx="14" ry="10" fill="#ff1870" opacity=".40" />
+        <!-- LEFT EYE: dark outer oval, blue iris, dark pupil, white sparkle -->
+        <ellipse cx="33" cy="48" rx="10" ry="12" fill="#08002e" />
+        <ellipse cx="34" cy="46" rx="7.5" ry="9" fill="#38b0e8" />
+        <circle cx="34" cy="48" r="5" fill="#08002e" />
+        <circle cx="27" cy="41" r="4" fill="white" />
+        <!-- RIGHT EYE -->
+        <ellipse cx="67" cy="48" rx="10" ry="12" fill="#08002e" />
+        <ellipse cx="68" cy="46" rx="7.5" ry="9" fill="#38b0e8" />
+        <circle cx="68" cy="48" r="5" fill="#08002e" />
+        <circle cx="61" cy="41" r="4" fill="white" />
+        <!-- Open mouth: dark oval interior + tongue -->
+        <ellipse cx="50" cy="67" rx="14" ry="10" fill="#240010" />
+        <ellipse cx="50" cy="74" rx="10" ry="6" fill="#ff4e6a" />
+      </g>
+      <!-- Spinning star (independent of body float) -->
+      <g style="transform-origin:84px 14px;animation:star-spin 5s linear infinite">
+        <polygon transform="translate(74,4)"
+          points="10,0 12.2,7 19.5,7 13.6,11.3 15.8,18.3 10,14 4.2,18.3 6.4,11.3 0.5,7 7.8,7" fill="#ffd553" />
+      </g>
+    </svg>
+  </div>
+
+  <!-- "Crafty Pal" — original plush toy character, LBP-theme mascot -->
+  <!-- "Crafty Pal" — original plush toy character, LBP-theme mascot -->
+  <div class="theme-mascot" id="mascot-lbp" aria-hidden="true">
+    <!--
+      Sackboy reference breakdown:
+      - Head is nearly square (96 wide × 88 tall), very rounded corners
+      - Ears = round bumps at the SIDES of the head (not top corners), mid-height
+      - Eyes = very large (r≈16), upper-middle of face, wide-set, white highlight at top-left
+      - Stitched button ring around each eye
+      - Mouth = wide (70% of face) shallow arc in lower 30% of face, dark cavity + tongue
+      - Body compact below head with center zipper strip + pull tab
+      - Short arms on sides of body, short stubby legs
+    -->
+    <svg width="110" height="168" viewBox="0 0 110 168" overflow="visible" xmlns="http://www.w3.org/2000/svg">
+      <g class="lbp-body">
+        <!-- Legs (rendered first = behind body) -->
+        <rect x="26" y="126" width="22" height="34" rx="11" fill="#3e1a0a" />
+        <rect x="62" y="126" width="22" height="34" rx="11" fill="#3e1a0a" />
+        <!-- Arms sticking out from body sides -->
+        <rect x="1" y="96" width="20" height="30" rx="10" fill="#6a3618" />
+        <rect x="89" y="96" width="20" height="30" rx="10" fill="#6a3618" />
+        <!-- Body torso -->
+        <rect x="20" y="88" width="70" height="46" rx="16" fill="#6a3618" />
+        <!-- Zipper strip + teeth + pull tab -->
+        <rect x="44" y="92" width="22" height="38" rx="5" fill="#4a2008" />
+        <line x1="55" y1="96" x2="55" y2="124" stroke="#e09820" stroke-width="2.2" stroke-dasharray="3 2.5" />
+        <circle cx="55" cy="129" r="6" fill="#e09820" />
+        <!-- Ear nubs: round bumps mid-way up the head sides -->
+        <circle cx="11" cy="44" r="16" fill="#7a3c18" />
+        <circle cx="99" cy="44" r="16" fill="#7a3c18" />
+        <!-- HEAD: nearly square — 96 wide × 88 tall, rx=24 -->
+        <rect x="7" y="4" width="96" height="88" rx="24" fill="#8a4824" />
+        <!-- Top seam stitching -->
+        <path d="M24 16 Q55 5 86 16" stroke="#cc7a20" stroke-width="1.5" fill="none" stroke-dasharray="4 3"
+          opacity=".6" />
+        <!-- LEFT BUTTON EYE: large, wide-set, upper face -->
+        <circle cx="32" cy="38" r="17" fill="#0a0300" />
+        <circle cx="22" cy="27" r="7" fill="white" />
+        <circle cx="32" cy="38" r="13" fill="none" stroke="#cc7a20" stroke-width="1.2" stroke-dasharray="3 3"
+          opacity=".55" />
+        <!-- RIGHT BUTTON EYE -->
+        <circle cx="78" cy="38" r="17" fill="#0a0300" />
+        <circle cx="68" cy="27" r="7" fill="white" />
+        <circle cx="78" cy="38" r="13" fill="none" stroke="#cc7a20" stroke-width="1.2" stroke-dasharray="3 3"
+          opacity=".55" />
+        <!-- WIDE OPEN SMILE: arc starts at y=71 (lower face), center at (55,71) rx=33 ry=21 → bottom at y=92 = head bottom -->
+        <path d="M22,71 A33,21 0 0,1 88,71 Z" fill="#0e0400" />
+        <!-- Tongue: fits inside arc — at x=42 arc reaches y=90.3, tongue bottom=89 -->
+        <ellipse cx="55" cy="82" rx="13" ry="7" fill="#d8365e" />
+        <!-- Lip edge at mouth top -->
+        <path d="M22,71 A33,21 0 0,1 88,71" fill="none" stroke="#5a2008" stroke-width="2.5" stroke-linecap="round" />
+      </g>
+    </svg>
+  </div>
+
   <header>
-    <div class="logo">📚 Research Studio</div>
+    <div class="logo"><svg class="ic" width="18" height="18">
+        <use href="#i-book" />
+      </svg> Research Studio</div>
     <nav class="tabs">
-      <button class="tab-btn active" data-tab="library">📂 Library</button>
-      <button class="tab-btn" data-tab="research">🔍 Research</button>
+      <button class="tab-btn active" data-tab="library"><svg class="ic" width="15" height="15">
+          <use href="#i-folder" />
+        </svg> Library</button>
+      <button class="tab-btn" data-tab="research"><svg class="ic" width="15" height="15">
+          <use href="#i-search" />
+        </svg> Research</button>
     </nav>
     <div class="hdr-r">
       <span class="badge" id="model-badge">{{ default_model }}</span>
+      <button class="theme-btn" id="theme-toggle" title="Change theme" aria-label="Theme picker"><svg class="ic"
+          width="18" height="18">
+          <use href="#i-palette" />
+        </svg></button>
     </div>
   </header>
+
+  <!-- Theme Picker Panel -->
+  <div class="theme-panel" id="theme-panel" role="dialog" aria-label="Theme selector">
+    <div class="theme-panel-title"><svg class="ic" width="13" height="13" style="opacity:.7">
+        <use href="#i-palette" />
+      </svg> THEME</div>
+    <div class="theme-grid">
+      <button class="theme-swatch active" data-theme="void">
+        <div class="swatch-dots">
+          <div class="sd" style="background:#07090f;border:1.5px solid #444;"></div>
+          <div class="sd" style="background:#7c3aed;"></div>
+          <div class="sd" style="background:#a78bfa;"></div>
+        </div>
+        <span class="swatch-name">Void</span>
+        <span class="swatch-check">✓</span>
+      </button>
+      <button class="theme-swatch" data-theme="light">
+        <div class="swatch-dots">
+          <div class="sd" style="background:#f5f7fa;border:1.5px solid #ccc;"></div>
+          <div class="sd" style="background:#7c3aed;"></div>
+          <div class="sd" style="background:#6d28d9;"></div>
+        </div>
+        <span class="swatch-name">Light</span>
+        <span class="swatch-check">✓</span>
+      </button>
+      <button class="theme-swatch" data-theme="nord">
+        <div class="swatch-dots">
+          <div class="sd" style="background:#2e3440;"></div>
+          <div class="sd" style="background:#5e81ac;"></div>
+          <div class="sd" style="background:#88c0d0;"></div>
+        </div>
+        <span class="swatch-name">Nord</span>
+        <span class="swatch-check">✓</span>
+      </button>
+      <button class="theme-swatch" data-theme="rose">
+        <div class="swatch-dots">
+          <div class="sd" style="background:#17040f;"></div>
+          <div class="sd" style="background:#d946ef;"></div>
+          <div class="sd" style="background:#f0abfc;"></div>
+        </div>
+        <span class="swatch-name">Rose</span>
+        <span class="swatch-check">✓</span>
+      </button>
+      <button class="theme-swatch" data-theme="kirby">
+        <div class="swatch-dots">
+          <div class="sd" style="background:#1c061a;"></div>
+          <div class="sd" style="background:#ff2d96;"></div>
+          <div class="sd" style="background:#ff8fd4;"></div>
+        </div>
+        <span class="swatch-name">Kirby</span>
+        <span class="swatch-check">✓</span>
+      </button>
+      <button class="theme-swatch" data-theme="lbp">
+        <div class="swatch-dots">
+          <div class="sd" style="background:#1a1008;"></div>
+          <div class="sd" style="background:#d47c18;"></div>
+          <div class="sd" style="background:#f5b945;"></div>
+        </div>
+        <span class="swatch-name">LBP</span>
+        <span class="swatch-check">✓</span>
+      </button>
+      <button class="theme-swatch" data-theme="matrix">
+        <div class="swatch-dots">
+          <div class="sd" style="background:#000700;"></div>
+          <div class="sd" style="background:#00c840;"></div>
+          <div class="sd" style="background:#00ff51;"></div>
+        </div>
+        <span class="swatch-name">Matrix</span>
+        <span class="swatch-check">✓</span>
+      </button>
+      <button class="theme-swatch" data-theme="sunset">
+        <div class="swatch-dots">
+          <div class="sd" style="background:#0d0507;"></div>
+          <div class="sd" style="background:#e05c00;"></div>
+          <div class="sd" style="background:#ff9040;"></div>
+        </div>
+        <span class="swatch-name">Sunset</span>
+        <span class="swatch-check">✓</span>
+      </button>
+    </div>
+  </div>
 
   <!-- LIBRARY TAB -->
   <div id="tab-library" class="tab-pane active">
@@ -1442,7 +2243,9 @@
 
       <div class="upload-zone" id="upload-zone">
         <input type="file" id="file-input" accept=".pdf,.txt,.md,.docx,.yaml,.yml" multiple>
-        <div class="upload-icon">📄</div>
+        <div class="upload-icon"><svg width="44" height="44" style="color:var(--acc-l)">
+            <use href="#i-upload" />
+          </svg></div>
         <div class="upload-title">Drop your documents here</div>
         <div class="upload-sub">PDF · TXT · MD · DOCX — up to 50 MB &nbsp;·&nbsp; <span>browse to upload</span></div>
       </div>
@@ -1479,28 +2282,36 @@
       <!-- Onboarding — shown when library is empty -->
       <div id="onboard-section">
         <div class="welcome-hero">
-          <span class="w-icon">🚀</span>
+          <span class="w-icon"><svg width="48" height="48" style="color:var(--acc-l)">
+              <use href="#i-rocket" />
+            </svg></span>
           <div class="w-title">Welcome to Research Studio</div>
           <div class="w-sub">Upload your documents, index them into the vector database, then ask questions in natural
             language — sources appear instantly, AI answer follows.</div>
         </div>
         <div class="step-cards">
           <div class="sc sc-active" id="sc-1">
-            <span class="sc-icon">📂</span>
+            <span class="sc-icon"><svg width="28" height="28">
+                <use href="#i-folder" />
+              </svg></span>
             <div class="sc-num">1</div>
             <div class="sc-title">Upload Documents</div>
             <div class="sc-desc">Drag &amp; drop or click the zone above. Supports PDF, TXT, MD, and DOCX — up to 50 MB
               each.</div>
           </div>
           <div class="sc" id="sc-2">
-            <span class="sc-icon">⚡</span>
+            <span class="sc-icon"><svg width="28" height="28">
+                <use href="#i-db" />
+              </svg></span>
             <div class="sc-num">2</div>
             <div class="sc-title">Index into Vector DB</div>
             <div class="sc-desc">Once uploaded, click "Index All Files" to parse, chunk, embed, and store your docs for
               fast search.</div>
           </div>
           <div class="sc" id="sc-3">
-            <span class="sc-icon">🔍</span>
+            <span class="sc-icon"><svg width="28" height="28">
+                <use href="#i-search" />
+              </svg></span>
             <div class="sc-num">3</div>
             <div class="sc-title">Research &amp; Ask</div>
             <div class="sc-desc">Switch to the Research tab and ask in natural language — sources in milliseconds, AI
@@ -1513,7 +2324,9 @@
         <div class="lib-header">
           <span class="lib-title">Documents</span>
           <span class="lib-count" id="lib-count">0</span>
-          <button class="btn btn-ghost btn-sm" onclick="loadLibrary()">↺ Refresh</button>
+          <button class="btn btn-ghost btn-sm" onclick="loadLibrary()"><svg class="ic" width="13" height="13">
+              <use href="#i-refresh" />
+            </svg> Refresh</button>
         </div>
         <div class="file-list" id="file-list">
           <div class="empty-lib">Loading…</div>
@@ -1524,9 +2337,15 @@
         <div class="ingest-status" id="ingest-status">Index all documents into the vector database so you can search
           them.</div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <button class="btn btn-primary" id="ingest-btn" onclick="startIngest(false)">⚡ Index All Files</button>
+          <button class="btn btn-primary" id="ingest-btn" onclick="startIngest(false)"><svg class="ic" width="14"
+              height="14">
+              <use href="#i-bolt" />
+            </svg> Index All Files</button>
           <button class="btn btn-ghost btn-sm" id="reingest-btn" onclick="startIngest(true)"
-            title="Delete cached processed files and re-index everything from scratch. Use this after changing chunking settings.">🔄
+            title="Delete cached processed files and re-index everything from scratch. Use this after changing chunking settings."><svg
+              class="ic" width="13" height="13">
+              <use href="#i-refresh" />
+            </svg>
             Full Re-ingest</button>
         </div>
       </div>
@@ -1540,7 +2359,9 @@
     <div class="wrap">
 
       <div class="no-idx" id="no-idx">
-        <div class="no-idx-icon">⚠️</div>
+        <div class="no-idx-icon"><svg width="22" height="22" style="color:var(--yellow)">
+            <use href="#i-warning" />
+          </svg></div>
         <div class="no-idx-text">
           <div class="t">No documents indexed yet</div>
           <div class="s">Go to the <b>Library</b> tab to upload and index your files first.</div>
@@ -1645,13 +2466,17 @@
       if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
       return (b / 1048576).toFixed(1) + ' MB';
     }
+    function _svgIcon(id, size) {
+      size = size || 20;
+      return '<svg class="ic" width="' + size + '" height="' + size + '"><use href="#' + id + '"/></svg>';
+    }
     function docIcon(name) {
       const ext = (name || '').split('.').pop().toLowerCase();
-      if (ext === 'pdf') return { cls: 'pdf', icon: '📕' };
-      if (ext === 'md') return { cls: 'md', icon: '📝' };
-      if (ext === 'docx' || ext === 'doc') return { cls: 'md', icon: '📄' };
-      if (ext === 'txt') return { cls: 'txt', icon: '📃' };
-      return { cls: 'any', icon: '📄' };
+      if (ext === 'pdf') return { cls: 'pdf', icon: _svgIcon('i-file', 20) };
+      if (ext === 'md') return { cls: 'md', icon: _svgIcon('i-file', 20) };
+      if (ext === 'docx' || ext === 'doc') return { cls: 'md', icon: _svgIcon('i-file', 20) };
+      if (ext === 'txt') return { cls: 'txt', icon: _svgIcon('i-file', 20) };
+      return { cls: 'any', icon: _svgIcon('i-file', 20) };
     }
     function scoreColor(s) {
       const n = parseFloat(s);
@@ -1666,17 +2491,37 @@
       let s = String(raw).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       s = s.replace(/```[\w]*\n?([\s\S]*?)```/g, (_, c) => '<pre><code>' + c.trim() + '</code></pre>');
       s = s.replace(/`([^`\n]+)`/g, '<code>$1</code>');
-      s = s.replace(/^### (.+)$/gm, '<h3>$1</h3>');
-      s = s.replace(/^## (.+)$/gm, '<h2>$1</h2>');
-      s = s.replace(/^# (.+)$/gm, '<h1>$1</h1>');
-      s = s.replace(/^---+$/gm, '<hr>');
+      // Headings — most specific first so #### is not swallowed by ###
+      const _hid = t => t.trim().split(/[\s\u2014\u2013-]/)[0].replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+      s = s.replace(/^###### (.+)$/gm, (_, t) => `<h6 id="${_hid(t)}">${t}</h6>`);
+      s = s.replace(/^##### (.+)$/gm, (_, t) => `<h5 id="${_hid(t)}">${t}</h5>`);
+      s = s.replace(/^#### (.+)$/gm, (_, t) => `<h4 id="${_hid(t)}">${t}</h4>`);
+      s = s.replace(/^### (.+)$/gm, (_, t) => `<h3 id="${_hid(t)}">${t}</h3>`);
+      s = s.replace(/^## (.+)$/gm, (_, t) => `<h2 id="${_hid(t)}">${t}</h2>`);
+      s = s.replace(/^# (.+)$/gm, (_, t) => `<h1 id="${_hid(t)}">${t}</h1>`);
+      // Horizontal rules — ---, ___, ***
+      s = s.replace(/^(---+|___+|\*\*\*+)$/gm, '<hr>');
       s = s.replace(/\*\*\*(.+?)\*\*\*/gs, '<strong><em>$1</em></strong>');
       s = s.replace(/\*\*(.+?)\*\*/gs, '<strong>$1</strong>');
+      s = s.replace(/~~(.+?)~~/gs, '<del>$1</del>');
       s = s.replace(/\*([^*\n]+)\*/g, '<em>$1</em>');
-      s = s.replace(/_([^_\n]+)_/g, '<em>$1</em>');
+      // _italic_ — avoid matching _MARKER__ style identifiers (two trailing underscores)
+      s = s.replace(/(?<![\w])_([^_\n]+)_(?!_)/g, '<em>$1</em>');
+      // Links: [text](#anchor) → in-doc scroll, [text](http) → new tab, [text](x) → styled span
+      s = s.replace(/\[([^\]]+)\]\(#([^)]+)\)/g, '<a href="#" class="doc-link" data-target="$2">$1</a>');
+      s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+      s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<span class="ref-link">$1</span>');
+      // Blockquotes — empty-only lines first, then content lines; merge consecutive into one block
+      s = s.replace(/^&gt;[ \t]*$/gm, '<blockquote></blockquote>');
       s = s.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+      s = s.replace(/<\/blockquote>\n<blockquote[^>]*>/g, '<br>');
       s = s.replace(/((?:^[ \t]*[-*] .+$\n?)+)/gm, block => {
-        const items = block.split('\n').filter(l => l.trim()).map(l => '<li>' + l.replace(/^[ \t]*[-*] /, '') + ' </li>').join('');
+        const items = block.split('\n').filter(l => l.trim()).map(l => {
+          const stripped = l.replace(/^[ \t]*[-*] /, '');
+          if (/^\[x\] /i.test(stripped)) return '<li class="task done"><input type="checkbox" checked disabled> ' + stripped.slice(4) + '</li>';
+          if (/^\[ \] /.test(stripped)) return '<li class="task"><input type="checkbox" disabled> ' + stripped.slice(3) + '</li>';
+          return '<li>' + stripped + ' </li>';
+        }).join('');
         return '<ul>' + items + '</ul>';
       });
       s = s.replace(/((?:^\d+\. .+$\n?)+)/gm, block => {
@@ -1729,8 +2574,8 @@
               '<span class="status-label">' + esc(dotLabel) + '</span>' +
               '</div>' +
               '<div class="file-actions">' +
-              '<button class="btn btn-view btn-sm" data-fname="' + esc(f.filename) + '" data-page="1" data-chunk="" data-snippet="" onclick="viewDocBtn(this)">👁 View</button>' +
-              '<button class="btn btn-danger btn-sm" onclick="deleteFile(\'' + esc(f.filename) + '\')" >🗑</button>' +
+              '<button class="btn btn-view btn-sm" data-fname="' + esc(f.filename) + '" data-page="1" data-chunk="" data-snippet="" onclick="viewDocBtn(this)"><svg class="ic" width="12" height="12"><use href="#i-eye"/></svg> View</button>' +
+              '<button class="btn btn-danger btn-sm" onclick="deleteFile(\'' + esc(f.filename) + '\')"><svg class="ic" width="12" height="12"><use href="#i-trash"/></svg></button>' +
               '</div>' +
               '</div>';
           }).join('');
@@ -1826,7 +2671,7 @@
             clearInterval(_ingestPollId); _ingestPollId = null; _ingestRunning = false;
             if (s.error) { status.textContent = '✗ Error: ' + s.error; }
             else if (s.done) { status.textContent = '✓ Done in ' + s.elapsed + 's — your documents are ready to search!'; loadLibrary(); }
-            btn.disabled = false; btn.textContent = '⚡ Index All Files';
+            btn.disabled = false; btn.innerHTML = '<svg class="ic" width="14" height="14"><use href="#i-bolt"/></svg> Index All Files';
             if (document.getElementById('reingest-btn')) document.getElementById('reingest-btn').disabled = false;
           }
         } catch (e) { clearInterval(_ingestPollId); _ingestPollId = null; _resetIngestUI(); }
@@ -1836,7 +2681,7 @@
       _ingestRunning = false;
       const btn = document.getElementById('ingest-btn');
       const reingestBtn = document.getElementById('reingest-btn');
-      btn.disabled = false; btn.textContent = '⚡ Index All Files';
+      btn.disabled = false; btn.innerHTML = '<svg class="ic" width="14" height="14"><use href="#i-bolt"/></svg> Index All Files';
       if (reingestBtn) reingestBtn.disabled = false;
     }
 
@@ -1923,7 +2768,7 @@
         '</div>' +
         (prev ? '<div class="card-preview">' + esc(prev) + '</div>' : '') +
         '<div class="card-actions" onclick="event.stopPropagation()">' +
-        '<button class="btn btn-view btn-sm" data-fname="' + esc(fname) + '" data-page="' + viewPage + '" data-chunk="' + esc(String(chunk || '')) + '" data-snippet="' + esc(snippet) + '" data-section-id="' + esc(sectionId) + '" onclick="viewDocBtn(this)">👁 ' + viewLabel + '</button>' +
+        '<button class="btn btn-view btn-sm" data-fname="' + esc(fname) + '" data-page="' + viewPage + '" data-chunk="' + esc(String(chunk || '')) + '" data-snippet="' + esc(snippet) + '" data-section-id="' + esc(sectionId) + '" onclick="viewDocBtn(this)"><svg class="ic" width="12" height="12"><use href="#i-eye"/></svg> ' + viewLabel + '</button>' +
         '<button class="btn btn-open btn-sm" data-path="' + esc(path) + '" data-page="' + viewPage + '" data-idx="' + idx + '" onclick="openDocBtn(this)">↗ Open in App</button>' +
         '<span class="open-ok" id="ok-' + idx + '"></span>' +
         '</div></div>';
@@ -1931,13 +2776,13 @@
 
     function renderAI(data) {
       const raw = (data.ai_response || '').trim();
-      if (!raw) return '<div class="empty"><div class="ei">🤔</div><p>No AI response available.</p></div>';
+      if (!raw) return '<div class="empty"><div class="ei" style="color:var(--muted)"><svg width="32" height="32"><use href="#i-search"/></svg></div><p>No AI response available.</p></div>';
       const model = data.model || DEFAULT_MODEL;
       const ms = data.backend_info?.search_time_ms ?? data.total_time_ms ?? null;
       const method = data.method || '';
       return '<div class="md">' + md2html(raw) + '</div>' +
         '<div class="ai-footer">' +
-        '<span class="ai-tag model">⚡ ' + esc(model) + '</span>' +
+        '<span class="ai-tag model"><svg class="ic" width="11" height="11"><use href="#i-bolt"/></svg> ' + esc(model) + '</span>' +
         (ms != null ? '<span class="ai-tag time">⏱ ' + ms + 'ms</span>' : '') +
         (method ? '<span class="ai-tag method">' + esc(method) + '</span>' : '') +
         '</div>';
@@ -1972,12 +2817,12 @@
         const items = sd.results || [];
         srcList.innerHTML = items.length
           ? items.map((r, i) => renderCard(r, i)).join('')
-          : '<div class="empty"><div class="ei">🔍</div><p>No matching documents found.<br>Try a different question or method.</p></div>';
+          : '<div class="empty"><div class="ei"><svg width="32" height="32" style="color:var(--muted)"><use href="#i-search"/></svg></div><p>No matching documents found.<br>Try a different question or method.</p></div>';
         srcCount.textContent = items.length;
         const ms = sd.search_time_ms || (Date.now() - t0);
         statusText.textContent = items.length + ' source' + (items.length !== 1 ? 's' : '') + ' in ' + ms + 'ms · AI answering…';
       } catch (e) {
-        srcList.innerHTML = '<div class="empty"><div class="ei">⚠️</div><p>Search failed. Is Ollama running?</p></div>';
+        srcList.innerHTML = '<div class="empty"><div class="ei"><svg width="28" height="28" style="color:var(--yellow)"><use href="#i-warning"/></svg></div><p>Search failed. Is Ollama running?</p></div>';
       }
 
       try {
@@ -1987,7 +2832,7 @@
         aiMeta.textContent = total + 'ms';
         statusText.textContent = 'Done — ' + total + 'ms total';
       } catch (e) {
-        aiBox.innerHTML = '<div class="empty"><div class="ei">⚠️</div><p>AI unavailable. Check that Ollama is running.</p></div>';
+        aiBox.innerHTML = '<div class="empty"><div class="ei"><svg width="28" height="28" style="color:var(--yellow)"><use href="#i-warning"/></svg></div><p>AI unavailable. Check that Ollama is running.</p></div>';
       }
       btn.disabled = false;
     }
@@ -2000,21 +2845,39 @@
     function cardClick(card) { viewDoc(card.dataset.fname, parseInt(card.dataset.page) || 1, card.dataset.chunk || '', card.dataset.snippet || '', card.dataset.sectionId || ''); }
     function viewDocBtn(btn) { viewDoc(btn.dataset.fname, parseInt(btn.dataset.page) || 1, btn.dataset.chunk || '', btn.dataset.snippet || '', btn.dataset.sectionId || ''); }
 
-    // Inline markdown helper for table cells (bold, italic, code — no block-level elements)
+    // Inline markdown helper for table cells (bold, italic, strikethrough, code, links)
     function _inlineMd(text) {
       return text
         .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
         .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/~~(.+?)~~/g, '<del>$1</del>')
         .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-        .replace(/_([^_]+)_/g, '<em>$1</em>')
-        .replace(/`([^`]+)`/g, '<code>$1</code>');
+        .replace(/(?<![\w])_([^_\n]+)_(?!_)/g, '<em>$1</em>')
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/\[([^\]]+)\]\(#([^)]+)\)/g, '<a href="#" class="doc-link" data-target="$2">$1</a>')
+        .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<span class="ref-link">$1</span>');
     }
 
     // md2html extended: render markdown tables too
     function mdFull(raw) {
       if (!raw) return '';
+      // Protect inline code spans so HTML comments inside them are kept as-is
+      const codeSpans = {};
+      let _ci = 0;
+      raw = raw.replace(/`[^`\n]+`/g, m => {
+        const k = '\x00CODE' + (_ci++) + '\x00';
+        codeSpans[k] = m;
+        return k;
+      });
       // Strip HTML comments (<!-- S04 --> section anchors etc.)
       raw = raw.replace(/<!--[\s\S]*?-->/g, '');
+      // Restore protected code spans
+      for (const [k, v] of Object.entries(codeSpans)) {
+        raw = raw.replace(k, v);
+      }
+      // Strip custom document TABLE markers (_TABLE67__, _TABLE2__, etc.)
+      raw = raw.replace(/^_TABLE\d+__$/gm, '');
       // Pre-process tables before md2html escaping eats the pipes
       // We handle them separately on raw text first
       let tableHtml = {};
@@ -2040,6 +2903,27 @@
       }
       return s;
     }
+
+    // Delegated click handler for in-document anchor links produced by md2html
+    document.getElementById('doc-viewer').addEventListener('click', e => {
+      const link = e.target.closest('.doc-link');
+      if (!link) return;
+      e.preventDefault();
+      const target = (link.dataset.target || '').trim();
+      if (!target) return;
+      const viewer = document.getElementById('doc-viewer');
+      // 1. Try exact id match (normalised: lowercase, alphanumeric only)
+      const normId = target.toLowerCase().replace(/[^a-zA-Z0-9]/g, '');
+      const byId = viewer.querySelector('#' + CSS.escape(normId));
+      if (byId) { byId.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+      // 2. Try heading whose text starts with the target (case-insensitive)
+      for (const h of viewer.querySelectorAll('h1,h2,h3,h4,h5,h6')) {
+        if (h.textContent.trim().toUpperCase().startsWith(target.toUpperCase())) {
+          h.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          return;
+        }
+      }
+    });
 
     async function viewDoc(filename, page, chunk, snippet, sectionId) {
       if (!filename) return;
@@ -2170,6 +3054,58 @@
     // Init
     loadLibrary();
     document.getElementById('q').focus();
+
+    // ─── Theme System ──────────────────────────────────────────────────────────
+    const THEMES = {
+      void: { label: 'Void' },
+      light: { label: 'Light' },
+      nord: { label: 'Nord' },
+      rose: { label: 'Rose' },
+      kirby: { label: 'Kirby' },
+      lbp: { label: 'LittleBigPlanet' },
+      matrix: { label: 'Matrix' },
+      sunset: { label: 'Sunset' },
+    };
+
+    const STORAGE_KEY = 'rs-theme';
+
+    function applyTheme(id) {
+      const theme = THEMES[id] ? id : 'void';
+      document.documentElement.setAttribute('data-theme', theme === 'void' ? '' : theme);
+      if (!theme || theme === 'void') {
+        document.documentElement.removeAttribute('data-theme');
+      }
+      // Update active state on swatches
+      document.querySelectorAll('.theme-swatch').forEach(el => {
+        el.classList.toggle('active', el.dataset.theme === theme);
+      });
+      localStorage.setItem(STORAGE_KEY, theme);
+    }
+
+    // Theme panel open/close
+    const themeToggle = document.getElementById('theme-toggle');
+    const themePanel = document.getElementById('theme-panel');
+
+    themeToggle.addEventListener('click', e => {
+      e.stopPropagation();
+      themePanel.classList.toggle('open');
+    });
+
+    document.addEventListener('click', e => {
+      if (!themePanel.contains(e.target) && e.target !== themeToggle) {
+        themePanel.classList.remove('open');
+      }
+    });
+
+    themePanel.addEventListener('click', e => {
+      const swatch = e.target.closest('.theme-swatch');
+      if (!swatch) return;
+      applyTheme(swatch.dataset.theme);
+      themePanel.classList.remove('open');
+    });
+
+    // Load saved theme on startup
+    applyTheme(localStorage.getItem(STORAGE_KEY) || 'void');
   </script>
 </body>
 
