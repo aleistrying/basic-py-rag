@@ -480,6 +480,29 @@ echo -e "  ${DIM}Ollama model: ${MODEL}${RESET}"
 echo -e "  ${DIM}Vector DB:    local file storage (./data/qdrant_local)${RESET}"
 echo -e "  ${DIM}No Docker required.${RESET}"
 echo ""
+# ─── Desktop app launcher ────────────────────────────────────────────────────
+header "Creating desktop app"
+
+APP_NAME="Research Studio"
+APP_PATH="$HOME/Desktop/${APP_NAME}.app"
+
+# Remove stale copy if present
+rm -rf "$APP_PATH"
+
+if command -v osacompile &>/dev/null; then
+  # Build a minimal .app via AppleScript that opens a Terminal and runs start.sh
+  ESCAPED_DIR=$(printf '%s' "$SCRIPT_DIR" | sed "s/'/'\\\\''/g")
+  osacompile -o "$APP_PATH" -e "
+tell application \"Terminal\"
+  set w to do script \"cd '$ESCAPED_DIR' && bash start.sh\"
+  activate
+end tell" 2>/dev/null && success "Desktop app created: ~/Desktop/${APP_NAME}.app" \
+       || warn "osacompile failed — desktop app not created"
+else
+  warn "osacompile not found — desktop app not created"
+fi
+
+# ─── Launch ────────────────────────────────────────────────────────────────
 ask "Launch the Research UI now? [Y/n]: "
 read -r LAUNCH_NOW
 LAUNCH_NOW="${LAUNCH_NOW:-Y}"
@@ -487,6 +510,6 @@ if [[ "$LAUNCH_NOW" =~ ^[Yy]$ ]]; then
     exec "$SCRIPT_DIR/start.sh"
 else
     echo ""
-    echo -e "  Run  ${BOLD}./start.sh${RESET}  whenever you're ready."
+    echo -e "  Run  ${BOLD}./start.sh${RESET}  or double-click  ${BOLD}~/Desktop/${APP_NAME}.app${RESET}  whenever you're ready."
     echo ""
 fi

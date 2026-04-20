@@ -2080,57 +2080,82 @@
     </svg>
   </div>
 
-  <!-- "Crafty Pal" — original plush toy character, LBP-theme mascot -->
-  <!-- "Crafty Pal" — original plush toy character, LBP-theme mascot -->
+  <!-- "Crafty Pal" — Sackboy-inspired LBP mascot -->
   <div class="theme-mascot" id="mascot-lbp" aria-hidden="true">
-    <!--
-      Sackboy reference breakdown:
-      - Head is nearly square (96 wide × 88 tall), very rounded corners
-      - Ears = round bumps at the SIDES of the head (not top corners), mid-height
-      - Eyes = very large (r≈16), upper-middle of face, wide-set, white highlight at top-left
-      - Stitched button ring around each eye
-      - Mouth = wide (70% of face) shallow arc in lower 30% of face, dark cavity + tongue
-      - Body compact below head with center zipper strip + pull tab
-      - Short arms on sides of body, short stubby legs
-    -->
-    <svg width="110" height="168" viewBox="0 0 110 168" overflow="visible" xmlns="http://www.w3.org/2000/svg">
+    <svg width="120" height="178" viewBox="0 0 120 178" overflow="visible" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <!-- Head: radial gradient for round 3-D look -->
+        <radialGradient id="lbp-h" cx="36%" cy="28%" r="70%">
+          <stop offset="0%" stop-color="#c07040" />
+          <stop offset="45%" stop-color="#8a4824" />
+          <stop offset="100%" stop-color="#4e2008" />
+        </radialGradient>
+        <!-- Body/limbs gradient -->
+        <radialGradient id="lbp-b" cx="40%" cy="28%" r="65%">
+          <stop offset="0%" stop-color="#96481e" />
+          <stop offset="100%" stop-color="#4a1e08" />
+        </radialGradient>
+        <!-- Glossy eye gradient -->
+        <radialGradient id="lbp-eye" cx="32%" cy="28%" r="68%">
+          <stop offset="0%" stop-color="#3c3c3c" />
+          <stop offset="30%" stop-color="#0a0a0a" />
+          <stop offset="100%" stop-color="#000000" />
+        </radialGradient>
+        <!--
+          Stockinette knit texture: rows of V-chevrons with light+shadow strokes.
+          Each tile 10×8: 2 highlight V-arches + 2 darker shadow V-arches offset by half.
+        -->
+        <pattern id="lbp-k" x="0" y="0" width="10" height="8" patternUnits="userSpaceOnUse">
+          <!-- Row A highlight (upper edge of stitch) -->
+          <path d="M-2,4 L3,0 L8,4 L13,0" stroke="rgba(255,255,255,.13)" stroke-width="1" fill="none"
+            stroke-linejoin="round" />
+          <!-- Row A shadow (lower edge) -->
+          <path d="M-2,5 L3,1 L8,5 L13,1" stroke="rgba(0,0,0,.20)" stroke-width=".7" fill="none"
+            stroke-linejoin="round" />
+          <!-- Row B (offset by 5px) -->
+          <path d="M0,8 L5,4 L10,8" stroke="rgba(255,255,255,.13)" stroke-width="1" fill="none"
+            stroke-linejoin="round" />
+          <path d="M0,9 L5,5 L10,9" stroke="rgba(0,0,0,.20)" stroke-width=".7" fill="none" stroke-linejoin="round" />
+        </pattern>
+      </defs>
       <g class="lbp-body">
-        <!-- Legs (rendered first = behind body) -->
-        <rect x="26" y="126" width="22" height="34" rx="11" fill="#3e1a0a" />
-        <rect x="62" y="126" width="22" height="34" rx="11" fill="#3e1a0a" />
-        <!-- Arms sticking out from body sides -->
-        <rect x="1" y="96" width="20" height="30" rx="10" fill="#6a3618" />
-        <rect x="89" y="96" width="20" height="30" rx="10" fill="#6a3618" />
-        <!-- Body torso -->
-        <rect x="20" y="88" width="70" height="46" rx="16" fill="#6a3618" />
-        <!-- Zipper strip + teeth + pull tab -->
-        <rect x="44" y="92" width="22" height="38" rx="5" fill="#4a2008" />
-        <line x1="55" y1="96" x2="55" y2="124" stroke="#e09820" stroke-width="2.2" stroke-dasharray="3 2.5" />
-        <circle cx="55" cy="129" r="6" fill="#e09820" />
-        <!-- Ear nubs: round bumps mid-way up the head sides -->
-        <circle cx="11" cy="44" r="16" fill="#7a3c18" />
-        <circle cx="99" cy="44" r="16" fill="#7a3c18" />
-        <!-- HEAD: nearly square — 96 wide × 88 tall, rx=24 -->
-        <rect x="7" y="4" width="96" height="88" rx="24" fill="#8a4824" />
-        <!-- Top seam stitching -->
-        <path d="M24 16 Q55 5 86 16" stroke="#cc7a20" stroke-width="1.5" fill="none" stroke-dasharray="4 3"
-          opacity=".6" />
-        <!-- LEFT BUTTON EYE: large, wide-set, upper face -->
-        <circle cx="32" cy="38" r="17" fill="#0a0300" />
-        <circle cx="22" cy="27" r="7" fill="white" />
-        <circle cx="32" cy="38" r="13" fill="none" stroke="#cc7a20" stroke-width="1.2" stroke-dasharray="3 3"
-          opacity=".55" />
-        <!-- RIGHT BUTTON EYE -->
-        <circle cx="78" cy="38" r="17" fill="#0a0300" />
-        <circle cx="68" cy="27" r="7" fill="white" />
-        <circle cx="78" cy="38" r="13" fill="none" stroke="#cc7a20" stroke-width="1.2" stroke-dasharray="3 3"
-          opacity=".55" />
-        <!-- SMILE: bezier top-lip arches UP = wide happy grin; cavity fills to chin -->
-        <path d="M18,78 Q55,65 90,78 L90,92 Q55,99 20,92 Z" fill="#0e0400" />
-        <!-- Tongue in lower mouth cavity -->
-        <ellipse cx="55" cy="85" rx="12" ry="5" fill="#d8365e" />
-        <!-- Top lip stroke -->
-        <path d="M20,78 Q55,65 90,78" fill="none" stroke="#5a2008" stroke-width="2.5" stroke-linecap="round" />
+        <!-- LEGS -->
+        <rect x="26" y="136" width="24" height="36" rx="12" fill="url(#lbp-b)" />
+        <rect x="70" y="136" width="24" height="36" rx="12" fill="url(#lbp-b)" />
+        <!-- ARMS: angled outward -->
+        <rect x="1" y="108" width="20" height="32" rx="10" fill="url(#lbp-b)" transform="rotate(-20 11 124)" />
+        <rect x="99" y="108" width="20" height="32" rx="10" fill="url(#lbp-b)" transform="rotate(20 109 124)" />
+        <!-- BODY TORSO -->
+        <rect x="22" y="98" width="76" height="50" rx="18" fill="url(#lbp-b)" />
+        <rect x="22" y="98" width="76" height="50" rx="18" fill="url(#lbp-k)" opacity=".6" />
+        <!-- Zipper -->
+        <rect x="46" y="102" width="28" height="42" rx="6" fill="#2e1006" />
+        <line x1="60" y1="107" x2="60" y2="138" stroke="#d49010" stroke-width="2.5" stroke-dasharray="4 3.5" />
+        <circle cx="60" cy="142" r="7" fill="#d49010" />
+        <!-- HEAD: wider-than-tall (rx=54 ry=46) = squished-sphere plushie shape, flat on top -->
+        <ellipse cx="60" cy="46" rx="54" ry="46" fill="url(#lbp-h)" />
+        <!-- Knit texture on head -->
+        <ellipse cx="60" cy="46" rx="54" ry="46" fill="url(#lbp-k)" opacity=".55" />
+        <!-- Top seam stitching arc -->
+        <path d="M24 14 Q60 2 96 14" stroke="#c07018" stroke-width="1.8" fill="none" stroke-dasharray="5 4"
+          opacity=".80" />
+        <!-- LEFT EYE -->
+        <circle cx="35" cy="33" r="15" fill="url(#lbp-eye)" />
+        <circle cx="35" cy="33" r="15" fill="none" stroke="rgba(0,0,0,.6)" stroke-width="2" />
+        <circle cx="28" cy="26" r="3" fill="white" opacity=".90" />
+        <!-- RIGHT EYE -->
+        <circle cx="85" cy="33" r="15" fill="url(#lbp-eye)" />
+        <circle cx="85" cy="33" r="15" fill="none" stroke="rgba(0,0,0,.6)" stroke-width="2" />
+        <circle cx="78" cy="26" r="3" fill="white" opacity=".90" />
+        <!--
+          SMILE: chin at cy+ry = 46+46 = y=92. Corners at y=57, control dips to y=67 (U-shape=SMILE).
+          Cavity bottom at y=71. Chin gap = 92-71 = 21px of visible chin. ✓
+          Tongue y=67-72 — fully inside cavity, visible through the open mouth.
+        -->
+        <path d="M20,57 Q60,67 100,57 L98,71 Q60,76 22,71 Z" fill="#0a0100" />
+        <path d="M42,67 Q60,64 78,67 Q79,72 60,73 Q41,72 42,67 Z" fill="#d03060" />
+        <line x1="60" y1="67" x2="60" y2="72" stroke="rgba(0,0,0,.20)" stroke-width="1.2" stroke-linecap="round" />
+        <path d="M20,57 Q60,67 100,57" fill="none" stroke="#4a1808" stroke-width="2.5" stroke-linecap="round" />
       </g>
     </svg>
   </div>
@@ -2405,6 +2430,8 @@
           <button class="pill" data-method="pipeline">Pipeline ✦<span class="pill-tip">Staged evidence pipeline:
               case/doctrine/HyDE query buckets, gap analysis, iterative second pass, structured evidence extraction,
               contradiction check. Best for legal yes/no questions.</span></button>
+          <button class="pill" data-method="sources-only">Sources Only<span class="pill-tip">Pure semantic search — no
+              AI call. Returns matching passages instantly. Click any result to open the document.</span></button>
         </div>
       </div>
 
@@ -2418,7 +2445,7 @@
           <div class="panel-hdr"><span>Sources</span><span class="panel-meta" id="src-count">—</span></div>
           <div id="sources-list"></div>
         </div>
-        <div>
+        <div id="ai-panel">
           <div class="panel-hdr"><span>AI Answer</span><span class="panel-meta" id="ai-meta">—</span></div>
           <div class="ai-box" id="ai-box"></div>
         </div>
@@ -2807,10 +2834,13 @@
       btn.disabled = true;
       const t0 = Date.now();
 
-      const searchP = fetch('/api/research/search?q=' + encodeURIComponent(q) + '&method=' + activeMethod + '&k=6')
+      const sourcesOnly = activeMethod === 'sources-only';
+      const aiPanel = document.getElementById('ai-panel');
+      aiPanel.style.display = sourcesOnly ? 'none' : '';
+
+      const searchMethod = sourcesOnly ? 'standard' : activeMethod;
+      const searchP = fetch('/api/research/search?q=' + encodeURIComponent(q) + '&method=' + searchMethod + '&k=' + (sourcesOnly ? 10 : 6))
         .then(r => r.json()).catch(e => ({ error: String(e), results: [] }));
-      const aiP = fetch('/api/research/ai?q=' + encodeURIComponent(q) + '&method=' + activeMethod + '&model=' + encodeURIComponent(DEFAULT_MODEL))
-        .then(r => r.json()).catch(e => ({ error: String(e), ai_response: 'Error contacting AI service.' }));
 
       try {
         const sd = await searchP;
@@ -2820,18 +2850,38 @@
           : '<div class="empty"><div class="ei"><svg width="32" height="32" style="color:var(--muted)"><use href="#i-search"/></svg></div><p>No matching documents found.<br>Try a different question or method.</p></div>';
         srcCount.textContent = items.length;
         const ms = sd.search_time_ms || (Date.now() - t0);
+        if (sourcesOnly) {
+          statusText.textContent = items.length + ' source' + (items.length !== 1 ? 's' : '') + ' in ' + ms + 'ms · click any to open';
+          btn.disabled = false;
+          return;
+        }
         statusText.textContent = items.length + ' source' + (items.length !== 1 ? 's' : '') + ' in ' + ms + 'ms · AI answering…';
       } catch (e) {
         srcList.innerHTML = '<div class="empty"><div class="ei"><svg width="28" height="28" style="color:var(--yellow)"><use href="#i-warning"/></svg></div><p>Search failed. Is Ollama running?</p></div>';
+        btn.disabled = false;
+        return;
       }
+
+      // AI call — no browser-side timeout; slow Mac models will just keep waiting
+      const aiP = fetch('/api/research/ai?q=' + encodeURIComponent(q) + '&method=' + activeMethod + '&model=' + encodeURIComponent(DEFAULT_MODEL))
+        .then(r => r.json()).catch(e => ({ error: String(e), ai_response: 'Error contacting AI service.' }));
+
+      // Pulse the status bar while AI thinks (no fake timeout)
+      let _pulse = 0;
+      const _pulseTimer = setInterval(() => {
+        _pulse++;
+        statusText.textContent = 'AI thinking' + '.'.repeat((_pulse % 3) + 1);
+      }, 800);
 
       try {
         const ad = await aiP;
+        clearInterval(_pulseTimer);
         aiBox.innerHTML = renderAI(ad);
         const total = Date.now() - t0;
         aiMeta.textContent = total + 'ms';
         statusText.textContent = 'Done — ' + total + 'ms total';
       } catch (e) {
+        clearInterval(_pulseTimer);
         aiBox.innerHTML = '<div class="empty"><div class="ei"><svg width="28" height="28" style="color:var(--yellow)"><use href="#i-warning"/></svg></div><p>AI unavailable. Check that Ollama is running.</p></div>';
       }
       btn.disabled = false;
